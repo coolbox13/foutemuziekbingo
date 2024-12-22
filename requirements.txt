@@ -1,0 +1,9 @@
+Flask
+spotipy
+qrcode
+reportlab
+python-dotenv
+WeasyPrint
+tailwindcss
+qrcode
+reportlab 

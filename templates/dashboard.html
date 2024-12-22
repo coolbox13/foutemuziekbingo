@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <title>Foute Muziek Bingo Dashboard</title>
+  <!-- Tailwind CSS at "latest" -->
+  <link
+    href="https://cdn.jsdelivr.net/npm/tailwindcss@latest/dist/tailwind.min.css"
+    rel="stylesheet"
+  />
+  <style>
+    .card-grid {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 4px;
+    }
+    .card-cell {
+      border: 1px solid #ccc;
+      padding: 6px;
+      min-height: 40px;
+      text-align: center;
+      font-size: 0.85rem;
+    }
+  </style>
+</head>
+<body class="bg-gray-100 p-4">
+  <div class="max-w-5xl mx-auto bg-white p-6 rounded shadow">
+    <h1 class="text-2xl font-bold mb-4">Foute Muziek Bingo Dashboard</h1>
+    
+    <!-- Playlist Management -->
+    <div class="border p-3 rounded mb-4">
+      <h2 class="text-xl font-semibold mb-2">Playlist Management</h2>
+      <div class="flex items-end space-x-3 mb-3">
+        <div>
+          <label class="block">Playlist Name</label>
+          <input id="newPlaylistName" class="border p-1 w-48" type="text" />
+        </div>
+        <div>
+          <label class="block">Playlist ID/URI</label>
+          <input id="newPlaylistID" class="border p-1 w-64" type="text" placeholder="spotify:playlist:XXX" />
+        </div>
+        <div class="flex items-center space-x-1">
+          <label>Default?</label>
+          <input id="newPlaylistDefault" type="checkbox" />
+        </div>
+        <button id="btnAddPlaylist" class="px-4 py-2 bg-blue-600 text-white rounded">Add Playlist</button>
+      </div>
+      <p id="addPlaylistMsg" class="text-sm text-red-600"></p>
+    </div>
+
+    <!-- Playlist Selection -->
+    <div class="border p-3 rounded mb-4">
+      <h2 class="text-xl font-semibold mb-2">Select & Load Playlist</h2>
+      <div class="flex items-center space-x-3 mb-3">
+        <select id="playlistSelect" class="border p-1 w-64">
+          <!-- Populated by JS from /api/get_playlists -->
+        </select>
+        <button id="btnLoadPlaylist" class="px-4 py-2 bg-blue-600 text-white rounded">Load Selected Playlist</button>
+        <button id="btnNewRound" class="px-4 py-2 bg-yellow-600 text-white rounded">New Round</button>
+      </div>
+      <p id="playlistMsg" class="text-sm text-red-600"></p>
+    </div>
+
+    <!-- Device Selection -->
+    <div class="border p-3 rounded mb-4">
+      <h2 class="text-xl font-semibold mb-2">Device Selection</h2>
+      <div class="flex items-center space-x-3 mb-3">
+        <select id="deviceSelect" class="border p-1 w-64">
+          <!-- Populated by JS from /api/get_devices -->
+        </select>
+        <button id="btnSelectDevice" class="px-4 py-2 bg-blue-600 text-white rounded">Use This Device</button>
+      </div>
+      <p id="deviceMsg" class="text-sm text-red-600"></p>
+    </div>
+
+    <!-- Bingo Cards -->
+    <div class="border p-3 rounded mb-4">
+      <h2 class="text-xl font-semibold mb-2">Generate Bingo Cards</h2>
+      <div class="flex items-center space-x-3 mb-3">
+        <label class=""># Cards</label>
+        <input id="numCardsInput" class="border p-1 w-16" type="number" value="2" />
+        <button id="btnGenerateCards" class="px-4 py-2 bg-green-600 text-white rounded">Generate Cards</button>
+      </div>
+      <p id="cardsMsg" class="text-sm text-red-600"></p>
+    </div>
+
+    <!-- Playback Controls -->
+    <div class="border p-3 rounded mb-4">
+      <h2 class="text-xl font-semibold mb-2">Playback Controls</h2>
+      <p class="text-sm text-gray-600 mb-2">
+        *Play = pick random track from unplayed<br/>
+        *Pause = pause current track<br/>
+        *Next = pick next random track from unplayed
+      </p>
+      <div class="flex space-x-2">
+        <button id="btnPlay" class="px-4 py-2 bg-green-600 text-white rounded">Play</button>
+        <button id="btnPause" class="px-4 py-2 bg-yellow-600 text-white rounded">Pause</button>
+        <button id="btnNext" class="px-4 py-2 bg-purple-600 text-white rounded">Next</button>
+      </div>
+      <p id="playbackMsg" class="text-sm text-red-600 mt-2"></p>
+    </div>
+
+    <!-- Bingo Cards Display -->
+    <div class="border p-3 rounded mb-4">
+      <h2 class="text-xl font-semibold mb-2">Current Bingo Cards</h2>
+      <div id="cardsContainer" class="space-y-4"></div>
+    </div>
+
+    <!-- Played Tracks -->
+    <div class="border p-3 rounded">
+      <h2 class="text-xl font-semibold mb-2">
+        Played Tracks 
+        <span id="unplayedCountLabel" class="text-sm text-gray-600"></span>
+      </h2>
+      <ul id="playedTracksList" class="list-disc ml-6 mt-2"></ul>
+    </div>
+  </div>
+
+  <script>
+    async function fetchJSON(url, options={}) {
+      const resp = await fetch(url, options);
+      return resp.json();
+    }
+
+    // 1. Add Playlist
+    document.getElementById('btnAddPlaylist').addEventListener('click', async () => {
+      const name = document.getElementById('newPlaylistName').value.trim();
+      const pid = document.getElementById('newPlaylistID').value.trim();
+      const isDef = document.getElementById('newPlaylistDefault').checked;
+      const msgEl = document.getElementById('addPlaylistMsg');
+      msgEl.textContent = '';
+
+      if (!name || !pid) {
+        msgEl.textContent = 'Name and ID cannot be empty.';
+        return;
+      }
+
+      try {
+        const res = await fetchJSON('/api/add_playlist', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: pid, name, is_default: isDef })
+        });
+        if (res.error) {
+          msgEl.textContent = res.error;
+        } else {
+          msgEl.textContent = res.message;
+          // Reload playlists dropdown
+          await loadPlaylistsIntoSelect();
+        }
+      } catch(err) {
+        msgEl.textContent = 'Error adding playlist: ' + err;
+      }
+    });
+
+    // 2. Load playlists
+    async function loadPlaylistsIntoSelect() {
+      const data = await fetchJSON('/api/get_playlists');
+      const select = document.getElementById('playlistSelect');
+      select.innerHTML = '';
+      data.playlists.forEach(pl => {
+        const opt = document.createElement('option');
+        opt.value = pl.id;
+        opt.textContent = pl.name;
+        if (pl.is_default) opt.selected = true;
+        select.appendChild(opt);
+      });
+    }
+
+    // 3. Load playlist => sets UNPLAYED_TRACKS, resets PLAYED_TRACKS
+    document.getElementById('btnLoadPlaylist').addEventListener('click', async () => {
+      const pid = document.getElementById('playlistSelect').value;
+      const msgEl = document.getElementById('playlistMsg');
+      msgEl.textContent = '';
+      try {
+        const res = await fetchJSON('/api/select_playlist', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ playlist_id: pid })
+        });
+        if (res.error) {
+          msgEl.textContent = res.error;
+        } else {
+          msgEl.textContent = res.message;
+        }
+      } catch(err) {
+        msgEl.textContent = 'Error loading playlist: ' + err;
+      }
+      await refreshPlayedTracks();
+    });
+
+    // 4. New Round => shuffle tracks, reset played
+    document.getElementById('btnNewRound').addEventListener('click', async () => {
+      const msgEl = document.getElementById('playlistMsg');
+      msgEl.textContent = '';
+      try {
+        const res = await fetchJSON('/api/new_round', { method: 'POST' });
+        if (res.error) {
+          msgEl.textContent = res.error;
+        } else {
+          msgEl.textContent = res.message;
+        }
+      } catch(err) {
+        msgEl.textContent = 'Error new round: ' + err;
+      }
+      await refreshPlayedTracks();
+    });
+
+    // 5. Load devices
+    async function loadDevicesIntoSelect() {
+      const data = await fetchJSON('/api/get_devices');
+      const deviceSelect = document.getElementById('deviceSelect');
+      deviceSelect.innerHTML = '';
+      if (data.devices) {
+        data.devices.forEach(dev => {
+          const opt = document.createElement('option');
+          opt.value = dev.id;
+          opt.textContent = dev.name + (dev.is_active ? ' (active)' : '') + (dev.is_restricted ? ' [restricted]' : '');
+          deviceSelect.appendChild(opt);
+        });
+      }
+    }
+    document.getElementById('btnSelectDevice').addEventListener('click', async () => {
+      const deviceId = document.getElementById('deviceSelect').value;
+      const msgEl = document.getElementById('deviceMsg');
+      msgEl.textContent = '';
+      try {
+        const res = await fetchJSON('/api/select_device', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ device_id: deviceId })
+        });
+        if (res.error) {
+          msgEl.textContent = res.error;
+        } else {
+          msgEl.textContent = res.message;
+        }
+      } catch(err) {
+        msgEl.textContent = 'Error selecting device: ' + err;
+      }
+    });
+
+    // 6. Generate Bingo Cards
+    document.getElementById('btnGenerateCards').addEventListener('click', async () => {
+      const numCards = parseInt(document.getElementById('numCardsInput').value, 10);
+      const msgEl = document.getElementById('cardsMsg');
+      msgEl.textContent = '';
+      try {
+        const res = await fetchJSON('/api/generate_cards', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ num_cards: numCards })
+        });
+        if (res.error) {
+          msgEl.textContent = res.error;
+        } else {
+          msgEl.textContent = res.message;
+          await loadCards();
+        }
+      } catch(err) {
+        msgEl.textContent = 'Error generating cards: ' + err;
+      }
+    });
+
+    // 7. Load Cards
+    async function loadCards() {
+      const data = await fetchJSON('/api/get_cards');
+      const cards = data.cards;
+      const cardsContainer = document.getElementById('cardsContainer');
+      cardsContainer.innerHTML = '';
+
+      for (const cardId in cards) {
+        const tracks = cards[cardId];
+        const cardDiv = document.createElement('div');
+        cardDiv.classList.add('p-2','border','rounded','mb-2');
+
+        const heading = document.createElement('h3');
+        heading.classList.add('font-bold','mb-2');
+        heading.textContent = `Card ID: ${cardId}`;
+        cardDiv.appendChild(heading);
+
+        const grid = document.createElement('div');
+        grid.classList.add('card-grid','mb-2');
+        tracks.forEach(t => {
+          const cell = document.createElement('div');
+          cell.classList.add('card-cell');
+          cell.textContent = t.artist + " - " + t.name;
+          grid.appendChild(cell);
+        });
+        cardDiv.appendChild(grid);
+
+        const checkBtn = document.createElement('button');
+        checkBtn.classList.add('px-3','py-1','bg-blue-400','text-white','rounded');
+        checkBtn.textContent = 'Check Bingo';
+        checkBtn.addEventListener('click', async () => {
+          const r = await fetchJSON(`/api/check_bingo/${cardId}`);
+          if (r.error) {
+            alert(`Error: ${r.error}`);
+          } else {
+            if (r.is_bingo) {
+              alert(`BINGO! You matched ${r.matched_count} squares.`);
+            } else {
+              alert(`Not yet. You matched ${r.matched_count} squares.`);
+            }
+          }
+        });
+        cardDiv.appendChild(checkBtn);
+
+        cardsContainer.appendChild(cardDiv);
+      }
+    }
+
+    // 8. Playback
+    document.getElementById('btnPlay').addEventListener('click', () => playbackAction('play'));
+    document.getElementById('btnPause').addEventListener('click', () => playbackAction('pause'));
+    document.getElementById('btnNext').addEventListener('click', () => playbackAction('next'));
+
+    async function playbackAction(action) {
+      const msgEl = document.getElementById('playbackMsg');
+      msgEl.textContent = '';
+      try {
+        const res = await fetchJSON(`/api/playback/${action}`, { method: 'POST' });
+        if (res.error) {
+          msgEl.textContent = res.error;
+        } else if (res.message) {
+          msgEl.textContent = res.message;
+          // If a random track was played, let's add it to the UI
+          if (res.track) {
+            addPlayedTrack(res.track);
+          }
+        }
+      } catch(err) {
+        msgEl.textContent = 'Playback error: ' + err;
+      }
+      await refreshUnplayedCount();
+    }
+
+    // 9. Show played tracks
+    async function refreshPlayedTracks() {
+      const data = await fetchJSON('/api/played_tracks');
+      const listElem = document.getElementById('playedTracksList');
+      listElem.innerHTML = '';
+      data.played_tracks.forEach(t => {
+        const li = document.createElement('li');
+        li.textContent = t.artist + " - " + t.name;
+        listElem.appendChild(li);
+      });
+      await refreshUnplayedCount();
+    }
+    function addPlayedTrack(t) {
+      const listElem = document.getElementById('playedTracksList');
+      const li = document.createElement('li');
+      li.textContent = t.artist + " - " + t.name;
+      listElem.appendChild(li);
+    }
+    async function refreshUnplayedCount() {
+      const lbl = document.getElementById('unplayedCountLabel');
+      const d = await fetchJSON('/api/get_unplayed_count');
+      lbl.textContent = `(Unplayed: ${d.unplayed_count})`;
+    }
+
+    // On page load
+    window.addEventListener('DOMContentLoaded', async () => {
+      await loadPlaylistsIntoSelect();
+      await loadDevicesIntoSelect();
+      await loadCards();
+      await refreshPlayedTracks();
+    });
+  </script>
+</body>
+</html>
