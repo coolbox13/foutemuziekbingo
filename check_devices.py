@@ -8,18 +8,24 @@ from spotipy.oauth2 import SpotifyOAuth, SpotifyOauthError
 
 # If you have a .env with SPOTIFY_CLIENT_ID etc., you can do:
 from dotenv import load_dotenv
+
 load_dotenv()
 
 SPOTIFY_CLIENT_ID = os.getenv("SPOTIFY_CLIENT_ID", "YOUR_CLIENT_ID")
 SPOTIFY_CLIENT_SECRET = os.getenv("SPOTIFY_CLIENT_SECRET", "YOUR_CLIENT_SECRET")
-SPOTIFY_REDIRECT_URI = os.getenv("SPOTIFY_REDIRECT_URI", "http://localhost:8888/callback")
+SPOTIFY_REDIRECT_URI = os.getenv(
+    "SPOTIFY_REDIRECT_URI", "http://localhost:8888/callback"
+)
 SCOPE = "user-read-playback-state"
 
 CACHE_PATH = ".cache-checkdevices"
 
 
 def main():
-    if SPOTIFY_CLIENT_ID == "YOUR_CLIENT_ID" or SPOTIFY_CLIENT_SECRET == "YOUR_CLIENT_SECRET":
+    if (
+        SPOTIFY_CLIENT_ID == "YOUR_CLIENT_ID"
+        or SPOTIFY_CLIENT_SECRET == "YOUR_CLIENT_SECRET"
+    ):
         print("⚠️  Please set SPOTIFY_CLIENT_ID and SPOTIFY_CLIENT_SECRET.")
         sys.exit(1)
 
@@ -30,7 +36,7 @@ def main():
         redirect_uri=SPOTIFY_REDIRECT_URI,
         scope=SCOPE,
         cache_path=CACHE_PATH,
-        show_dialog=False  # or True if you want to force re-auth
+        show_dialog=False,  # or True if you want to force re-auth
     )
 
     # Attempt to read a cached token
@@ -50,7 +56,9 @@ def main():
         print("Opening browser for Spotify authorization...")
         webbrowser.open(auth_url)
 
-        print("After approving, you'll be redirected. Copy the entire redirect URL and paste it below.")
+        print(
+            "After approving, you'll be redirected. Copy the entire redirect URL and paste it below."
+        )
         response_url = input("Paste the URL here: ").strip()
 
         # Parse out the code
@@ -105,6 +113,7 @@ def main():
             else:
                 print("Supports Volume:    (not provided)")
     print("\nDone.")
+
 
 if __name__ == "__main__":
     main()

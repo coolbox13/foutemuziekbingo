@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>PDF Bingo Cards</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      margin: 20px;
+    }
+    h1 {
+      text-align: center;
+      margin-bottom: 20px;
+    }
+    h2 {
+      text-align: center;
+      margin: 10px 0;
+    }
+    table {
+      border-collapse: collapse;
+      margin: 0 auto 50px auto;
+    }
+    td, th {
+      border: 1px solid #000;
+      padding: 6px;
+      width: 130px;
+      height: 60px;
+      text-align: center;
+      vertical-align: middle;
+      font-size: 12px;
+    }
+    .bingo-letters {
+      text-align: center;
+      font-weight: bold;
+      background: #eee;
+    }
+    .card-container {
+      page-break-after: always;
+    }
+    .center-cell img {
+      width: 60px;
+      height: 60px;
+    }
+  </style>
+</head>
+<body>
+<h1>Muziek Bingo Cards</h1>
+
+{% for card_id, card_data in cards.items() %}
+<div class="card-container">
+  <h2>{{ card_data.title }}</h2>
+  <table>
+    <tr>
+      {% for letter in ['B','I','N','G','O'] %}
+      <th class="bingo-letters">{{ letter }}</th>
+      {% endfor %}
+    </tr>
+    {% for r in range(5) %}
+    <tr>
+      {% for c in range(5) %}
+      {% set cell = card_data['layout'][r][c] %}
+      {% if r == 2 and c == 2 %}
+        {% set qr_png = generate_qr_code_png(card_id) %}
+        {% set qr_b64 = qr_png|b64encode %}
+        <td class="center-cell">
+          <img src="data:image/png;base64,{{ qr_b64 }}" alt="QR"/>
+        </td>
+      {% else %}
+        {% if cell.free %}
+          <td>FREE</td>
+        {% else %}
+          <td>
+            {{ cell.artist }}<br/>
+            {{ cell.name }}
+          </td>
+        {% endif %}
+      {% endif %}
+      {% endfor %}
+    </tr>
+    {% endfor %}
+  </table>
+</div>
+{% endfor %}
+</body>
+</html>

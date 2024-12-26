@@ -1,17 +1,22 @@
 [
-  {
-    "id": "spotify:playlist:37i9dQZF1DXcBWIGoYBM5M",
-    "name": "Pop Example",
-    "is_default": false
-  },
-  {
-    "id": "spotify:playlist:37i9dQZF1DX4W3aJJYCDfV",
-    "name": "Rock Example",
-    "is_default": false
-  },
-  {
-    "id": "https://open.spotify.com/playlist/5vqVbMB9QNBMdXvu7Gtyyw?si=b36f9e284d8c4106",
-    "name": "Foute Muziek Bingo",
-    "is_default": true
-  }
+    {
+        "id": "spotify:playlist:37i9dQZF1DXcBWIGoYBM5M",
+        "name": "Pop Example",
+        "is_default": false
+    },
+    {
+        "id": "spotify:playlist:37i9dQZF1DX4W3aJJYCDfV",
+        "name": "Rock Example",
+        "is_default": false
+    },
+    {
+        "id": "https://open.spotify.com/playlist/5vqVbMB9QNBMdXvu7Gtyyw?si=b36f9e284d8c4106",
+        "name": "Foute Muziek Bingo",
+        "is_default": false
+    },
+    {
+        "id": "https://open.spotify.com/playlist/7jGLlHSJum8EpoXc9uTRGa?si=8bbf353901c84e7a",
+        "name": "https://open.spotify.com/playlist/7jGLlHSJum8EpoXc9uTRGa?si=8bbf353901c84e7a",
+        "is_default": true
+    }
 ]

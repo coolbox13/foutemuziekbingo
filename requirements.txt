@@ -6,4 +6,8 @@ python-dotenv
 WeasyPrint
 tailwindcss
 qrcode
-reportlab 
+reportlab
+flask-cors
+flask-socketio
+reportlab
+Pillow
