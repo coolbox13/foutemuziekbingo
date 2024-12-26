@@ -1,4 +1,3 @@
-```markdown
 # Foute Muziek Bingo
 
 A web-based bingo game that uses Spotify tracks to create and manage musical bingo cards.
