@@ -33,8 +33,13 @@ npm-debug.log
 .env.* 
 
 # Cache files
-.cache/ 
+.cache
+.cache-checkdevices
 
 # Editor preferences
 *.sublime-workspace 
 *.sublime-project 
+
+.gitignore
+
+app/__pycache__/
