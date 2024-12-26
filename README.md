@@ -1,5 +1,3 @@
-Here's a README.md for your project:
-
 ```markdown
 # Foute Muziek Bingo
 
@@ -135,5 +133,3 @@ Feel free to submit issues and pull requests.
 ## License
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details
 ```
-
-Would you like me to add or modify any sections?
