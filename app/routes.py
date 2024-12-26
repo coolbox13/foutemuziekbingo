@@ -15,13 +15,10 @@ def before_request():
     log_request_info()
 
 
-# This file is now reserved for centralized logging and shared imports.
-# All individual route groups have been moved to separate files.
-
-
 def register_blueprints(app):
     """Register all blueprints to the Flask application."""
-    app.logger.info("Registering dashboard blueprint.")
+    app.logger.info("Registering blueprints.")
+
     from app.auth_routes import bp as auth_bp
     from app.dashboard_routes import bp as dashboard_bp
     from app.playlist_routes import bp as playlist_bp
@@ -30,6 +27,7 @@ def register_blueprints(app):
     from app.playback_routes import bp as playback_bp
     from app.game_routes import bp as game_bp
 
+    # Register all blueprints with their prefixes
     app.register_blueprint(auth_bp, url_prefix="/auth")
     app.register_blueprint(dashboard_bp, url_prefix="/dashboard")
     app.register_blueprint(playlist_bp, url_prefix="/playlist")

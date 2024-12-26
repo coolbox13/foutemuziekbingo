@@ -1,5 +1,5 @@
 from app import create_app, socketio
-import app.socket_events  # This is important to register the event handlers
+import archive.socket_events  # This is important to register the event handlers
 
 app = create_app()
 

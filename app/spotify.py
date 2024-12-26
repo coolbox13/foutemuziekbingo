@@ -12,7 +12,7 @@ def get_spotify_oauth():
         client_id=os.getenv("SPOTIFY_CLIENT_ID"),
         client_secret=os.getenv("SPOTIFY_CLIENT_SECRET"),
         redirect_uri=os.getenv(
-            "SPOTIFY_REDIRECT_URI", "http://localhost:1313/callback"
+            "SPOTIFY_REDIRECT_URI", "http://localhost:1313/auth/callback"
         ),
         scope="playlist-read-private user-read-playback-state user-modify-playback-state user-read-currently-playing",
     )
@@ -32,7 +32,7 @@ def refresh_spotify_token():
     if "token_info" not in session:
         raise Exception("No token information found in session.")
 
-    sp_oauth = get_spotify_oauth()  # Ensure the `get_spotify_oauth` function is defined
+    sp_oauth = get_spotify_oauth()
 
     token_info = session["token_info"]
     if sp_oauth.is_token_expired(token_info):

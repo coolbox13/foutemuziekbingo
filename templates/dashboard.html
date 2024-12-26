@@ -28,6 +28,32 @@
             <h1 class="text-2xl font-bold">Foute Muziek Bingo Dashboard</h1>
             <span id="connectionStatus" class="text-gray-600">Connecting...</span>
         </div>
+        
+        <div class="bg-white rounded-lg shadow-md p-6 mb-6">
+            <h2 class="text-xl font-semibold mb-4">Game Statistics</h2>
+            <div class="grid grid-cols-2 md:grid-cols-5 gap-4">
+                <div class="bg-blue-50 p-4 rounded-lg">
+                    <h3 class="text-sm font-semibold text-blue-700">Total Tracks</h3>
+                    <p id="totalTracksCount" class="text-2xl font-bold text-blue-900">0</p>
+                </div>
+                <div class="bg-green-50 p-4 rounded-lg">
+                    <h3 class="text-sm font-semibold text-green-700">Played Tracks</h3>
+                    <p id="playedTracksCount" class="text-2xl font-bold text-green-900">0</p>
+                </div>
+                <div class="bg-yellow-50 p-4 rounded-lg">
+                    <h3 class="text-sm font-semibold text-yellow-700">Remaining</h3>
+                    <p id="remainingTracksCount" class="text-2xl font-bold text-yellow-900">0</p>
+                </div>
+                <div class="bg-purple-50 p-4 rounded-lg">
+                    <h3 class="text-sm font-semibold text-purple-700">Active Cards</h3>
+                    <p id="cardsWithMatches" class="text-2xl font-bold text-purple-900">0</p>
+                </div>
+                <div class="bg-red-50 p-4 rounded-lg">
+                    <h3 class="text-sm font-semibold text-red-700">Bingos</h3>
+                    <p id="bingoCount" class="text-2xl font-bold text-red-900">0</p>
+                </div>
+            </div>
+        </div>
 
         <!-- Playlist Management -->
         <div class="border p-3 rounded mb-4">
