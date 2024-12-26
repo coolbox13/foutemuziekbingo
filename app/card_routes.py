@@ -7,25 +7,28 @@ import random
 import uuid
 from io import BytesIO
 
+
 def check_bingo_status(card, played_tracks):
     matches = card.get("matches", [])
-    
+
     # Check rows
     for row in range(5):
         row_positions = range(row * 5, (row + 1) * 5)
         if all(pos in matches for pos in row_positions):
             return True
-            
+
     # Check columns
     for col in range(5):
         col_positions = range(col, 25, 5)
         if all(pos in matches for pos in col_positions):
             return True
-            
+
     return False
+
 
 bp = Blueprint("card", __name__)
 game_state = ThreadSafeGameState()
+
 
 @bp.route("/api/generate_cards", methods=["POST"])
 def api_generate_cards():
@@ -49,10 +52,12 @@ def api_generate_cards():
     new_cards = game_state.update_state(create_cards)
     return jsonify({"message": f"Generated {num_cards} cards", "cards": new_cards})
 
+
 @bp.route("/api/get_cards", methods=["GET"])
 def api_get_cards():
     state = game_state.get_state()
     return jsonify({"cards": state.get("cards", {})})
+
 
 @bp.route("/api/check_card/<card_id>", methods=["GET"])
 def api_check_card(card_id):
@@ -74,11 +79,10 @@ def api_check_card(card_id):
     has_bingo = check_bingo_status(card, played_tracks)
     card["bingo_status"] = "BINGO!" if has_bingo else "No bingo yet"
 
-    return jsonify({
-        "status": card["bingo_status"],
-        "matches": matches,
-        "has_bingo": has_bingo
-    })
+    return jsonify(
+        {"status": card["bingo_status"], "matches": matches, "has_bingo": has_bingo}
+    )
+
 
 @bp.route("/api/download_cards_pdf", methods=["GET"])
 def api_download_cards_pdf():
@@ -87,7 +91,7 @@ def api_download_cards_pdf():
         cards = state.get("cards", {})
         if not cards:
             return jsonify({"error": "No cards available"}), 404
-        
+
         print(f"Cards data: {cards}")  # Debug log
         pdf_data = generate_pdf(cards)
         return send_file(
@@ -99,4 +103,3 @@ def api_download_cards_pdf():
     except Exception as e:
         print(f"PDF generation error: {str(e)}")  # Debug log
         return jsonify({"error": str(e)}), 500
-

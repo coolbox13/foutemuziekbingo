@@ -3,6 +3,7 @@ from app.spotify import get_spotify_client, refresh_spotify_token, get_available
 
 bp = Blueprint("device", __name__)
 
+
 @bp.route("/api/get_devices", methods=["GET"])
 def api_get_devices():
     try:
@@ -13,8 +14,6 @@ def api_get_devices():
     except Exception as e:
         current_app.logger.error(f"Error getting devices: {e}")
         return jsonify({"error": str(e)}), 401  # Return 401 for authentication errors
-
-
 
 
 @bp.route("/api/select_device", methods=["POST"])

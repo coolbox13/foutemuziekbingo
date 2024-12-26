@@ -4,6 +4,7 @@ import os
 
 bp = Blueprint("auth", __name__)
 
+
 @bp.route("/")
 def home():
     if "token_info" in session:
@@ -13,17 +14,21 @@ def home():
     <p><a href='/auth/login'>Login with Spotify</a></p>
     """
 
+
 @bp.route("/login")
 def login():
     sp_oauth = SpotifyOAuth(
         client_id=os.getenv("SPOTIFY_CLIENT_ID"),
         client_secret=os.getenv("SPOTIFY_CLIENT_SECRET"),
-        redirect_uri=os.getenv("SPOTIFY_REDIRECT_URI", "http://localhost:1313/auth/callback"),
+        redirect_uri=os.getenv(
+            "SPOTIFY_REDIRECT_URI", "http://localhost:1313/auth/callback"
+        ),
         scope="playlist-read-private user-read-playback-state user-modify-playback-state user-read-currently-playing",
     )
     auth_url = sp_oauth.get_authorize_url()
     current_app.logger.info(f"Spotify OAuth URL: {auth_url}")
     return redirect(auth_url)
+
 
 @bp.route("/callback")
 def callback():
@@ -38,7 +43,9 @@ def callback():
         sp_oauth = SpotifyOAuth(
             client_id=os.getenv("SPOTIFY_CLIENT_ID"),
             client_secret=os.getenv("SPOTIFY_CLIENT_SECRET"),
-            redirect_uri=os.getenv("SPOTIFY_REDIRECT_URI", "http://localhost:1313/auth/callback"),
+            redirect_uri=os.getenv(
+                "SPOTIFY_REDIRECT_URI", "http://localhost:1313/auth/callback"
+            ),
             scope="playlist-read-private user-read-playback-state user-modify-playback-state user-read-currently-playing",
         )
         try:

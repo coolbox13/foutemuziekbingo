@@ -4,6 +4,7 @@ from app.state import game_state
 
 bp = Blueprint("dashboard", __name__)
 
+
 @bp.route("/", methods=["GET"])
 def dashboard():
     """Render the dashboard with game and card statuses."""

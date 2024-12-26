@@ -1,10 +1,16 @@
 from flask import Blueprint, jsonify, request, current_app
-from app.spotify import get_spotify_client, refresh_spotify_token, play_random_track, pause_playback
+from app.spotify import (
+    get_spotify_client,
+    refresh_spotify_token,
+    play_random_track,
+    pause_playback,
+)
 from app.state import ThreadSafeGameState
 import random
 
 bp = Blueprint("playback", __name__)
 game_state = ThreadSafeGameState()
+
 
 @bp.route("/api/play", methods=["POST"])
 def api_play():
@@ -43,6 +49,7 @@ def api_play():
         current_app.logger.error(f"Error in /api/play: {e}")
         return jsonify({"error": str(e)}), 500
 
+
 @bp.route("/api/pause", methods=["POST"])
 def api_pause():
     try:
@@ -53,6 +60,7 @@ def api_pause():
     except Exception as e:
         current_app.logger.error(f"Error pausing playback: {e}")
         return jsonify({"error": str(e)}), 500
+
 
 @bp.route("/api/played_tracks", methods=["GET"])
 def api_played_tracks():

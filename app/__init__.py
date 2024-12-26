@@ -9,6 +9,7 @@ from app.routes import register_blueprints  # New import for centralized registr
 
 socketio = SocketIO()
 
+
 def create_app():
     load_dotenv()
     app = Flask(__name__, static_folder="../static", template_folder="../templates")
@@ -32,7 +33,6 @@ def create_app():
         app.logger.info("Music Bingo startup")
         app.logger.setLevel(logging.DEBUG)
         app.logger.debug("Application started in debug mode.")
-
 
     # Register all blueprints via routes.py
     register_blueprints(app)

@@ -3,6 +3,7 @@ from app.state import reset_game_state
 
 bp = Blueprint("game", __name__)
 
+
 @bp.route("/api/new_round", methods=["POST"])
 def api_new_round():
     try:

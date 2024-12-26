@@ -1,18 +1,23 @@
 from flask import Blueprint, request, current_app
 
+
 def log_request_info():
     """Centralized request logging for all routes."""
     current_app.logger.info("Headers: %s", request.headers)
     current_app.logger.info("Body: %s", request.get_data())
 
+
 bp = Blueprint("routes", __name__)
+
 
 @bp.before_request
 def before_request():
     log_request_info()
 
+
 # This file is now reserved for centralized logging and shared imports.
 # All individual route groups have been moved to separate files.
+
 
 def register_blueprints(app):
     """Register all blueprints to the Flask application."""

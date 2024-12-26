@@ -6,10 +6,12 @@ import random
 bp = Blueprint("playlist", __name__)
 game_state = ThreadSafeGameState()
 
+
 @bp.route("/api/get_playlists", methods=["GET"])
 def api_get_playlists():
     playlists = load_playlists()
     return jsonify({"playlists": playlists})
+
 
 @bp.route("/api/add_playlist", methods=["POST"])
 def api_add_playlist():
@@ -39,6 +41,7 @@ def api_add_playlist():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+
 @bp.route("/api/load_playlist", methods=["POST"])
 def api_load_playlist():
     data = request.json
@@ -52,9 +55,7 @@ def api_load_playlist():
         tracks = load_playlist_tracks(sp, playlist_id)
 
         def update_tracks(state):
-            state["unplayed_tracks"] = random.sample(
-                tracks, min(100, len(tracks))
-            )
+            state["unplayed_tracks"] = random.sample(tracks, min(100, len(tracks)))
             state["played_tracks"] = []
             state["cards"] = {}
 

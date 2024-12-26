@@ -7,14 +7,20 @@ def summarize_card_statuses(cards, played_tracks):
 
         if len(matches) >= 25:  # Full card
             status = "Full card bingo"
-        elif any(all(pos in matches for pos in range(row * 5, row * 5 + 5)) for row in range(5)):
+        elif any(
+            all(pos in matches for pos in range(row * 5, row * 5 + 5))
+            for row in range(5)
+        ):
             status = "Row bingo"
-        elif any(all(pos in matches for pos in range(col, col + 21, 5)) for col in range(5)):
+        elif any(
+            all(pos in matches for pos in range(col, col + 21, 5)) for col in range(5)
+        ):
             status = "Column bingo"
 
         card_summaries[card_id] = status
 
     return card_summaries
+
 
 def validate_card(card_id, cards, played_tracks):
     """Validate a card against played tracks to check for bingo."""
@@ -29,9 +35,13 @@ def validate_card(card_id, cards, played_tracks):
     has_bingo = False
     if len(matches) >= 25:
         has_bingo = True
-    elif any(all(pos in matches for pos in range(row * 5, row * 5 + 5)) for row in range(5)):
+    elif any(
+        all(pos in matches for pos in range(row * 5, row * 5 + 5)) for row in range(5)
+    ):
         has_bingo = True
-    elif any(all(pos in matches for pos in range(col, col + 21, 5)) for col in range(5)):
+    elif any(
+        all(pos in matches for pos in range(col, col + 21, 5)) for col in range(5)
+    ):
         has_bingo = True
 
     return {

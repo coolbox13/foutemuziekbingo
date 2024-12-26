@@ -11,7 +11,9 @@ def get_spotify_oauth():
     return SpotifyOAuth(
         client_id=os.getenv("SPOTIFY_CLIENT_ID"),
         client_secret=os.getenv("SPOTIFY_CLIENT_SECRET"),
-        redirect_uri=os.getenv("SPOTIFY_REDIRECT_URI", "http://localhost:1313/callback"),
+        redirect_uri=os.getenv(
+            "SPOTIFY_REDIRECT_URI", "http://localhost:1313/callback"
+        ),
         scope="playlist-read-private user-read-playback-state user-modify-playback-state user-read-currently-playing",
     )
 
@@ -42,7 +44,6 @@ def refresh_spotify_token():
             raise Exception("Failed to refresh Spotify token. Please log in again.")
 
 
-
 def get_available_devices(sp):
     """Retrieve available devices from Spotify."""
     try:
@@ -65,7 +66,8 @@ def load_playlist_tracks(sp, playlist_id):
                     "name": track["track"]["name"],
                     "artist": ", ".join(a["name"] for a in track["track"]["artists"]),
                 }
-                for track in results.get("items", []) if track["track"]
+                for track in results.get("items", [])
+                if track["track"]
             )
             results = sp.next(results)  # Handle pagination
         return tracks

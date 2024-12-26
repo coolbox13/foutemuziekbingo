@@ -26,7 +26,8 @@ def load_playlist():
                 "name": track["track"]["name"],
                 "artist": ", ".join(a["name"] for a in track["track"]["artists"]),
             }
-            for track in tracks if track["track"]
+            for track in tracks
+            if track["track"]
         ]
         state.num_tracks = len(state.unplayed_tracks)
 
@@ -45,9 +46,14 @@ def generate_cards():
         num_cards = int(data.get("num_cards", 1))
 
         if state.num_tracks < num_cards * 25:
-            return jsonify(
-                {"error": "Not enough tracks to generate the requested number of cards."}
-            ), 400
+            return (
+                jsonify(
+                    {
+                        "error": "Not enough tracks to generate the requested number of cards."
+                    }
+                ),
+                400,
+            )
 
         cards = generate_bingo_cards(state.unplayed_tracks, num_cards)
         state.cards = cards
