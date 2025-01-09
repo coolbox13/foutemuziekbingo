@@ -112,6 +112,8 @@ async function forceUpdateAll() {
     console.log('Force updating all components...');
     try {
         await Promise.all([
+            loadPlaylists(),
+            loadDevices(),
             loadPlayedTracks(),
             loadCards(),
             updateGameStats(),
@@ -120,6 +122,7 @@ async function forceUpdateAll() {
         console.log('Force update complete');
     } catch (error) {
         console.error('Error during force update:', error);
+        showError('Failed to update game state');
     }
 }
 
@@ -324,6 +327,11 @@ function handleSocketError(error) {
 
 // Event Listeners Setup
 function initializeEventListeners() {
+    // Listen for game loaded event
+    document.addEventListener('gameLoaded', async (event) => {
+        console.log('Game loaded, forcing update of all components...');
+        await forceUpdateAll();
+    });
     // Playlist Management
     const btnAddPlaylist = document.getElementById('btnAddPlaylist');
     if (btnAddPlaylist) {

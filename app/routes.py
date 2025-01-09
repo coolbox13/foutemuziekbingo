@@ -1,4 +1,5 @@
 from flask import Blueprint, request, current_app
+from app.game_management import bp as game_management_bp
 
 
 def log_request_info():
@@ -30,8 +31,10 @@ def register_blueprints(app):
     # Register all blueprints with their prefixes
     app.register_blueprint(auth_bp, url_prefix="/auth")
     app.register_blueprint(dashboard_bp, url_prefix="/dashboard")
+    #app.register_blueprint(dashboard_bp)
     app.register_blueprint(playlist_bp, url_prefix="/playlist")
     app.register_blueprint(device_bp, url_prefix="/device")
     app.register_blueprint(card_bp, url_prefix="/card")
     app.register_blueprint(playback_bp, url_prefix="/playback")
     app.register_blueprint(game_bp, url_prefix="/game")
+    app.register_blueprint(game_management_bp, url_prefix='/game_management')

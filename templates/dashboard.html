@@ -5,6 +5,7 @@
     <title>Foute Muziek Bingo Dashboard</title>
     <link href="https://cdn.jsdelivr.net/npm/tailwindcss@latest/dist/tailwind.min.css" rel="stylesheet" />
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+    <script src="/static/js/game_management.js"></script>
     <script src="/static/js/dashboard.js" defer></script>
     <style>
         .card-grid {
@@ -87,6 +88,38 @@
                 <button id="btnSelectDevice" class="px-4 py-2 bg-blue-600 text-white rounded">Use This Device</button>
             </div>
             <p id="deviceMsg" class="text-sm text-red-600"></p>
+        </div>
+
+        <!-- Add this section after the Device Selection section -->
+        <div class="border p-3 rounded mb-4">
+            <h2 class="text-xl font-semibold mb-2">Game Management</h2>
+            
+            <!-- Save Game -->
+            <div class="mb-4">
+                <h3 class="text-lg font-semibold mb-2">Save Current Game</h3>
+                <div class="space-y-2">
+                    <div>
+                        <label class="block text-sm font-medium">Game Name</label>
+                        <input id="gameSaveName" type="text" class="border p-2 w-full rounded" placeholder="Enter game name...">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium">Description (optional)</label>
+                        <textarea id="gameSaveDescription" class="border p-2 w-full rounded" rows="2" placeholder="Enter game description..."></textarea>
+                    </div>
+                    <button id="btnSaveGame" class="px-4 py-2 bg-green-600 text-white rounded">Save Game</button>
+                </div>
+            </div>
+            
+            <!-- Load Game -->
+            <div>
+                <h3 class="text-lg font-semibold mb-2">Load Saved Game</h3>
+                <div class="flex items-center space-x-2">
+                    <select id="savedGamesSelect" class="border p-2 flex-grow rounded">
+                        <option value="">Select a saved game...</option>
+                    </select>
+                    <button id="btnLoadGame" class="px-4 py-2 bg-blue-600 text-white rounded">Load Game</button>
+                </div>
+            </div>
         </div>
 
         <!-- Bingo Cards -->
