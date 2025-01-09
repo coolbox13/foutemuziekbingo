@@ -25,6 +25,16 @@ def check_bingo_status(card, played_tracks):
         if all(pos in matches for pos in col_positions):
             return True
 
+    # Check diagonal from top-left to bottom-right
+    diagonal1_positions = [0, 6, 12, 18, 24]  # Positions: 0,0 -> 1,1 -> 2,2 -> 3,3 -> 4,4
+    if all(pos in matches for pos in diagonal1_positions):
+        return True
+
+    # Check diagonal from top-right to bottom-left
+    diagonal2_positions = [4, 8, 12, 16, 20]  # Positions: 0,4 -> 1,3 -> 2,2 -> 3,1 -> 4,0
+    if all(pos in matches for pos in diagonal2_positions):
+        return True
+
     return False
 
 
