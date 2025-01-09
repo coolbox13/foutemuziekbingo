@@ -115,7 +115,7 @@ async function forceUpdateAll() {
             loadPlaylists(),
             loadDevices(),
             loadPlayedTracks(),
-            loadCards(),
+            loadCards(), // This will now automatically validate all cards
             updateGameStats(),
             updateDashboardData()
         ]);
@@ -180,12 +180,17 @@ function createCardModalContent(cardId, cardData) {
 
 async function validateCard(cardId) {
     try {
-        socket.emit('card_validated', { card_id: cardId });
         const response = await fetchJSON(`/card/api/check_card/${cardId}`);
-        showSuccess(`Card ${cardId}: ${response.status}`);
-        await loadCards();
+        if (response.card_id) {  // Make sure we have a valid response
+            updateCardDisplay(cardId, response.status, response.matches);
+            if (response.status === 'BINGO!') {
+                showSuccess(`Card ${cardId}: BINGO!`);
+            }
+        }
+        return response;
     } catch (error) {
-        showError(error.message);
+        console.error(`Error validating card ${cardId}:`, error);
+        showError(`Failed to validate card ${cardId}`);
     }
 }
 
@@ -275,12 +280,18 @@ async function loadCards() {
         const data = await fetchJSON('/card/api/get_cards');
         console.log('Received cards data:', data);
         const cardsContainer = document.getElementById('cardsContainer');
-        if (cardsContainer) {
+        if (cardsContainer && data.cards) {
             cardsContainer.innerHTML = '';
             Object.entries(data.cards).forEach(([cardId, cardData]) => {
+                // Ensure cardData has all required properties
+                cardData.bingo_status = cardData.bingo_status || 'Not checked';
+                cardData.matches = cardData.matches || [];
                 cardsContainer.appendChild(createBingoCardDisplay(cardId, cardData));
             });
             console.log('Cards display updated');
+            
+            // Automatically validate all cards after loading
+            await validateAllCards();
         }
     } catch (error) {
         console.error('Error loading cards:', error);
@@ -297,15 +308,12 @@ function handleCardStatusUpdate(data) {
 
 function handleNewTrack(trackData) {
     console.log('New track played:', trackData);
-    showSuccess(`Now playing: ${trackData.artist} - ${trackData.name}`);
+    showSuccess(`Now playing: ${trackData.track.artist} - ${trackData.track.name}`);
     
-    // Debug log for update sequence
-    console.log('Starting updates after new track...');
-    
-    // Update everything in sequence
+    // Update everything and validate all cards
     Promise.all([
         loadPlayedTracks(),
-        loadCards(),
+        loadCards(), // This will now automatically validate all cards
         updateGameStats(),
         updateDashboardData()
     ]).then(() => {
@@ -314,6 +322,7 @@ function handleNewTrack(trackData) {
         console.error('Error updating after new track:', error);
     });
 }
+
 
 function handleGameStateUpdate(state) {
     console.log('Game state update:', state);
@@ -617,15 +626,23 @@ function updateCardDisplay(cardId, status, matches) {
     const card = document.querySelector(`[data-card-id="${cardId}"]`);
     if (card) {
         const statusButton = card.querySelector('button:last-child');
-        statusButton.textContent = status;
-        statusButton.className = status === 'BINGO!' ? 
-            'bg-green-500 text-white px-4 py-2 rounded hover:opacity-90' : 
-            'bg-gray-500 text-white px-4 py-2 rounded hover:opacity-90';
+        if (statusButton) {
+            statusButton.textContent = status;
+            statusButton.className = status === 'BINGO!' ? 
+                'bg-green-500 text-white px-4 py-2 rounded hover:opacity-90' : 
+                'bg-gray-500 text-white px-4 py-2 rounded hover:opacity-90';
+        }
         
         // Update the stored card data
         if (card._cardData) {
             card._cardData.matches = matches;
             card._cardData.bingo_status = status;
+        }
+
+        // If card modal is currently open, update it
+        const modalContent = document.querySelector('.fixed.inset-0');
+        if (modalContent && modalContent.querySelector(`[data-card-id="${cardId}"]`)) {
+            showCardModal(cardId); // Refresh the modal
         }
     }
 }
@@ -752,6 +769,23 @@ function setupDashboardUpdates() {
             console.error('Error during periodic update:', error);
         }
     }, 3000); // Reduced to 3 seconds for more responsive updates
+}
+
+// game management functions
+
+async function validateAllCards() {
+    console.log('Validating all cards...');
+    try {
+        const state = await fetchJSON('/card/api/get_cards');
+        if (!state.cards) return;
+        
+        const validationPromises = Object.keys(state.cards).map(cardId => validateCard(cardId));
+        await Promise.all(validationPromises);
+        await updateGameStats();
+        console.log('All cards validated');
+    } catch (error) {
+        console.error('Error validating all cards:', error);
+    }
 }
 
 // Clean up on page unload

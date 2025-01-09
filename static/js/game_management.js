@@ -79,26 +79,43 @@ class GameManagement {
             showError('Please select a game to load');
             return;
         }
-
+    
         try {
             const response = await this.fetchJSON(`/game_management/api/load_game/${filename}`, {
                 method: 'POST'
             });
-
+    
             showSuccess('Game loaded successfully');
-
-            // Emit a custom event that dashboard.js can listen for
-            const event = new CustomEvent('gameLoaded', { 
-                detail: { gameInfo: response.game_info } 
-            });
-            document.dispatchEvent(event);
-
+    
+            // Force full update including card validation
+            await this.forceFullUpdate();
+    
             // Reset the select
             document.getElementById('savedGamesSelect').value = '';
-
+    
         } catch (error) {
             showError('Failed to load game: ' + error.message);
         }
+    }
+
+    async forceFullUpdate() {
+        const event = new CustomEvent('gameLoaded');
+        document.dispatchEvent(event);
+        
+        // Wait a short moment for the cards to load before validating
+        setTimeout(async () => {
+            try {
+                const cardsResponse = await this.fetchJSON('/card/api/get_cards');
+                if (cardsResponse.cards) {
+                    const validationPromises = Object.keys(cardsResponse.cards).map(cardId => 
+                        this.fetchJSON(`/card/api/check_card/${cardId}`)
+                    );
+                    await Promise.all(validationPromises);
+                }
+            } catch (error) {
+                console.error('Error validating cards after load:', error);
+            }
+        }, 500);
     }
 
     // Utility function for making JSON requests

@@ -90,14 +90,16 @@ def api_check_card(card_id):
             card["bingo_status"] = "BINGO!" if has_bingo else "No bingo yet"
 
             return {
+                "card_id": card_id,
                 "status": card["bingo_status"],
                 "matches": matches,
-                "has_bingo": has_bingo,
+                "has_bingo": has_bingo
             }
 
         result = game_state.update_state(update_card_status)
         return jsonify(result)
     except Exception as e:
+        current_app.logger.error(f"Error checking card {card_id}: {e}")
         return jsonify({"error": str(e)}), 500
 
 
