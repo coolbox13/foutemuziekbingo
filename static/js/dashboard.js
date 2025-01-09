@@ -132,6 +132,31 @@ document.addEventListener('DOMContentLoaded', () => {
         initializeWebSocket();
         initializeEventListeners();
         setupDashboardUpdates();
+        
+        // Set initial active tab for setup modal
+        switchSetupTab('playlist');
+        
+        // Close modal on outside click
+        document.getElementById('setupModal').addEventListener('click', (e) => {
+            if (e.target === e.currentTarget) {
+                toggleSetupModal(false);
+            }
+        });
+
+        // Initial data load
+        Promise.all([
+            loadPlaylists(),
+            loadDevices(),
+            loadPlayedTracks(),
+            loadCards(),
+            updateGameStats(),
+            updateDashboardData()
+        ]).then(() => {
+            console.log('Initial data load complete');
+        }).catch(error => {
+            console.error('Error loading initial data:', error);
+        });
+
     } else {
         console.error('Socket.io not loaded');
         updateConnectionStatus('Socket.io not available');
@@ -202,6 +227,54 @@ function createCardModalContent(cardId, cardData) {
     `;
     
     return content;
+}
+
+function toggleSetupModal(show) {
+    const modal = document.getElementById('setupModal');
+    modal.classList.toggle('hidden', !show);
+    
+    if (show) {
+        // Refresh data when opening modal
+        loadPlaylists();
+        loadDevices();
+        updateMaxCards();
+    }
+}
+
+function switchSetupTab(tabName) {
+    // Hide all tab contents
+    document.querySelectorAll('.setup-tab-content').forEach(tab => {
+        tab.classList.add('hidden');
+    });
+    
+    // Show selected tab content
+    document.getElementById(`${tabName}Tab`).classList.remove('hidden');
+    
+    // Update tab button styles
+    document.querySelectorAll('.setup-tab-btn').forEach(btn => {
+        if (btn.dataset.tab === tabName) {
+            btn.classList.add('border-blue-500', 'text-blue-600');
+            btn.classList.remove('border-transparent', 'text-gray-500');
+        } else {
+            btn.classList.remove('border-blue-500', 'text-blue-600');
+            btn.classList.add('border-transparent', 'text-gray-500');
+        }
+    });
+}
+
+function updateMaxCards() {
+    const loadedTracks = document.getElementById('loadedTracks');
+    const maxCards = document.getElementById('maxCards');
+    const numInput = document.getElementById('numCardsInput');
+    
+    const trackCount = parseInt(loadedTracks.textContent) || 0;
+    const max = Math.floor(trackCount / 25);
+    
+    maxCards.textContent = max;
+    numInput.max = max;
+    if (parseInt(numInput.value) > max) {
+        numInput.value = max;
+    }
 }
 
 async function validateCard(cardId) {
@@ -290,9 +363,18 @@ async function loadPlayedTracks() {
         const data = await fetchJSON('/playback/api/played_tracks');
         const listElem = document.getElementById('playedTracksList');
         listElem.innerHTML = '';
-        data.played_tracks.forEach(t => {
+        
+        // Reverse the array to show newest tracks first
+        const reversedTracks = [...data.played_tracks].reverse();
+        
+        reversedTracks.forEach((t, index) => {
             const li = document.createElement('li');
-            li.textContent = `${t.artist} - ${t.name}`;
+            li.className = 'py-1 px-2 hover:bg-gray-50 rounded';
+            li.innerHTML = `
+                <span class="text-gray-500">#${data.played_tracks.length - index}.</span>
+                <span class="font-medium">${t.artist}</span> - 
+                <span>${t.name}</span>
+            `;
             listElem.appendChild(li);
         });
     } catch (error) {

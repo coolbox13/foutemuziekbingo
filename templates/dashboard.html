@@ -22,144 +22,184 @@
         }
     </style>
 </head>
-<body class="bg-gray-100 p-4">
-    <div class="max-w-4xl mx-auto bg-white p-6 rounded shadow">
-        <!-- Header with connection status -->
-        <div class="mb-4 flex justify-between items-center">
-            <h1 class="text-2xl font-bold">Foute Muziek Bingo Dashboard</h1>
-            <span id="connectionStatus" class="text-gray-600">Connecting...</span>
+<body class="bg-gray-100">
+    <div class="min-h-screen bg-gray-100 p-4">
+        <!-- Header with connection status and setup button -->
+        <div class="max-w-7xl mx-auto bg-white p-4 rounded-lg shadow mb-4">
+            <div class="flex justify-between items-center">
+                <div class="flex items-center space-x-4">
+                    <h1 class="text-xl font-bold">Foute Muziek Bingo</h1>
+                    <span id="connectionStatus" class="text-sm text-gray-600">Connecting...</span>
+                </div>
+                <button onclick="toggleSetupModal(true)" class="px-4 py-2 bg-blue-600 text-white rounded">
+                    Game Setup
+                </button>
+            </div>
         </div>
-        
-        <div class="bg-white rounded-lg shadow-md p-6 mb-6">
-            <h2 class="text-xl font-semibold mb-4">Game Statistics</h2>
-            <div class="grid grid-cols-2 md:grid-cols-5 gap-4">
-                <div class="bg-blue-50 p-4 rounded-lg">
-                    <h3 class="text-sm font-semibold text-blue-700">Total Tracks</h3>
-                    <p id="totalTracksCount" class="text-2xl font-bold text-blue-900">0</p>
+
+        <!-- Game Statistics -->
+        <div class="max-w-7xl mx-auto bg-white rounded-lg shadow mb-4 p-4">
+            <div class="grid grid-cols-5 gap-4">
+                <div class="bg-blue-50 p-3 rounded-lg">
+                    <h3 class="text-xs font-semibold text-blue-700">Total Tracks</h3>
+                    <p id="totalTracksCount" class="text-xl font-bold text-blue-900">0</p>
                 </div>
-                <div class="bg-green-50 p-4 rounded-lg">
-                    <h3 class="text-sm font-semibold text-green-700">Played Tracks</h3>
-                    <p id="playedTracksCount" class="text-2xl font-bold text-green-900">0</p>
+                <div class="bg-green-50 p-3 rounded-lg">
+                    <h3 class="text-xs font-semibold text-green-700">Played Tracks</h3>
+                    <p id="playedTracksCount" class="text-xl font-bold text-green-900">0</p>
                 </div>
-                <div class="bg-yellow-50 p-4 rounded-lg">
-                    <h3 class="text-sm font-semibold text-yellow-700">Remaining</h3>
-                    <p id="remainingTracksCount" class="text-2xl font-bold text-yellow-900">0</p>
+                <div class="bg-yellow-50 p-3 rounded-lg">
+                    <h3 class="text-xs font-semibold text-yellow-700">Remaining</h3>
+                    <p id="remainingTracksCount" class="text-xl font-bold text-yellow-900">0</p>
                 </div>
-                <div class="bg-purple-50 p-4 rounded-lg">
-                    <h3 class="text-sm font-semibold text-purple-700">Active Cards</h3>
-                    <p id="cardsWithMatches" class="text-2xl font-bold text-purple-900">0</p>
+                <div class="bg-purple-50 p-3 rounded-lg">
+                    <h3 class="text-xs font-semibold text-purple-700">Active Cards</h3>
+                    <p id="cardsWithMatches" class="text-xl font-bold text-purple-900">0</p>
                 </div>
-                <div class="bg-red-50 p-4 rounded-lg">
-                    <h3 class="text-sm font-semibold text-red-700">Bingos</h3>
-                    <p id="bingoCount" class="text-2xl font-bold text-red-900">0</p>
+                <div class="bg-red-50 p-3 rounded-lg">
+                    <h3 class="text-xs font-semibold text-red-700">Bingos</h3>
+                    <p id="bingoCount" class="text-xl font-bold text-red-900">0</p>
                 </div>
             </div>
         </div>
 
-        <!-- Playlist Management -->
-        <div class="border p-3 rounded mb-4">
-            <h2 class="text-xl font-semibold mb-2">Playlist Management</h2>
-            <div class="flex items-end space-x-3 mb-3">
-                <div>
-                    <label class="block">Playlist ID/URI</label>
-                    <input id="newPlaylistID" class="border p-1 w-64" type="text" placeholder="spotify:playlist:XXX" />
-                </div>
-                <div class="flex items-center space-x-1">
-                    <label>Default?</label>
-                    <input id="newPlaylistDefault" type="checkbox" />
-                </div>
-                <button id="btnAddPlaylist" class="px-4 py-2 bg-blue-600 text-white rounded">Add Playlist</button>
-            </div>
-            <p id="addPlaylistMsg" class="text-sm text-red-600"></p>
-
-            <div class="flex items-center space-x-3 mt-4">
-                <select id="playlistSelect" class="border p-1 w-64"></select>
-                <button id="btnLoadPlaylist" class="px-4 py-2 bg-blue-600 text-white rounded">Load Selected Playlist</button>
-            </div>
-            <p id="playlistMsg" class="text-sm text-red-600 mt-2"></p>
-        </div>
-
-        <!-- Device Selection -->
-        <div class="border p-3 rounded mb-4">
-            <h2 class="text-xl font-semibold mb-2">Device Selection</h2>
-            <div class="flex items-center space-x-3 mb-3">
-                <select id="deviceSelect" class="border p-1 w-64"></select>
-                <button id="btnRefreshDevices" class="px-4 py-2 bg-gray-500 text-white rounded">Refresh Devices</button>
-                <button id="btnSelectDevice" class="px-4 py-2 bg-blue-600 text-white rounded">Use This Device</button>
-            </div>
-            <p id="deviceMsg" class="text-sm text-red-600"></p>
-        </div>
-
-        <div class="border p-3 rounded mb-4">
-            <h2 class="text-xl font-semibold mb-2">Game Management</h2>
-            
-            <!-- Save Game -->
-            <div class="mb-4">
-                <h3 class="text-lg font-semibold mb-2">Save Current Game</h3>
-                <div class="space-y-2">
-                    <div>
-                        <label class="block text-sm font-medium">Game Name</label>
-                        <input id="gameSaveName" type="text" class="border p-2 w-full rounded" placeholder="Enter game name...">
+        <!-- Main Game Area -->
+        <div class="max-w-7xl mx-auto flex gap-4">
+            <!-- Left Column: Playback Controls and Played Tracks -->
+            <div class="w-1/3 space-y-4">
+                <!-- Playback Controls -->
+                <div class="bg-white rounded-lg shadow p-4">
+                    <h2 class="text-lg font-semibold mb-2">Playback Controls</h2>
+                    <div class="flex flex-col space-y-2">
+                        <button id="btnPlay" class="px-4 py-2 bg-blue-500 text-white rounded">Play random track</button>
+                        <button id="btnPause" class="px-4 py-2 bg-yellow-500 text-white rounded">Pause</button>
+                        <button id="btnNewRound" class="px-4 py-2 bg-red-500 text-white rounded">New Game</button>
                     </div>
-                    <div>
-                        <label class="block text-sm font-medium">Description (optional)</label>
-                        <textarea id="gameSaveDescription" class="border p-2 w-full rounded" rows="2" placeholder="Enter game description..."></textarea>
+                </div>
+
+                <!-- Played Tracks -->
+                <div class="bg-white rounded-lg shadow p-4">
+                    <h2 class="text-lg font-semibold mb-2">Played Tracks</h2>
+                    <ul id="playedTracksList" class="text-sm space-y-1 max-h-[60vh] overflow-y-auto"></ul>
+                </div>
+            </div>
+
+            <!-- Right Column: Bingo Cards -->
+            <div class="w-2/3 bg-white rounded-lg shadow p-4">
+                <h2 class="text-lg font-semibold mb-2">Current Bingo Cards</h2>
+                <div id="cardsContainer" class="max-h-[75vh] overflow-y-auto">
+                    <!-- Cards will be inserted here -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Setup Modal -->
+    <div id="setupModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div class="bg-white p-6 rounded-lg w-full max-w-4xl mx-4 max-h-[90vh] overflow-auto">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-2xl font-bold">Game Setup</h2>
+                <button onclick="toggleSetupModal(false)" class="text-gray-600 hover:text-gray-800 text-xl">×</button>
+            </div>
+
+            <!-- Tab Navigation -->
+            <div class="border-b mb-4">
+                <div class="flex space-x-4">
+                    <button onclick="switchSetupTab('playlist')" class="setup-tab-btn px-4 py-2 border-b-2" data-tab="playlist">
+                        Playlist Management
+                    </button>
+                    <button onclick="switchSetupTab('devices')" class="setup-tab-btn px-4 py-2 border-b-2" data-tab="devices">
+                        Device Selection
+                    </button>
+                    <button onclick="switchSetupTab('cards')" class="setup-tab-btn px-4 py-2 border-b-2" data-tab="cards">
+                        Bingo Cards
+                    </button>
+                    <button onclick="switchSetupTab('management')" class="setup-tab-btn px-4 py-2 border-b-2" data-tab="management">
+                        Game Management
+                    </button>
+                </div>
+            </div>
+
+            <!-- Tab Content -->
+            <div class="setup-tab-content" id="playlistTab">
+                <!-- Playlist Management content -->
+                <div class="space-y-4">
+                    <div class="flex items-end space-x-3">
+                        <div>
+                            <label class="block">Playlist ID/URI</label>
+                            <input id="newPlaylistID" class="border p-1 w-64" type="text" placeholder="spotify:playlist:XXX" />
+                        </div>
+                        <div class="flex items-center space-x-1">
+                            <label>Default?</label>
+                            <input id="newPlaylistDefault" type="checkbox" />
+                        </div>
+                        <button id="btnAddPlaylist" class="px-4 py-2 bg-blue-600 text-white rounded">Add Playlist</button>
                     </div>
-                    <button id="btnSaveGame" class="px-4 py-2 bg-green-600 text-white rounded">Save Game</button>
+                    <p id="addPlaylistMsg" class="text-sm text-red-600"></p>
+
+                    <div class="flex items-center space-x-3">
+                        <select id="playlistSelect" class="border p-1 w-64"></select>
+                        <button id="btnLoadPlaylist" class="px-4 py-2 bg-blue-600 text-white rounded">Load Selected Playlist</button>
+                    </div>
+                    <p id="playlistMsg" class="text-sm text-red-600"></p>
                 </div>
             </div>
-            
-            <!-- Load Game -->
-            <div>
-                <h3 class="text-lg font-semibold mb-2">Load Saved Game</h3>
-                <div class="flex items-center space-x-2">
-                    <select id="savedGamesSelect" class="border p-2 flex-grow rounded">
-                        <option value="">Select a saved game...</option>
-                    </select>
-                    <button id="btnLoadGame" class="px-4 py-2 bg-blue-600 text-white rounded">Load Game</button>
+
+            <div class="setup-tab-content hidden" id="devicesTab">
+                <!-- Device Selection content -->
+                <div class="space-y-4">
+                    <div class="flex items-center space-x-3">
+                        <select id="deviceSelect" class="border p-1 w-64"></select>
+                        <button id="btnRefreshDevices" class="px-4 py-2 bg-gray-500 text-white rounded">Refresh Devices</button>
+                        <button id="btnSelectDevice" class="px-4 py-2 bg-blue-600 text-white rounded">Use This Device</button>
+                    </div>
+                    <p id="deviceMsg" class="text-sm text-red-600"></p>
                 </div>
             </div>
-        </div>
 
-        <!-- Bingo Cards -->
-        <div class="border p-3 rounded mb-4">
-          <h2 class="text-xl font-semibold mb-2">Bingo Cards</h2>
-          <p>Loaded tracks: <span id="loadedTracks">{{ game_state.num_tracks }}</span></p>
-          <p>Max recommended cards: <span id="maxCards">{{ (game_state.num_tracks // 25)|int }}</span></p>
-          <div class="flex items-center space-x-2 mb-3">
-              <label># Bingo Cards</label>
-              <input id="numCardsInput" type="number" value="2" min="1" max="{{ (game_state.num_tracks // 25)|int }}" class="border p-1 w-16"/>
-              <button id="btnGenerateCards" class="px-4 py-2 bg-green-600 text-white rounded">Generate Cards</button>
-              <a id="btnDownloadPdf" class="px-4 py-2 bg-blue-600 text-white rounded">Download PDF</a>
-          </div>
-          <p id="cardsMsg" class="text-sm text-red-600 mt-2"></p>
-        </div>
-
-        <!-- Playback Controls -->
-        <div class="border p-3 rounded mb-4">
-            <h2 class="text-xl font-semibold mb-2">Playback Controls</h2>
-            <div class="flex space-x-2 mb-3">
-                <button id="btnPlay" class="px-4 py-2 bg-blue-500 text-white rounded">Play random track</button>
-                <button id="btnPause" class="px-4 py-2 bg-yellow-500 text-white rounded">Pause</button>
-                <button id="btnNewRound" class="px-4 py-2 bg-red-500 text-white rounded">New Game</button>
+            <div class="setup-tab-content hidden" id="cardsTab">
+                <!-- Bingo Cards generation content -->
+                <div class="space-y-4">
+                    <p>Loaded tracks: <span id="loadedTracks">0</span></p>
+                    <p>Max recommended cards: <span id="maxCards">0</span></p>
+                    <div class="flex items-center space-x-2">
+                        <label># Bingo Cards</label>
+                        <input id="numCardsInput" type="number" value="2" min="1" class="border p-1 w-16"/>
+                        <button id="btnGenerateCards" class="px-4 py-2 bg-green-600 text-white rounded">Generate Cards</button>
+                        <a id="btnDownloadPdf" class="px-4 py-2 bg-blue-600 text-white rounded cursor-pointer">Download PDF</a>
+                    </div>
+                    <p id="cardsMsg" class="text-sm text-red-600"></p>
+                </div>
             </div>
-            <p id="playbackMsg" class="text-sm text-red-600 mt-2"></p>
-        </div>
 
-        <!-- Played Tracks -->
-        <div class="mb-4">
-            <h2 class="text-lg font-semibold mb-2">Played Tracks</h2>
-            <ul id="playedTracksList" class="list-disc ml-6"></ul>
-        </div>
-
-        <!-- Current Bingo Cards -->
-        <div>
-            <h2 class="text-lg font-semibold mb-2">Current Bingo Cards</h2>
-            <div id="cardsContainer" class="space-y-4"></div>
+            <div class="setup-tab-content hidden" id="managementTab">
+                <!-- Game Management content -->
+                <div class="space-y-4">
+                    <div>
+                        <h3 class="text-lg font-semibold mb-2">Save Current Game</h3>
+                        <div class="space-y-2">
+                            <input id="gameSaveName" type="text" class="border p-2 w-full rounded" placeholder="Enter game name...">
+                            <textarea id="gameSaveDescription" class="border p-2 w-full rounded" rows="2" placeholder="Enter game description..."></textarea>
+                            <button id="btnSaveGame" class="px-4 py-2 bg-green-600 text-white rounded">Save Game</button>
+                        </div>
+                    </div>
+                    
+                    <div>
+                        <h3 class="text-lg font-semibold mb-2">Load Saved Game</h3>
+                        <div class="flex items-center space-x-2">
+                            <select id="savedGamesSelect" class="border p-2 flex-grow rounded">
+                                <option value="">Select a saved game...</option>
+                            </select>
+                            <button id="btnLoadGame" class="px-4 py-2 bg-blue-600 text-white rounded">Load Game</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 
     <!-- Notification Container -->
     <div id="notificationContainer" class="fixed top-4 right-4 z-50"></div>
+
 </body>
 </html>
