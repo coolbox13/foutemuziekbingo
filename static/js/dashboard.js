@@ -144,14 +144,23 @@ function showCardModal(cardId) {
     const modalContent = createCardModalContent(cardId, card._cardData);
     
     const modal = document.createElement('div');
-    modal.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center';
+    modal.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50';
     modal.innerHTML = `
-        <div class="bg-white p-6 rounded-lg max-w-4xl w-full max-h-90vh overflow-auto">
-            <div class="flex justify-between mb-4">
-                <h2 class="text-2xl font-bold">Card ID: ${cardId}</h2>
-                <button class="text-gray-600 hover:text-gray-800" onclick="this.closest('.fixed').remove()">✕</button>
+        <div class="bg-white p-6 rounded-lg max-w-4xl w-full mx-4 max-h-[90vh] overflow-auto">
+            <div class="flex justify-between items-center mb-4">
+                <div>
+                    <h2 class="text-2xl font-bold">Card ${cardId}</h2>
+                    <p class="text-gray-600">${card._cardData.matches?.length || 0} matches</p>
+                </div>
+                <button class="text-gray-600 hover:text-gray-800 text-xl" onclick="this.closest('.fixed').remove()">×</button>
             </div>
             ${modalContent}
+            <div class="mt-4 flex justify-end">
+                <button onclick="validateCard('${cardId}')" 
+                        class="${card._cardData.bingo_status === 'BINGO!' ? 'bg-green-500' : 'bg-blue-500'} text-white px-4 py-2 rounded hover:opacity-90">
+                    Check Card
+                </button>
+            </div>
         </div>
     `;
     
@@ -159,22 +168,39 @@ function showCardModal(cardId) {
 }
 
 function createCardModalContent(cardId, cardData) {
+    const matches = cardData.matches || [];
+    
     let content = `
-        <div class="grid grid-cols-5 gap-1">
-            ${['B','I','N','G','O'].map(letter => 
-                `<div class="bg-gray-500 text-white p-2 text-center font-bold">${letter}</div>`
-            ).join('')}`;
-
-    cardData.tracks.forEach((track, i) => {
-        const isMatched = cardData.matches?.includes(i);
-        content += `
-            <div class="border p-2 text-xs ${isMatched ? 'bg-green-200' : ''} min-h-[80px]">
-                <div class="font-bold">${track.artist}</div>
-                <div>${track.name}</div>
-            </div>`;
-    });
-
-    content += '</div>';
+        <div class="space-y-4">
+            <div class="grid grid-cols-5 gap-1">
+                ${['B','I','N','G','O'].map(letter => 
+                    `<div class="bg-gray-500 text-white p-2 text-center font-bold">${letter}</div>`
+                ).join('')}
+                
+                ${cardData.tracks.map((track, i) => `
+                    <div class="border p-2 text-xs ${matches.includes(i) ? 'bg-green-200' : ''} min-h-[80px] flex flex-col justify-center hover:bg-gray-50 transition-colors">
+                        <div class="font-bold">${track.artist}</div>
+                        <div>${track.name}</div>
+                    </div>
+                `).join('')}
+            </div>
+            
+            <div class="mt-4 p-4 bg-gray-50 rounded-lg">
+                <h3 class="font-bold mb-2">Card Statistics</h3>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <span class="text-gray-600">Matches:</span>
+                        <span class="font-bold">${matches.length}</span>
+                    </div>
+                    <div>
+                        <span class="text-gray-600">Status:</span>
+                        <span class="font-bold ${cardData.bingo_status === 'BINGO!' ? 'text-green-600' : ''}">${cardData.bingo_status}</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+    
     return content;
 }
 
@@ -282,12 +308,18 @@ async function loadCards() {
         const cardsContainer = document.getElementById('cardsContainer');
         if (cardsContainer && data.cards) {
             cardsContainer.innerHTML = '';
+            // Add grid container
+            const gridContainer = document.createElement('div');
+            gridContainer.className = 'grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4';
+            
             Object.entries(data.cards).forEach(([cardId, cardData]) => {
                 // Ensure cardData has all required properties
                 cardData.bingo_status = cardData.bingo_status || 'Not checked';
                 cardData.matches = cardData.matches || [];
-                cardsContainer.appendChild(createBingoCardDisplay(cardId, cardData));
+                gridContainer.appendChild(createBingoCardDisplay(cardId, cardData));
             });
+            
+            cardsContainer.appendChild(gridContainer);
             console.log('Cards display updated');
             
             // Automatically validate all cards after loading
@@ -554,23 +586,31 @@ async function fetchJSON(url, options = {}) {
 
 function createBingoCardDisplay(cardId, cardData) {
     const div = document.createElement('div');
-    div.className = 'card-container border rounded-lg p-4 mb-4 flex justify-between items-center';
+    div.className = 'card-container bg-white rounded-lg shadow p-3 hover:shadow-lg transition-shadow';
     div.setAttribute('data-card-id', cardId);
     div._cardData = cardData;
 
+    const statusColor = cardData.bingo_status === 'BINGO!' ? 'bg-green-500' :
+                       cardData.matches?.length > 0 ? 'bg-blue-500' : 'bg-gray-500';
+
     div.innerHTML = `
-        <div class="text-lg font-bold">Card ID: ${cardId}</div>
-        <div class="flex gap-2">
-            <button onclick="showCardModal('${cardId}')" class="bg-blue-500 text-white px-4 py-2 rounded hover:opacity-90">
-                View Card
+        <div class="flex items-center justify-between">
+            <button onclick="showCardModal('${cardId}')" 
+                    class="text-lg font-bold hover:text-blue-600 transition-colors">
+                Card ${cardId}
             </button>
-            <button onclick="validateCard('${cardId}')" class="${cardData.bingo_status === 'BINGO!' ? 'bg-green-500' : 'bg-gray-500'} text-white px-4 py-2 rounded hover:opacity-90">
-                ${cardData.bingo_status || 'Check Card'}
-            </button>
+            <div class="flex items-center gap-2">
+                <span class="text-sm">${cardData.matches?.length || 0} matches</span>
+                <div class="${statusColor} text-white text-sm px-3 py-1 rounded-full">
+                    ${cardData.bingo_status || 'Not checked'}
+                </div>
+            </div>
         </div>
     `;
+
     return div;
 }
+
 
 async function handleDownloadPdf() {
     try {
