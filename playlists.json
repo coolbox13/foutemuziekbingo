@@ -18,5 +18,11 @@
         "id": "https://open.spotify.com/playlist/7jGLlHSJum8EpoXc9uTRGa?si=8bbf353901c84e7a",
         "name": "https://open.spotify.com/playlist/7jGLlHSJum8EpoXc9uTRGa?si=8bbf353901c84e7a",
         "is_default": true
+    },
+    {
+        "id": "https://open.spotify.com/playlist/7f3kN9yPIW0QYi1Tuk1ch4?si=36b14b9366da42b9",
+        "name": "VGW Foute Muziek",
+        "owner": "coolbox13",
+        "is_default": false
     }
 ]

@@ -51,8 +51,15 @@ def api_generate_cards():
 
         def create_cards(state):
             state["cards"] = {}
+            used_ids = set()
             for _ in range(num_cards):
-                card_id = str(uuid.uuid4())[:8]
+                # Generate a unique 3-digit ID
+                while True:
+                    card_id = str(random.randint(100, 999))
+                    if card_id not in used_ids:
+                        used_ids.add(card_id)
+                        break
+                        
                 state["cards"][card_id] = {
                     "tracks": random.sample(state["unplayed_tracks"], 25),
                     "bingo_status": "Not checked",
