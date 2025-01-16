@@ -27,6 +27,7 @@ def register_blueprints(app):
     from app.card_routes import bp as card_bp
     from app.playback_routes import bp as playback_bp
     from app.game_routes import bp as game_bp
+    from app.sound_routes import bp as sound_bp
 
     # Register all blueprints with their prefixes
     app.register_blueprint(auth_bp, url_prefix="/auth")
@@ -38,3 +39,4 @@ def register_blueprints(app):
     app.register_blueprint(playback_bp, url_prefix="/playback")
     app.register_blueprint(game_bp, url_prefix="/game")
     app.register_blueprint(game_management_bp, url_prefix='/game_management')
+    app.register_blueprint(sound_bp, url_prefix='/sound')
