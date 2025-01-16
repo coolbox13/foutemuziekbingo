@@ -86,44 +86,63 @@ The application uses:
 ## Project Structure
 ```
 FouteMuziekBingo/
-.
+├── LICENSE
 ├── README.md
 ├── app
 │   ├── __init__.py
+│   ├── __pycache__
 │   ├── auth_routes.py
 │   ├── bingo_logic.py
 │   ├── card_routes.py
 │   ├── card_status.py
 │   ├── dashboard_routes.py
 │   ├── device_routes.py
+│   ├── game_management.py
 │   ├── game_routes.py
-│   ├── init.py
 │   ├── pdf_generator.py
 │   ├── playback_routes.py
 │   ├── playlist_routes.py
 │   ├── routes.py
-│   ├── routes_bak.py
-│   ├── socket_events.py
+│   ├── socket_handler.py
+│   ├── sound_routes.py
 │   ├── spotify.py
 │   ├── state.py
-│   ├── utils.py
-│   └── websocket.py
+│   └── utils.py
 ├── app.py
+├── archive
+│   ├── __pycache__
+│   │   └── socket_events.cpython-313.pyc
+│   ├── dashboard_backup.jsjs
+│   ├── init.py
+│   ├── pdf_cards.html
+│   ├── socket_events.py
+│   └── websocket.py
 ├── check_devices.py
 ├── game_state.json
 ├── logs
-│   └── music_bingo.log
 ├── playlists.json
 ├── requirements.txt
+├── saved_games
+├── sounds
+│   ├── applaus.wav
+│   ├── game_over.mp3
+│   ├── hartslag.mp3
+│   ├── mario.mp3
+│   ├── mario_grasland.mp3
+│   ├── mario_riedel.mp3
+│   ├── pauze.mp3
+│   ├── quiz_intro.m4a
+│   └── toeter.wav
 ├── static
 │   ├── css
 │   ├── js
-│   │   └── dashboard.js
+│   │   ├── dashboard.js
+│   │   ├── game_management.js
+│   │   └── sound_player.js
 │   └── svg
 │       └── tree.svg
 └── templates
-    ├── dashboard.html
-    └── pdf_cards.html
+    └── dashboard.html
 ```
 
 ## Contributing
