@@ -1,5 +1,6 @@
 import json
 import os
+import copy
 from threading import Lock
 
 # Paths for storing playlists and game state
@@ -15,7 +16,6 @@ DEFAULT_GAME_STATE = {
     "current_playlist": None,
     "num_tracks": 0,
 }
-
 
 class ThreadSafeGameState:
     _instance = None
@@ -36,11 +36,13 @@ class ThreadSafeGameState:
             self.__initialized = True
 
     def load_state(self):
-        """Load game state from file."""
+        """Load game state from file. If the file is missing or contains invalid JSON, reset to default."""
         try:
             with open(GAME_STATE_FILE, "r") as f:
                 return json.load(f)
-        except FileNotFoundError:
+        except (FileNotFoundError, json.JSONDecodeError) as e:
+            # Log the error (you may also use the logging module)
+            print(f"Warning: Unable to load game state from {GAME_STATE_FILE}: {e}. Resetting to default state.")
             return self.reset_to_default()
 
     def save_state(self, state):
@@ -53,19 +55,18 @@ class ThreadSafeGameState:
         with self.state_lock:
             update_func(self.state)
             self.save_state(self.state)
-            return self.state.copy()
+            return copy.deepcopy(self.state)
 
     def get_state(self):
         """Thread-safe state retrieval."""
         with self.state_lock:
-            return self.state.copy()
+            return copy.deepcopy(self.state)
 
     def reset_to_default(self):
         """Reset state to default values."""
         self.state = DEFAULT_GAME_STATE.copy()
         self.save_state(self.state)
         return self.state
-
 
 def load_playlists():
     """Load playlists from the JSON file."""
@@ -75,18 +76,10 @@ def load_playlists():
     with open(PLAYLISTS_FILE, "r") as f:
         return json.load(f)
 
-
 def save_playlists(playlists):
     """Save playlists to the JSON file."""
     with open(PLAYLISTS_FILE, "w") as f:
         json.dump(playlists, f, indent=4)
 
-
 # Create the singleton instance
 game_state = ThreadSafeGameState()
-
-# Remove these exports as they're no longer needed
-# GAME_STATE = game_state.get_state()
-# UNPLAYED_TRACKS = GAME_STATE["unplayed_tracks"]
-# PLAYED_TRACKS = GAME_STATE["played_tracks"]
-# CARDS = GAME_STATE["cards"]

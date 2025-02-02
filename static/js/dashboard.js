@@ -1,11 +1,10 @@
-// Initialize socket and dashboard state
+// Global state and socket configuration
 let socket = null;
 const dashboardState = {
-    updateInterval: null,
-    isConnected: false
+    isConnected: false,
+    fallbackPollingInterval: null
 };
 
-// Socket configuration
 const socketConfig = {
     reconnection: true,
     reconnectionAttempts: 5,
@@ -14,43 +13,29 @@ const socketConfig = {
     timeout: 20000
 };
 
+// Initialize the WebSocket connection and set up event handlers
 function initializeWebSocket() {
-    // Create new socket instance first
     socket = io(window.location.origin, socketConfig);
-
-    // Then attach event listeners
+    
     socket.on('connect', () => {
         console.log('Connected to websocket');
         dashboardState.isConnected = true;
         updateConnectionStatus('Connected');
-        
-        // Force update everything on reconnection
         forceUpdateAll();
-        
-        // Resubscribe to game state on reconnection
         socket.emit('request_game_state');
-    });
-
-    socket.on('connect_error', (error) => {
-        console.error('Connection error:', error);
-        updateConnectionStatus('Connection Error');
-    });
-
-    socket.on('reconnect_attempt', (attemptNumber) => {
-        console.log(`Reconnection attempt ${attemptNumber}`);
-        updateConnectionStatus(`Reconnecting (${attemptNumber})...`);
+        // Stop fallback polling if running
+        if (dashboardState.fallbackPollingInterval) {
+            clearInterval(dashboardState.fallbackPollingInterval);
+            dashboardState.fallbackPollingInterval = null;
+        }
     });
 
     socket.on('disconnect', (reason) => {
         console.log('Disconnected from websocket:', reason);
         dashboardState.isConnected = false;
         updateConnectionStatus('Disconnected');
-    });
-
-    socket.on('reconnect', (attemptNumber) => {
-        console.log(`Reconnected after ${attemptNumber} attempts`);
-        dashboardState.isConnected = true;
-        updateConnectionStatus('Connected');
+        // Restart fallback polling when disconnected
+        startFallbackPolling();
     });
 
     socket.on('error', (error) => {
@@ -58,56 +43,39 @@ function initializeWebSocket() {
         showError('Socket Error: ' + error.message);
     });
 
-    // Game-specific event handlers
+    // Use the data pushed from the server to update UI directly.
+    socket.on('game_state', (data) => {
+        console.log('Socket: Game state update received', data);
+        updateDashboardUIFromState(data);
+    });
+
     socket.on('new_track', (data) => {
         console.log('Socket: New track event received', data);
         handleNewTrack(data);
-        // Force update after new track is played
-        Promise.all([
-            loadPlayedTracks(),
-            loadCards(),
-            updateGameStats(),
-            updateDashboardData()
-        ]).then(() => {
-            console.log('Updates completed after new track');
-        }).catch(error => {
-            console.error('Error updating after new track:', error);
-        });
     });
 
     socket.on('card_status_update', (data) => {
         console.log('Socket: Card status update received', data);
         handleCardStatusUpdate(data);
-        // Force update when card status changes
-        Promise.all([
-            loadCards(),
-            updateGameStats(),
-            updateDashboardData()
-        ]).then(() => {
-            console.log('Updates completed after card status change');
-        }).catch(error => {
-            console.error('Error updating after card status change:', error);
-        });
-    });
-
-    socket.on('game_state', (data) => {
-        console.log('Socket: Game state update received', data);
-        handleGameStateUpdate(data);
-        // Force update when game state changes
-        Promise.all([
-            loadPlayedTracks(),
-            loadCards(),
-            updateGameStats(),
-            updateDashboardData()
-        ]).then(() => {
-            console.log('Updates completed after game state change');
-        }).catch(error => {
-            console.error('Error updating after game state change:', error);
-        });
     });
 }
 
-// Helper function to force update all components
+// Start fallback polling if the WebSocket is not connected.
+// The interval here is set to 30 seconds.
+function startFallbackPolling() {
+    if (!dashboardState.fallbackPollingInterval) {
+        console.log('Starting fallback polling (every 30 seconds) because socket is disconnected.');
+        dashboardState.fallbackPollingInterval = setInterval(async () => {
+            try {
+                await forceUpdateAll();
+            } catch (error) {
+                console.error('Error during fallback update:', error);
+            }
+        }, 30000);
+    }
+}
+
+// Force update all components by making AJAX calls.
 async function forceUpdateAll() {
     console.log('Force updating all components...');
     try {
@@ -115,7 +83,7 @@ async function forceUpdateAll() {
             loadPlaylists(),
             loadDevices(),
             loadPlayedTracks(),
-            loadCards(), // This will now automatically validate all cards
+            loadCards(),
             updateGameStats(),
             updateDashboardData()
         ]);
@@ -126,12 +94,32 @@ async function forceUpdateAll() {
     }
 }
 
-// Single DOMContentLoaded event listener
+// Instead of triggering additional GET requests, update the UI
+// directly with the game state received from the socket.
+function updateDashboardUIFromState(state) {
+    if (!state) return;
+    
+    // Example: update counts based on state properties.
+    updateElement('numTracks', state.unplayed_tracks ? state.unplayed_tracks.length : 0);
+    updateElement('playedTracks', state.played_tracks ? state.played_tracks.length : 0);
+    updateElement('totalCards', state.cards ? Object.keys(state.cards).length : 0);
+    
+    // If you want to update more elements (like card summaries),
+    // you can compute them here or add additional event handling.
+}
+
+// Standard DOMContentLoaded initialization
 document.addEventListener('DOMContentLoaded', () => {
     if (typeof io !== 'undefined') {
         initializeWebSocket();
         initializeEventListeners();
-        setupDashboardUpdates();
+        
+        // If socket doesn't connect within 5 seconds, start fallback polling.
+        setTimeout(() => {
+            if (!dashboardState.isConnected) {
+                startFallbackPolling();
+            }
+        }, 5000);
         
         // Set initial active tab for setup modal
         switchSetupTab('playlist');
@@ -143,7 +131,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
 
-        // Initial data load
+        // Initial data load via AJAX
         Promise.all([
             loadPlaylists(),
             loadDevices(),

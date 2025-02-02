@@ -1,8 +1,8 @@
 from flask import Blueprint, jsonify, current_app
 from app.state import game_state
+from app.helpers import handle_error
 
 bp = Blueprint("game", __name__)
-
 
 @bp.route("/api/new_round", methods=["POST"])
 def api_new_round():
@@ -11,5 +11,4 @@ def api_new_round():
         game_state.reset_to_default()
         return jsonify({"message": "New round started"})
     except Exception as e:
-        current_app.logger.error(f"Error starting new round: {e}")
-        return jsonify({"error": str(e)}), 500
+        return handle_error(e)
