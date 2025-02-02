@@ -676,16 +676,16 @@ function createBingoCardDisplay(cardId, cardData) {
                        cardData.matches?.length > 0 ? 'bg-blue-500' : 'bg-gray-500';
 
     div.innerHTML = `
-        <div class="flex items-center justify-between">
+        <div class="grid grid-cols-3 items-center gap-4">
             <button onclick="showCardModal('${cardId}')" 
-                    class="text-lg font-bold hover:text-blue-600 transition-colors">
+                    class="text-lg hover:text-blue-600 transition-colors text-left">
                 Card ${cardId}
             </button>
-            <div class="flex items-center gap-2">
-                <span class="text-sm">${cardData.matches?.length || 0} matches</span>
-                <div class="${statusColor} text-white text-sm px-3 py-1 rounded-full">
-                    ${cardData.bingo_status || 'Not checked'}
-                </div>
+            <span class="text-lg font-bold text-green-600 justify-self-center">
+            ${cardData.matches?.length || 0}
+            </span>
+            <div class="${statusColor} text-white text-sm px-3 py-1 rounded-full justify-self-end">
+                ${cardData.bingo_status || 'Not checked'}
             </div>
         </div>
     `;
