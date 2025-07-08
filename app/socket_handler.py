@@ -1,14 +1,16 @@
 from flask_socketio import SocketIO, emit, join_room, leave_room
-from flask import current_app
+from flask import current_app, Flask
 from app.state import game_state
 from app.helpers import handle_error
+import logging
 
 # Create SocketIO instance without app yet
-socketio = SocketIO()
+socketio = SocketIO(cors_allowed_origins="*")
 
-def init_socketio(app):
+def init_socketio(app: Flask):
     """Initialize SocketIO with the app and configure event handlers."""
-    socketio.init_app(app, cors_allowed_origins="*", logger=True, engineio_logger=True)
+    socketio.init_app(app, async_mode='threading')
+    return socketio
 
 def check_bingo_status(card_id):
     """Check if a card has achieved bingo."""
