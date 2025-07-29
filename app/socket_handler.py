@@ -1,6 +1,5 @@
 import socketio
 from app.state import game_state
-from app.helpers import handle_error
 import logging
 
 # Create Socket.IO server
@@ -8,6 +7,7 @@ sio = socketio.AsyncServer(cors_allowed_origins="*", async_mode='asgi')
 sio_app = socketio.ASGIApp(sio)
 
 logger = logging.getLogger("music_bingo")
+
 
 def check_bingo_status(card_id):
     """Check if a card has achieved bingo."""
@@ -26,16 +26,19 @@ def check_bingo_status(card_id):
             return True
     return False
 
+
 @sio.event
 async def connect(sid, environ):
     logger.info("WebSocket client connected.")
     print("Client connected")
     await sio.emit("connection_status", {"status": "connected"}, room=sid)
 
+
 @sio.event
 async def disconnect(sid):
     logger.info("WebSocket client disconnected.")
     print("Client disconnected")
+
 
 @sio.event
 async def card_validated(sid, data):
@@ -52,6 +55,7 @@ async def card_validated(sid, data):
             "matches": card.get("matches", []),
         }, room=sid)
 
+
 @sio.event
 async def check_bingo(sid, data):
     card_id = data.get("card_id")
@@ -61,6 +65,7 @@ async def check_bingo(sid, data):
     result = check_bingo_status(card_id)
     await sio.emit("bingo_result", {"card_id": card_id, "result": result}, room=sid)
 
+
 @sio.event
 async def track_played(sid, track_data):
     if not track_data:
@@ -68,6 +73,7 @@ async def track_played(sid, track_data):
         return
     logger.info(f"Track played: {track_data}")
     await sio.emit("new_track", track_data)
+
 
 @sio.event
 async def join(sid, data):
@@ -79,6 +85,7 @@ async def join(sid, data):
     else:
         await sio.emit("error", {"error": "No room specified"}, room=sid)
 
+
 @sio.event
 async def leave(sid, data):
     room = data.get("room")
@@ -89,10 +96,12 @@ async def leave(sid, data):
     else:
         await sio.emit("error", {"error": "No room specified"}, room=sid)
 
+
 @sio.event
 async def request_game_state(sid):
     state = game_state.get_state()
     await sio.emit("game_state", state, room=sid)
+
 
 @sio.event
 async def play_track(sid, data):

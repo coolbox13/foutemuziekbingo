@@ -7,6 +7,8 @@ logger = logging.getLogger("music_bingo")
 
 # This will be replaced with proper session management later
 # For now, we use the sessions from auth_routes
+
+
 def get_current_session(request=None):
     """Get current session based on client IP."""
     if request:
@@ -14,6 +16,7 @@ def get_current_session(request=None):
         client_ip = request.client.host
         return sessions.get(client_ip, {})
     return {}
+
 
 def get_spotify_oauth():
     """Initialize SpotifyOAuth."""
@@ -23,7 +26,7 @@ def get_spotify_oauth():
         redirect_uri=os.getenv(
             "SPOTIFY_REDIRECT_URI", "http://localhost:1313/auth/callback"
         ),
-        scope="playlist-read-private user-read-playback-state user-modify-playback-state user-read-currently-playing",
+        scope="playlist-read-private user-read-playback-state user-modify-playback-state",
     )
 
 
@@ -41,14 +44,14 @@ def get_spotify_client(request=None):
 def refresh_spotify_token(request=None):
     """Refresh Spotify token if expired."""
     from app.auth_routes import sessions
-    
+
     if request:
         client_ip = request.client.host
         session = sessions.get(client_ip, {})
     else:
         # This is a temporary workaround - in production, always pass request
         return
-    
+
     if "token_info" not in session:
         raise Exception("No token information found in session.")
 

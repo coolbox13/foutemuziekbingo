@@ -3,12 +3,12 @@ from fastapi.templating import Jinja2Templates
 from fastapi.responses import HTMLResponse
 from app.card_status import summarize_card_statuses
 from app.state import game_state
-from app.helpers import handle_error
 import logging
 
 router = APIRouter()
 logger = logging.getLogger("music_bingo")
 templates = Jinja2Templates(directory="templates")
+
 
 def get_dashboard_data():
     """Get all necessary data for the dashboard."""
@@ -25,6 +25,7 @@ def get_dashboard_data():
         },
         "card_summaries": summarize_card_statuses(cards, played_tracks),
     }
+
 
 @router.get("/", response_class=HTMLResponse)
 async def dashboard(request: Request):
@@ -43,6 +44,7 @@ async def dashboard(request: Request):
             "error_message": "Failed to load dashboard. Please try again."
         })
 
+
 @router.get("/api/dashboard_data")
 async def api_dashboard_data():
     """Get current dashboard data via API."""
@@ -52,6 +54,7 @@ async def api_dashboard_data():
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+
 @router.get("/api/dashboard_stats")
 async def api_dashboard_stats():
     """Get current game statistics."""
@@ -59,7 +62,8 @@ async def api_dashboard_stats():
         state = game_state.get_state()
         cards = state.get("cards", {})
         stats = {
-            "total_tracks": len(state.get("unplayed_tracks", [])) + len(state.get("played_tracks", [])),
+            "total_tracks": (len(state.get("unplayed_tracks", [])) +
+                             len(state.get("played_tracks", []))),
             "played_tracks": len(state.get("played_tracks", [])),
             "remaining_tracks": len(state.get("unplayed_tracks", [])),
             "total_cards": len(cards),

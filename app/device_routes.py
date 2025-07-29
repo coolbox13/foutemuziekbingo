@@ -1,10 +1,10 @@
 from fastapi import APIRouter, HTTPException, Request
-from app.spotify import get_spotify_client, refresh_spotify_token, get_available_devices
-from app.helpers import handle_error
+from app.spotify import get_spotify_client, get_available_devices
 import logging
 
 router = APIRouter()
 logger = logging.getLogger("music_bingo")
+
 
 @router.get("/api/get_devices")
 async def api_get_devices(request: Request):
@@ -15,6 +15,7 @@ async def api_get_devices(request: Request):
     except Exception as e:
         logger.error(f"Error getting devices: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
 
 @router.post("/api/select_device")
 async def api_select_device(request: Request):

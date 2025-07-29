@@ -1,22 +1,22 @@
 from fastapi import FastAPI, Request
 from fastapi.staticfiles import StaticFiles
-from fastapi.templating import Jinja2Templates
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, RedirectResponse
 from dotenv import load_dotenv
 import os
 import logging
+import asyncio
 from logging.handlers import RotatingFileHandler
 from app.routes import register_routes
-from app.socket_handler import sio_app
-import socketio
+from app.database import database
+
 
 def create_app():
     """Create and configure the FastAPI application."""
     load_dotenv()
 
     app = FastAPI(title="Foute Muziek Bingo")
-    
+
     # Add CORS middleware
     app.add_middleware(
         CORSMiddleware,
@@ -28,29 +28,48 @@ def create_app():
 
     # Mount static files
     app.mount("/static", StaticFiles(directory="static"), name="static")
-    
+
     # Configure logging
     if not os.path.exists("logs"):
         os.makedirs("logs")
-    
+
     file_handler = RotatingFileHandler(
         "logs/music_bingo.log", maxBytes=10240, backupCount=10
     )
     file_handler.setFormatter(
         logging.Formatter(
-            "%(asctime)s %(levelname)s: %(message)s [in %(pathname)s:%(lineno)d]"
+            "%(asctime)s %(levelname)s: %(message)s "
+            "[in %(pathname)s:%(lineno)d]"
         )
     )
     file_handler.setLevel(logging.INFO)
-    
+
     logger = logging.getLogger("music_bingo")
     logger.addHandler(file_handler)
     logger.setLevel(logging.INFO)
     logger.info("Music Bingo startup")
 
+    # Initialize database connection
+    @app.on_event("startup")
+    async def startup_event():
+        """Initialize database connection on startup"""
+        logger.info("Initializing database connection...")
+        try:
+            await database.initialize()
+            logger.info("Database connection initialized successfully")
+        except Exception as e:
+            logger.error(f"Failed to initialize database: {e}")
+            if os.getenv("NODE_ENV") != "development":
+                raise
+
+    @app.on_event("shutdown")
+    async def shutdown_event():
+        """Cleanup on shutdown"""
+        logger.info("Application shutting down...")
+
     # Register all routes
     register_routes(app)
-    
+
     # Add root route
     @app.get("/", response_class=HTMLResponse)
     async def root(request: Request):
@@ -62,7 +81,7 @@ def create_app():
         <h1>Welcome to Foute Muziek Bingo</h1>
         <p><a href='/auth/login'>Login with Spotify</a></p>
         """
-    
+
     # Socket.IO will be mounted separately in app.py
 
     return app

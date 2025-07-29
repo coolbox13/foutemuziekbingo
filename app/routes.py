@@ -3,12 +3,14 @@ import logging
 
 logger = logging.getLogger("music_bingo")
 
+
 async def log_request_info(request: Request):
     """Centralized request logging for all routes."""
     logger.info("Headers: %s", dict(request.headers))
     if request.method in ["POST", "PUT", "PATCH"]:
         body = await request.body()
         logger.info("Body: %s", body.decode() if body else "")
+
 
 def register_routes(app: FastAPI):
     """Register all routes to the FastAPI application."""
@@ -24,7 +26,7 @@ def register_routes(app: FastAPI):
     from app.game_management import router as game_management_router
     from app.sound_routes import router as sound_router
 
-    # Register all routers with their prefixes
+    # Register all routers with Flask blueprint prefixes to match frontend expectations
     app.include_router(auth_router, prefix="/auth", tags=["auth"])
     app.include_router(dashboard_router, prefix="/dashboard", tags=["dashboard"])
     app.include_router(playlist_router, prefix="/playlist", tags=["playlist"])

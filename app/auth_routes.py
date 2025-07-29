@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Request, HTTPException
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import RedirectResponse
 from spotipy.oauth2 import SpotifyOAuth
 import os
 import logging
@@ -10,6 +10,7 @@ logger = logging.getLogger("music_bingo")
 # Simple session storage (in production, use proper session management)
 sessions = {}
 
+
 @router.get("/login")
 async def login(request: Request):
     sp_oauth = SpotifyOAuth(
@@ -18,16 +19,17 @@ async def login(request: Request):
         redirect_uri=os.getenv(
             "SPOTIFY_REDIRECT_URI", "http://localhost:1313/auth/callback"
         ),
-        scope="playlist-read-private user-read-playback-state user-modify-playback-state user-read-currently-playing",
+        scope="playlist-read-private user-read-playback-state user-modify-playback-state",
     )
     auth_url = sp_oauth.get_authorize_url()
     logger.info(f"Spotify OAuth URL: {auth_url}")
     return RedirectResponse(url=auth_url, status_code=302)
 
+
 @router.get("/callback")
 async def callback(request: Request, code: str = None, error: str = None):
     client_ip = request.client.host
-    
+
     if error:
         logger.error(f"Spotify auth error: {error}")
         raise HTTPException(status_code=400, detail=f"Spotify Authentication Failed: {error}")
@@ -39,7 +41,7 @@ async def callback(request: Request, code: str = None, error: str = None):
             redirect_uri=os.getenv(
                 "SPOTIFY_REDIRECT_URI", "http://localhost:1313/auth/callback"
             ),
-            scope="playlist-read-private user-read-playback-state user-modify-playback-state user-read-currently-playing",
+            scope="playlist-read-private user-read-playback-state user-modify-playback-state",
         )
         try:
             token_info = sp_oauth.get_access_token(code)

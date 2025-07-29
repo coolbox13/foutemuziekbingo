@@ -17,6 +17,7 @@ DEFAULT_GAME_STATE = {
     "num_tracks": 0,
 }
 
+
 class ThreadSafeGameState:
     _instance = None
     _lock = Lock()
@@ -36,13 +37,14 @@ class ThreadSafeGameState:
             self.__initialized = True
 
     def load_state(self):
-        """Load game state from file. If the file is missing or contains invalid JSON, reset to default."""
+        """Load game state from file. If missing or invalid JSON, reset to default."""
         try:
             with open(GAME_STATE_FILE, "r") as f:
                 return json.load(f)
         except (FileNotFoundError, json.JSONDecodeError) as e:
             # Log the error (you may also use the logging module)
-            print(f"Warning: Unable to load game state from {GAME_STATE_FILE}: {e}. Resetting to default state.")
+            print(f"Warning: Unable to load game state from {GAME_STATE_FILE}: "
+                  f"{e}. Resetting to default state.")
             return self.reset_to_default()
 
     def save_state(self, state):
@@ -68,6 +70,7 @@ class ThreadSafeGameState:
         self.save_state(self.state)
         return self.state
 
+
 def load_playlists():
     """Load playlists from the JSON file."""
     if not os.path.exists(PLAYLISTS_FILE):
@@ -76,10 +79,12 @@ def load_playlists():
     with open(PLAYLISTS_FILE, "r") as f:
         return json.load(f)
 
+
 def save_playlists(playlists):
     """Save playlists to the JSON file."""
     with open(PLAYLISTS_FILE, "w") as f:
         json.dump(playlists, f, indent=4)
+
 
 # Create the singleton instance
 game_state = ThreadSafeGameState()

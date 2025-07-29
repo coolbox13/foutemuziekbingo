@@ -1,0 +1,19 @@
+{
+    "python.defaultInterpreter": "/opt/homebrew/bin/python3.11",
+    "python.pythonPath": "/opt/homebrew/bin/python3.11",
+    "python.terminal.activateEnvironment": false,
+    "python.linting.enabled": true,
+    "python.linting.flake8Enabled": true,
+    "python.linting.flake8Args": ["--max-line-length=100"],
+    "python.linting.pylintEnabled": false,
+    "python.formatting.provider": "autopep8",
+    "python.formatting.autopep8Args": ["--max-line-length=100"],
+    "python.analysis.typeCheckingMode": "basic",
+    "python.analysis.autoImportCompletions": true,
+    "files.exclude": {
+        "**/__pycache__": true,
+        "**/*.pyc": true,
+        "**/venv": true,
+        "**/.pytest_cache": true
+    }
+}

@@ -9,12 +9,22 @@ Start the application:
 python app.py
 ```
 
-The Flask server runs on http://localhost:1313 with debug mode enabled.
+The FastAPI server runs on http://localhost:1313.
 
-Install dependencies:
+Install dependencies (using conda environment 'base'):
 ```bash
+conda activate base
 pip install -r requirements.txt
 ```
+
+Check linters and syntax (using Python 3.11 in conda base environment):
+```bash
+python3.11 -m py_compile app.py
+python3.11 app.py
+flake8 app/*.py --max-line-length=100
+```
+
+Note: User prefers conda environment 'base' with zsh shell. Uses Python 3.11 with FastAPI packages installed.
 
 ## Required Environment Variables
 
@@ -28,21 +38,22 @@ export SECRET_KEY="your_secret_key"  # Optional, fallback provided
 
 ## Application Architecture
 
-This is a Flask-based web application for musical bingo using Spotify integration. Key architectural components:
+This is a FastAPI-based web application for musical bingo using Spotify integration. Key architectural components:
 
 ### Core Structure
-- **app.py**: Entry point that creates the Flask app and starts SocketIO server
-- **app/__init__.py**: Application factory pattern with blueprint registration
+- **app.py**: Entry point that creates the FastAPI app and starts Socket.IO server
+- **app/fastapi_app.py**: FastAPI application factory
 - **app/state.py**: Thread-safe singleton for game state management using JSON persistence
 
-### Blueprint Organization
-Routes are organized into focused blueprints registered in `app/routes.py`:
+### Router Organization
+Routes are organized into focused routers registered in `app/routes.py`:
 - `auth_routes`: Spotify OAuth authentication
 - `playlist_routes`: Spotify playlist management
 - `card_routes`: Bingo card generation and PDF export
 - `device_routes`: Spotify device selection
 - `playback_routes`: Music playback control
 - `game_routes`: Game state and logic
+- `game_management`: Save/load game functionality
 - `sound_routes`: Sound effect management
 - `dashboard_routes`: Main dashboard interface
 
@@ -53,8 +64,8 @@ The application uses a thread-safe singleton pattern (`ThreadSafeGameState`) tha
 - Maintains separation between played/unplayed tracks and bingo cards
 
 ### Real-time Communication
-- **Flask-SocketIO**: WebSocket communication for real-time updates
-- **app/socket_handler.py**: Central socket event handling
+- **python-socketio**: Async WebSocket communication for real-time updates
+- **app/socket_handler.py**: Central async socket event handling
 - Events include: card validation, track playing, bingo checking, game state updates
 
 ### Key Business Logic

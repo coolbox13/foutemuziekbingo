@@ -1,13 +1,13 @@
 import uvicorn
 from app.fastapi_app import create_app
-from app.socket_handler import sio_app
+from app.socket_handler import sio, sio_app
 import socketio
 
 # Create FastAPI app
 fastapi_app = create_app()
 
 # Create combined app with Socket.IO
-app = socketio.ASGIApp(sio_app, other_asgi_app=fastapi_app)
+app = socketio.ASGIApp(sio, other_asgi_app=fastapi_app)
 
 # Print all registered routes for debugging
 for route in fastapi_app.routes:
