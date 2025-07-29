@@ -25,6 +25,7 @@ def register_routes(app: FastAPI):
     from app.game_routes import router as game_router
     from app.game_management import router as game_management_router
     from app.sound_routes import router as sound_router
+    from app.websocket_routes import router as websocket_router
 
     # Register all routers with Flask blueprint prefixes to match frontend expectations
     app.include_router(auth_router, prefix="/auth", tags=["auth"])
@@ -36,3 +37,4 @@ def register_routes(app: FastAPI):
     app.include_router(game_router, prefix="/game", tags=["game"])
     app.include_router(game_management_router, prefix="/game_management", tags=["game_management"])
     app.include_router(sound_router, prefix="/sound", tags=["sound"])
+    app.include_router(websocket_router, tags=["websocket"])
