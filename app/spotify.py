@@ -1,10 +1,19 @@
 import os
 from spotipy import Spotify
 from spotipy.oauth2 import SpotifyOAuth
-from flask import Blueprint, session, current_app, redirect, jsonify
+import logging
 
-bp = Blueprint("spotify", __name__)
+logger = logging.getLogger("music_bingo")
 
+# This will be replaced with proper session management later
+# For now, we use the sessions from auth_routes
+def get_current_session(request=None):
+    """Get current session based on client IP."""
+    if request:
+        from app.auth_routes import sessions
+        client_ip = request.client.host
+        return sessions.get(client_ip, {})
+    return {}
 
 def get_spotify_oauth():
     """Initialize SpotifyOAuth."""
@@ -18,17 +27,28 @@ def get_spotify_oauth():
     )
 
 
-def get_spotify_client():
+def get_spotify_client(request=None):
     """Fetch Spotify client with access token."""
+    session = get_current_session(request)
     token_info = session.get("token_info")
     if not token_info:
         raise Exception("Spotify authentication required. Please log in again.")
-    refresh_spotify_token()
+    refresh_spotify_token(request)
+    session = get_current_session(request)  # Get updated session after refresh
     return Spotify(auth=session["token_info"]["access_token"])
 
 
-def refresh_spotify_token():
+def refresh_spotify_token(request=None):
     """Refresh Spotify token if expired."""
+    from app.auth_routes import sessions
+    
+    if request:
+        client_ip = request.client.host
+        session = sessions.get(client_ip, {})
+    else:
+        # This is a temporary workaround - in production, always pass request
+        return
+    
     if "token_info" not in session:
         raise Exception("No token information found in session.")
 
@@ -38,9 +58,9 @@ def refresh_spotify_token():
     if sp_oauth.is_token_expired(token_info):
         try:
             token_info = sp_oauth.refresh_access_token(token_info["refresh_token"])
-            session["token_info"] = token_info
+            sessions[client_ip]["token_info"] = token_info
         except Exception as e:
-            current_app.logger.error(f"Error refreshing token: {e}")
+            logger.error(f"Error refreshing token: {e}")
             raise Exception("Failed to refresh Spotify token. Please log in again.")
 
 
@@ -50,7 +70,7 @@ def get_available_devices(sp):
         devices_info = sp.devices()
         return devices_info.get("devices", [])
     except Exception as e:
-        current_app.logger.error(f"Error getting devices: {e}")
+        logger.error(f"Error getting devices: {e}")
         raise Exception("Failed to get Spotify devices. Please try again.")
 
 
@@ -72,7 +92,7 @@ def load_playlist_tracks(sp, playlist_id):
             results = sp.next(results)  # Handle pagination
         return tracks
     except Exception as e:
-        current_app.logger.error(f"Error loading playlist: {e}")
+        logger.error(f"Error loading playlist: {e}")
         raise Exception("Failed to load playlist tracks. Please try again.")
 
 
@@ -89,7 +109,7 @@ def play_random_track(sp):
 
         return active_device
     except Exception as e:
-        current_app.logger.error(f"Error in play_random_track: {e}")
+        logger.error(f"Error in play_random_track: {e}")
         raise Exception("Failed to play track. Please try again.")
 
 
@@ -98,18 +118,5 @@ def pause_playback(sp):
     try:
         sp.pause_playback()
     except Exception as e:
-        current_app.logger.error(f"Error pausing playback: {e}")
+        logger.error(f"Error pausing playback: {e}")
         raise Exception("Failed to pause playback. Please try again.")
-
-
-@bp.route("/login")
-def login():
-    try:
-        sp_oauth = get_spotify_oauth()
-        current_app.logger.info("SpotifyOAuth initialized")
-        auth_url = sp_oauth.get_authorize_url()
-        current_app.logger.info(f"Auth URL generated: {auth_url}")
-        return redirect(auth_url)
-    except Exception as e:
-        current_app.logger.error(f"Login error: {e}")
-        return jsonify({"error": f"Error: {e}"}), 500

@@ -1,12 +1,20 @@
-from app import create_app, socketio
-import archive.socket_events  # This is important to register the event handlers
+import uvicorn
+from app.fastapi_app import create_app
+from app.socket_handler import sio_app
+import socketio
 
-app = create_app()
+# Create FastAPI app
+fastapi_app = create_app()
+
+# Create combined app with Socket.IO
+app = socketio.ASGIApp(sio_app, other_asgi_app=fastapi_app)
 
 # Print all registered routes for debugging
-with app.app_context():
-    for rule in app.url_map.iter_rules():
-        print(f"{rule.endpoint}: {rule.rule}")
+for route in fastapi_app.routes:
+    if hasattr(route, 'methods'):
+        print(f"{route.methods}: {route.path}")
+    else:
+        print(f"Route: {route}")
 
 if __name__ == "__main__":
-    socketio.run(app, host="0.0.0.0", port=1313, debug=True)
+    uvicorn.run(app, host="0.0.0.0", port=1313, reload=False)

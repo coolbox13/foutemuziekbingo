@@ -1,5 +1,8 @@
-from flask import jsonify, current_app
+from fastapi import HTTPException
+import logging
+
+logger = logging.getLogger("music_bingo")
 
 def handle_error(e, status=500):
-    current_app.logger.error(f"Error: {e}")
-    return jsonify({"error": str(e)}), status
+    logger.error(f"Error: {e}")
+    raise HTTPException(status_code=status, detail=str(e))

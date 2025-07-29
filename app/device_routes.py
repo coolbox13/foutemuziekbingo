@@ -1,29 +1,31 @@
-from flask import Blueprint, jsonify, request, current_app
+from fastapi import APIRouter, HTTPException, Request
 from app.spotify import get_spotify_client, refresh_spotify_token, get_available_devices
 from app.helpers import handle_error
+import logging
 
-bp = Blueprint("device", __name__)
+router = APIRouter()
+logger = logging.getLogger("music_bingo")
 
-@bp.route("/api/get_devices", methods=["GET"])
-def api_get_devices():
+@router.get("/api/get_devices")
+async def api_get_devices(request: Request):
     try:
-        sp = get_spotify_client()
-        refresh_spotify_token()
+        sp = get_spotify_client(request)
         devices = get_available_devices(sp)
-        return jsonify({"devices": devices})
+        return {"devices": devices}
     except Exception as e:
-        return handle_error(e)
+        logger.error(f"Error getting devices: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
-@bp.route("/api/select_device", methods=["POST"])
-def api_select_device():
-    data = request.json
+@router.post("/api/select_device")
+async def api_select_device(request: Request):
+    data = await request.json()
     device_id = data.get("device_id")
     if not device_id:
-        return jsonify({"error": "No device ID provided"}), 400
+        raise HTTPException(status_code=400, detail="No device ID provided")
     try:
-        sp = get_spotify_client()
-        refresh_spotify_token()
+        sp = get_spotify_client(request)
         sp.transfer_playback(device_id=device_id)
-        return jsonify({"message": "Device selected successfully"})
+        return {"message": "Device selected successfully"}
     except Exception as e:
-        return handle_error(e)
+        logger.error(f"Error selecting device: {e}")
+        raise HTTPException(status_code=500, detail=str(e))

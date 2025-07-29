@@ -1,0 +1,21 @@
+name: muziekbingo
+channels:
+  - defaults
+  - conda-forge
+dependencies:
+  - python=3.11
+  - pip
+  - pip:
+    - fastapi
+    - uvicorn[standard]
+    - spotipy
+    - qrcode
+    - reportlab
+    - python-dotenv
+    - WeasyPrint
+    - tailwindcss
+    - Pillow
+    - python-socketio
+    - aiofiles
+    - python-multipart
+    - jinja2

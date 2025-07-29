@@ -1,9 +1,14 @@
-from flask import Blueprint, render_template, current_app, jsonify
+from fastapi import APIRouter, Request, HTTPException
+from fastapi.templating import Jinja2Templates
+from fastapi.responses import HTMLResponse
 from app.card_status import summarize_card_statuses
 from app.state import game_state
 from app.helpers import handle_error
+import logging
 
-bp = Blueprint("dashboard", __name__)
+router = APIRouter()
+logger = logging.getLogger("music_bingo")
+templates = Jinja2Templates(directory="templates")
 
 def get_dashboard_data():
     """Get all necessary data for the dashboard."""
@@ -21,28 +26,34 @@ def get_dashboard_data():
         "card_summaries": summarize_card_statuses(cards, played_tracks),
     }
 
-@bp.route("/", methods=["GET"])
-def dashboard():
+@router.get("/", response_class=HTMLResponse)
+async def dashboard(request: Request):
     """Render the main dashboard."""
     try:
-        current_app.logger.info("Dashboard route accessed")
+        logger.info("Dashboard route accessed")
         dashboard_data = get_dashboard_data()
-        return render_template("dashboard.html", **dashboard_data)
+        return templates.TemplateResponse("dashboard.html", {
+            "request": request,
+            **dashboard_data
+        })
     except Exception as e:
-        current_app.logger.error(f"Error rendering dashboard: {e}")
-        return render_template("error.html", error_message="Failed to load dashboard. Please try again.")
+        logger.error(f"Error rendering dashboard: {e}")
+        return templates.TemplateResponse("error.html", {
+            "request": request,
+            "error_message": "Failed to load dashboard. Please try again."
+        })
 
-@bp.route("/api/dashboard_data", methods=["GET"])
-def api_dashboard_data():
+@router.get("/api/dashboard_data")
+async def api_dashboard_data():
     """Get current dashboard data via API."""
     try:
         dashboard_data = get_dashboard_data()
-        return jsonify(dashboard_data)
+        return dashboard_data
     except Exception as e:
-        return handle_error(e)
+        raise HTTPException(status_code=500, detail=str(e))
 
-@bp.route("/api/dashboard_stats", methods=["GET"])
-def api_dashboard_stats():
+@router.get("/api/dashboard_stats")
+async def api_dashboard_stats():
     """Get current game statistics."""
     try:
         state = game_state.get_state()
@@ -55,6 +66,6 @@ def api_dashboard_stats():
             "cards_with_matches": sum(1 for card in cards.values() if card.get("matches")),
             "bingos": sum(1 for card in cards.values() if card.get("bingo_status") == "BINGO!")
         }
-        return jsonify(stats)
+        return stats
     except Exception as e:
-        return handle_error(e)
+        raise HTTPException(status_code=500, detail=str(e))

@@ -1,42 +1,36 @@
-from flask import Blueprint, request, current_app
-from app.game_management import bp as game_management_bp
+from fastapi import FastAPI, Request
+import logging
 
+logger = logging.getLogger("music_bingo")
 
-def log_request_info():
+async def log_request_info(request: Request):
     """Centralized request logging for all routes."""
-    current_app.logger.info("Headers: %s", request.headers)
-    current_app.logger.info("Body: %s", request.get_data())
+    logger.info("Headers: %s", dict(request.headers))
+    if request.method in ["POST", "PUT", "PATCH"]:
+        body = await request.body()
+        logger.info("Body: %s", body.decode() if body else "")
 
+def register_routes(app: FastAPI):
+    """Register all routes to the FastAPI application."""
+    logger.info("Registering routes.")
 
-bp = Blueprint("routes", __name__)
+    from app.auth_routes import router as auth_router
+    from app.dashboard_routes import router as dashboard_router
+    from app.playlist_routes import router as playlist_router
+    from app.device_routes import router as device_router
+    from app.card_routes import router as card_router
+    from app.playback_routes import router as playback_router
+    from app.game_routes import router as game_router
+    from app.game_management import router as game_management_router
+    from app.sound_routes import router as sound_router
 
-
-@bp.before_request
-def before_request():
-    log_request_info()
-
-
-def register_blueprints(app):
-    """Register all blueprints to the Flask application."""
-    app.logger.info("Registering blueprints.")
-
-    from app.auth_routes import bp as auth_bp
-    from app.dashboard_routes import bp as dashboard_bp
-    from app.playlist_routes import bp as playlist_bp
-    from app.device_routes import bp as device_bp
-    from app.card_routes import bp as card_bp
-    from app.playback_routes import bp as playback_bp
-    from app.game_routes import bp as game_bp
-    from app.sound_routes import bp as sound_bp
-
-    # Register all blueprints with their prefixes
-    app.register_blueprint(auth_bp, url_prefix="/auth")
-    app.register_blueprint(dashboard_bp, url_prefix="/dashboard")
-    #app.register_blueprint(dashboard_bp)
-    app.register_blueprint(playlist_bp, url_prefix="/playlist")
-    app.register_blueprint(device_bp, url_prefix="/device")
-    app.register_blueprint(card_bp, url_prefix="/card")
-    app.register_blueprint(playback_bp, url_prefix="/playback")
-    app.register_blueprint(game_bp, url_prefix="/game")
-    app.register_blueprint(game_management_bp, url_prefix='/game_management')
-    app.register_blueprint(sound_bp, url_prefix='/sound')
+    # Register all routers with their prefixes
+    app.include_router(auth_router, prefix="/auth", tags=["auth"])
+    app.include_router(dashboard_router, prefix="/dashboard", tags=["dashboard"])
+    app.include_router(playlist_router, prefix="/playlist", tags=["playlist"])
+    app.include_router(device_router, prefix="/device", tags=["device"])
+    app.include_router(card_router, prefix="/card", tags=["card"])
+    app.include_router(playback_router, prefix="/playback", tags=["playback"])
+    app.include_router(game_router, prefix="/game", tags=["game"])
+    app.include_router(game_management_router, prefix="/game_management", tags=["game_management"])
+    app.include_router(sound_router, prefix="/sound", tags=["sound"])

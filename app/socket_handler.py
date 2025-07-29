@@ -1,16 +1,13 @@
-from flask_socketio import SocketIO, emit, join_room, leave_room
-from flask import current_app, Flask
+import socketio
 from app.state import game_state
 from app.helpers import handle_error
 import logging
 
-# Create SocketIO instance without app yet
-socketio = SocketIO(cors_allowed_origins="*")
+# Create Socket.IO server
+sio = socketio.AsyncServer(cors_allowed_origins="*", async_mode='asgi')
+sio_app = socketio.ASGIApp(sio)
 
-def init_socketio(app: Flask):
-    """Initialize SocketIO with the app and configure event handlers."""
-    socketio.init_app(app, async_mode='threading')
-    return socketio
+logger = logging.getLogger("music_bingo")
 
 def check_bingo_status(card_id):
     """Check if a card has achieved bingo."""
@@ -29,81 +26,81 @@ def check_bingo_status(card_id):
             return True
     return False
 
-@socketio.on("connect")
-def handle_connect():
-    current_app.logger.info("WebSocket client connected.")
+@sio.event
+async def connect(sid, environ):
+    logger.info("WebSocket client connected.")
     print("Client connected")
-    emit("connection_status", {"status": "connected"})
+    await sio.emit("connection_status", {"status": "connected"}, room=sid)
 
-@socketio.on("disconnect")
-def handle_disconnect():
-    current_app.logger.info("WebSocket client disconnected.")
+@sio.event
+async def disconnect(sid):
+    logger.info("WebSocket client disconnected.")
     print("Client disconnected")
 
-@socketio.on("card_validated")
-def handle_card_validation(data):
+@sio.event
+async def card_validated(sid, data):
     card_id = data.get("card_id")
     if not card_id:
-        emit("error", {"error": "No card ID provided"})
+        await sio.emit("error", {"error": "No card ID provided"}, room=sid)
         return
     state = game_state.get_state()
     card = state["cards"].get(card_id)
     if card:
-        emit("card_status_update", {
+        await sio.emit("card_status_update", {
             "card_id": card_id,
             "status": card.get("bingo_status", "Not checked"),
             "matches": card.get("matches", []),
-        })
+        }, room=sid)
 
-@socketio.on("check_bingo")
-def handle_check_bingo(data):
+@sio.event
+async def check_bingo(sid, data):
     card_id = data.get("card_id")
     if not card_id:
-        emit("bingo_result", {"error": "No card ID provided"})
+        await sio.emit("bingo_result", {"error": "No card ID provided"}, room=sid)
         return
     result = check_bingo_status(card_id)
-    emit("bingo_result", {"card_id": card_id, "result": result})
+    await sio.emit("bingo_result", {"card_id": card_id, "result": result}, room=sid)
 
-@socketio.on("track_played")
-def handle_track_played(track_data):
+@sio.event
+async def track_played(sid, track_data):
     if not track_data:
-        emit("error", {"error": "No track data provided"})
+        await sio.emit("error", {"error": "No track data provided"}, room=sid)
         return
-    current_app.logger.info(f"Track played: {track_data}")
-    emit("new_track", track_data)
+    logger.info(f"Track played: {track_data}")
+    await sio.emit("new_track", track_data)
 
-@socketio.on("join")
-def handle_join(data):
+@sio.event
+async def join(sid, data):
     room = data.get("room")
     if room:
-        join_room(room)
-        current_app.logger.info(f"Client joined room: {room}")
-        emit("room_joined", {"room": room}, room=room)
+        await sio.enter_room(sid, room)
+        logger.info(f"Client joined room: {room}")
+        await sio.emit("room_joined", {"room": room}, room=room)
     else:
-        emit("error", {"error": "No room specified"})
+        await sio.emit("error", {"error": "No room specified"}, room=sid)
 
-@socketio.on("leave")
-def handle_leave(data):
+@sio.event
+async def leave(sid, data):
     room = data.get("room")
     if room:
-        leave_room(room)
-        current_app.logger.info(f"Client left room: {room}")
-        emit("room_left", {"room": room}, room=room)
+        await sio.leave_room(sid, room)
+        logger.info(f"Client left room: {room}")
+        await sio.emit("room_left", {"room": room}, room=room)
     else:
-        emit("error", {"error": "No room specified"})
+        await sio.emit("error", {"error": "No room specified"}, room=sid)
 
-@socketio.on("request_game_state")
-def handle_request_game_state():
+@sio.event
+async def request_game_state(sid):
     state = game_state.get_state()
-    emit("game_state", state)
+    await sio.emit("game_state", state, room=sid)
 
-@socketio.on("play_track")
-def handle_play_track(data):
+@sio.event
+async def play_track(sid, data):
     track_id = data.get("track_id")
     if not track_id:
-        emit("error", {"error": "No track ID provided"})
+        await sio.emit("error", {"error": "No track ID provided"}, room=sid)
         return
-    current_app.logger.info(f"Requested to play track: {track_id}")
+    logger.info(f"Requested to play track: {track_id}")
     state = game_state.get_state()
     track = next((t for t in state["unplayed_tracks"] if t["id"] == track_id), None)
     if track:
@@ -112,6 +109,6 @@ def handle_play_track(data):
                 state["unplayed_tracks"].remove(track)
             state["played_tracks"].append(track)
         game_state.update_state(update_track_lists)
-        emit("track_played", {"track_id": track_id, "track": track})
+        await sio.emit("track_played", {"track_id": track_id, "track": track}, room=sid)
     else:
-        emit("error", {"error": "Track not found in unplayed tracks"})
+        await sio.emit("error", {"error": "Track not found in unplayed tracks"}, room=sid)
