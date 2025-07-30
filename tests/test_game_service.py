@@ -27,6 +27,7 @@ async def test_game_creation():
     game_data = GameCreate(
         name="Test Music Bingo",
         description="A test game for unit testing",
+        playlist_id="test-playlist-123",
         max_players=8,
         is_private=False
     )
@@ -136,9 +137,9 @@ async def test_game_configuration():
     try:
         # Test different game configurations
         configs = [
-            {"name": "Quick Game", "max_players": 4, "is_private": False},
-            {"name": "Private Party", "max_players": 10, "is_private": True},
-            {"name": "Large Event", "max_players": 20, "is_private": False}
+            {"name": "Quick Game", "playlist_id": "quick-playlist-123", "max_players": 4, "is_private": False},
+            {"name": "Private Party", "playlist_id": "private-playlist-456", "max_players": 10, "is_private": True},
+            {"name": "Large Event", "playlist_id": "large-playlist-789", "max_players": 20, "is_private": False}
         ]
         
         for config in configs:

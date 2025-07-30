@@ -34,6 +34,16 @@ export SPOTIFY_CLIENT_ID="your_client_id"
 export SPOTIFY_CLIENT_SECRET="your_client_secret"
 export SPOTIFY_REDIRECT_URI="http://localhost:1313/auth/callback"
 export SECRET_KEY="your_secret_key"  # Optional, fallback provided
+export SUPABASE_URL="your_supabase_url" 
+export SUPABASE_SERVICE_KEY="your_supabase_service_key"
+export JWT_SECRET="your_jwt_secret"
+```
+
+Run tests:
+```bash
+conda activate base
+pip install pyjwt  # Required for tests
+python3 tests/run_all_tests.py
 ```
 
 ## Application Architecture

@@ -235,7 +235,8 @@ async def spotify_callback(request: Request, code: str = None, error: str = None
         })
         
         try:
-            user_json = json.dumps(auth_response.user.dict())
+            # Use Pydantic's built-in JSON serialization which handles datetime objects
+            user_json = auth_response.user.json()
             logger.info(f"[DEBUG-004] User JSON serialized successfully", extra={
                 "callback_id": callback_id,
                 "user_json_length": len(user_json),
@@ -244,7 +245,9 @@ async def spotify_callback(request: Request, code: str = None, error: str = None
         except Exception as json_error:
             logger.error(f"[DEBUG-004-ERROR] User JSON serialization failed", extra={
                 "callback_id": callback_id,
-                "error": str(json_error)
+                "error": str(json_error),
+                "error_type": type(json_error).__name__,
+                "user_dict_sample": str(auth_response.user.dict())[:200]
             })
             raise
         
@@ -294,7 +297,7 @@ async def spotify_callback(request: Request, code: str = None, error: str = None
                     // Store tokens for frontend use
                     localStorage.setItem('access_token', '{auth_response.tokens.access_token}');
                     localStorage.setItem('refresh_token', '{auth_response.tokens.refresh_token}');
-                    localStorage.setItem('user', `{json.dumps(auth_response.user.dict())}`);
+                    localStorage.setItem('user', `{user_json}`);
                     
                     // Initialize icons and redirect
                     lucide.createIcons();

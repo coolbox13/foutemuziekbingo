@@ -77,7 +77,7 @@ def check_dependencies():
         "supabase",
         "pydantic",
         "spotipy",
-        "pyjwt"
+        "jwt"  # pyjwt package imports as 'jwt'
     ]
     
     missing_packages = []

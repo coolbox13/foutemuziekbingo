@@ -100,6 +100,15 @@ class JWTService:
             expires_in=int(self._parse_duration(self.jwt_expires_in).total_seconds())
         )
     
+    def create_tokens(self, user_id: str, spotify_id: str = "test") -> dict:
+        """Create tokens for testing - legacy alias for generate_tokens"""
+        tokens = self.generate_tokens(user_id, spotify_id)
+        return {
+            "access_token": tokens.access_token,
+            "refresh_token": tokens.refresh_token,
+            "expires_in": tokens.expires_in
+        }
+    
     def verify_access_token(self, token: str) -> JWTPayload:
         """Verify and decode JWT access token"""
         try:

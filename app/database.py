@@ -237,6 +237,11 @@ class SupabaseService:
 
         return result
 
+    async def health_check(self) -> bool:
+        """Simple health check for testing - returns True if database is healthy"""
+        health_result = await self.perform_health_check()
+        return health_result.get("is_healthy", False)
+
     def get_status(self) -> Dict[str, Any]:
         """Get database connection status and statistics"""
         uptime = None
