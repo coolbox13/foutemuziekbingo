@@ -1,9 +1,10 @@
-from fastapi import APIRouter, Request, HTTPException, Depends
+from fastapi import APIRouter, Request, HTTPException, Depends, Response
 from fastapi.responses import RedirectResponse, HTMLResponse
 from fastapi.templating import Jinja2Templates
 from fastapi.security import HTTPBearer
 from spotipy.oauth2 import SpotifyOAuth
 from spotipy import Spotify
+from spotipy.exceptions import SpotifyException
 import os
 import logging
 from app.models import (
@@ -11,6 +12,12 @@ from app.models import (
     SpotifyUserProfile, UserPublic, APIResponse
 )
 from app.auth_service import auth_service, get_current_user, get_current_user_optional
+from app.secure_session import (
+    create_secure_session, 
+    get_session_from_request, 
+    invalidate_session,
+    generate_csrf_token
+)
 
 router = APIRouter()
 logger = logging.getLogger("music_bingo")
@@ -18,8 +25,11 @@ security = HTTPBearer()
 templates = Jinja2Templates(directory="templates")
 
 # Legacy session storage for backwards compatibility during migration
-# TODO: Remove after full migration to JWT/Supabase
+# TODO: Remove after full migration to secure sessions
 sessions = {}
+
+# Get secret key for session signing
+SECRET_KEY = os.getenv("SECRET_KEY", "dev-secret-key-change-in-production")
 
 
 @router.get("/login/page")
@@ -30,26 +40,31 @@ async def login_page(request: Request):
 
 @router.get("/login")
 async def spotify_login():
-    """Initiate Spotify OAuth flow"""
+    """Initiate Spotify OAuth flow with CSRF protection"""
+    # Generate CSRF state parameter
+    csrf_state = generate_csrf_token()
+    
     sp_oauth = SpotifyOAuth(
         client_id=os.getenv("SPOTIFY_CLIENT_ID"),
         client_secret=os.getenv("SPOTIFY_CLIENT_SECRET"),
         redirect_uri=os.getenv("SPOTIFY_REDIRECT_URI", "http://localhost:1313/auth/spotify/callback"),
         scope="playlist-read-private user-read-playback-state user-modify-playback-state user-read-private user-read-email",
+        state=csrf_state,  # Add CSRF protection
         show_dialog=True  # Always show dialog for better UX
     )
     
     auth_url = sp_oauth.get_authorize_url()
     logger.info("[AUTH-SPOTIFY-001] Redirecting to Spotify OAuth", extra={
         "auth_url": auth_url[:50] + "...",
-        "redirect_uri": os.getenv("SPOTIFY_REDIRECT_URI")
+        "redirect_uri": os.getenv("SPOTIFY_REDIRECT_URI"),
+        "csrf_state": csrf_state[:8] + "..."  # Log only first 8 chars
     })
     
     return RedirectResponse(url=auth_url, status_code=302)
 
 
 @router.get("/spotify/callback")
-async def spotify_callback(request: Request, code: str = None, error: str = None):
+async def spotify_callback(request: Request, response: Response, code: str = None, error: str = None, state: str = None):
     """Handle Spotify OAuth callback and create user session"""
     callback_id = f"callback-{int(request.scope.get('time', 0))}"
     
@@ -129,20 +144,37 @@ async def spotify_callback(request: Request, code: str = None, error: str = None
         )
 
     try:
-        # Exchange code for tokens
+        # Validate CSRF state parameter
+        if not state:
+            logger.error("[AUTH-CALLBACK-CSRF] Missing state parameter", extra={
+                "callback_id": callback_id
+            })
+            raise Exception("Missing security state parameter")
+            
+        # Exchange code for tokens with proper error handling
         sp_oauth = SpotifyOAuth(
             client_id=os.getenv("SPOTIFY_CLIENT_ID"),
             client_secret=os.getenv("SPOTIFY_CLIENT_SECRET"),
             redirect_uri=os.getenv("SPOTIFY_REDIRECT_URI", "http://localhost:1313/auth/spotify/callback"),
-            scope="playlist-read-private user-read-playback-state user-modify-playback-state user-read-private user-read-email"
+            scope="playlist-read-private user-read-playback-state user-modify-playback-state user-read-private user-read-email",
+            state=state
         )
         
         logger.info("[AUTH-CALLBACK-002] Exchanging code for tokens", extra={
             "callback_id": callback_id,
-            "code_length": len(code)
+            "code_length": len(code),
+            "state_present": bool(state)
         })
         
-        token_info = sp_oauth.get_access_token(code)
+        try:
+            token_info = sp_oauth.get_access_token(code)
+        except SpotifyException as e:
+            logger.error("[AUTH-CALLBACK-SPOTIFY-ERROR] Spotify OAuth error", extra={
+                "callback_id": callback_id,
+                "error": str(e),
+                "status_code": getattr(e, 'http_status', 'unknown')
+            })
+            raise Exception("Spotify authentication failed")
         
         if not token_info:
             raise Exception("Failed to get token from Spotify")
@@ -211,7 +243,16 @@ async def spotify_callback(request: Request, code: str = None, error: str = None
             "user_dict_keys": list(auth_response.user.dict().keys())
         })
         
-        # Store tokens in session for legacy compatibility
+        # Create secure session (replaces IP-based sessions)
+        session_token = create_secure_session(
+            user_id=auth_response.user.id,
+            spotify_token_info=token_info,
+            user_data=auth_response.user.dict(),
+            response=response,
+            secret_key=SECRET_KEY
+        )
+        
+        # Store in legacy session storage for backwards compatibility during migration
         client_ip = request.client.host
         if client_ip not in sessions:
             sessions[client_ip] = {}
@@ -219,9 +260,10 @@ async def spotify_callback(request: Request, code: str = None, error: str = None
         sessions[client_ip]["user"] = auth_response.user.dict()
         sessions[client_ip]["jwt_tokens"] = auth_response.tokens.dict()
         
-        logger.info(f"[DEBUG-002] Session data stored", extra={
+        logger.info(f"[AUTH-CALLBACK-007] Secure session created", extra={
             "callback_id": callback_id,
-            "session_keys": list(sessions[client_ip].keys())
+            "session_token": session_token[:8] + "...",
+            "user_id": auth_response.user.id
         })
         
         # Return success page with tokens (in production, use secure cookies or redirect)
@@ -377,19 +419,37 @@ async def get_current_user_info(current_user: UserPublic = Depends(get_current_u
 
 
 @router.post("/logout")
-async def logout(request: Request, current_user: UserPublic = Depends(get_current_user_optional)):
-    """Logout user (clear session)"""
-    # Clear legacy session
+async def logout(
+    request: Request, 
+    response: Response, 
+    current_user: UserPublic = Depends(get_current_user_optional)
+):
+    """Logout user (clear session and cookies)"""
+    # Get session from secure cookie
+    session_data = get_session_from_request(request, SECRET_KEY)
+    session_token = None
+    
+    if session_data:
+        # Extract session token from cookie for invalidation
+        cookie_value = request.cookies.get("music_bingo_session", "")
+        if "." in cookie_value:
+            session_token = cookie_value.split(".")[0]
+    
+    # Invalidate secure session
+    if session_token:
+        invalidate_session(session_token, response)
+    
+    # Clear legacy session for backwards compatibility
     client_ip = request.client.host
     if client_ip in sessions:
         del sessions[client_ip]
     
     # In a full JWT implementation, we'd add the token to a blacklist
-    # For now, we just rely on token expiration
+    # For now, we just rely on token expiration and session invalidation
     
     logger.info(f"[AUTH-LOGOUT] User logged out", extra={
         "user_id": current_user.id if current_user else "unknown",
-        "client_ip": client_ip
+        "session_token": session_token[:8] + "..." if session_token else "none"
     })
     
     return APIResponse(
