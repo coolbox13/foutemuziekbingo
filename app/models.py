@@ -4,7 +4,7 @@ Migrated from PWA project TypeScript interfaces to Python Pydantic models
 """
 from typing import Optional, List, Dict, Any, Union
 from datetime import datetime
-from pydantic import BaseModel, EmailStr, Field, validator
+from pydantic import BaseModel, EmailStr, Field, field_validator
 from enum import Enum
 
 
@@ -66,6 +66,14 @@ class UserBase(BaseModel):
     email: Optional[EmailStr] = Field(None, description="User's email address")
     country: Optional[str] = Field(None, description="User's country")
     subscription_type: SubscriptionType = Field(default=SubscriptionType.FREE, description="Subscription type")
+    
+    @field_validator('spotify_id')
+    @classmethod
+    def validate_spotify_id(cls, v: str) -> str:
+        """Validate Spotify ID format"""
+        if not v or len(v) < 3:
+            raise ValueError("Spotify ID must be at least 3 characters")
+        return v
 
 
 class UserCreate(UserBase):
@@ -280,6 +288,14 @@ class Game(GameBase):
     # Relationships
     playlist: Optional[Playlist] = Field(None, description="Associated playlist")
     players: List[UserPublic] = Field(default_factory=list, description="Game players")
+    
+    @field_validator('room_code')
+    @classmethod
+    def validate_room_code(cls, v: Optional[str]) -> Optional[str]:
+        """Validate room code format"""
+        if v is not None and (len(v) != 6 or not v.isdigit()):
+            raise ValueError("Room code must be exactly 6 digits")
+        return v
     cards: List[BingoCard] = Field(default_factory=list, description="Player bingo cards")
     
     class Config:
@@ -364,21 +380,4 @@ class BingoEvent(GameEvent):
 # =============================================
 # VALIDATION HELPERS
 # =============================================
-
-def validate_spotify_id(v: str) -> str:
-    """Validate Spotify ID format"""
-    if not v or len(v) < 3:
-        raise ValueError("Spotify ID must be at least 3 characters")
-    return v
-
-
-def validate_room_code(v: Optional[str]) -> Optional[str]:
-    """Validate room code format"""
-    if v is not None and (len(v) != 6 or not v.isdigit()):
-        raise ValueError("Room code must be exactly 6 digits")
-    return v
-
-
-# Add validators to models
-UserBase.validator('spotify_id', allow_reuse=True)(validate_spotify_id)
-Game.validator('room_code', allow_reuse=True)(validate_room_code)
+# Note: Validators are now defined within their respective classes using @field_validator

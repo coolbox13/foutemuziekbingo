@@ -8,7 +8,7 @@ from typing import Dict, List, Set, Optional
 from fastapi import WebSocket, WebSocketDisconnect
 from datetime import datetime, timezone
 from app.models import User, Game, GameStatus
-from app.auth_service import get_current_user_from_token
+from app.auth_service import auth_service
 from app.game_service import game_service
 from app.database import database
 

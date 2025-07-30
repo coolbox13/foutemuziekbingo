@@ -8,7 +8,7 @@ import bcrypt
 import logging
 from datetime import datetime, timedelta, timezone
 from typing import Optional, Dict, Any, Tuple
-from fastapi import HTTPException, status, Request
+from fastapi import HTTPException, status, Request, Depends
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 import asyncio
 from app.models import (
@@ -419,7 +419,7 @@ class AuthService:
 
 
 # Dependency for FastAPI routes
-async def get_current_user(credentials: HTTPAuthorizationCredentials = security) -> User:
+async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)) -> User:
     """FastAPI dependency to get current authenticated user"""
     try:
         auth_service = AuthService()

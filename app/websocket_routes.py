@@ -7,7 +7,7 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Query, HTTPExcept
 from fastapi.security import HTTPBearer
 from typing import Optional
 from app.websocket_service import ws_manager, handle_websocket_message
-from app.auth_service import verify_jwt_token
+from app.auth_service import auth_service
 from app.models import User
 from app.game_service import game_service
 
@@ -19,7 +19,7 @@ security = HTTPBearer()
 async def get_websocket_user(token: str) -> User:
     """Get user from JWT token for WebSocket authentication"""
     try:
-        payload = verify_jwt_token(token)
+        payload = auth_service.verify_access_token(token)
         if not payload:
             raise HTTPException(status_code=401, detail="Invalid token")
         
