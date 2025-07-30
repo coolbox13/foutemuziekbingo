@@ -204,10 +204,11 @@ class PlaylistService:
                     cached = cached_lookup[spotify_id]
                     
                     # Check if update is needed (name change, track count change, etc.)
+                    spotify_total_tracks = spotify_playlist.get("tracks", {}).get("total", 0)
                     needs_update = (
                         cached["name"] != spotify_playlist["name"] or
                         cached.get("description") != spotify_playlist.get("description", "") or
-                        cached["total_tracks"] != spotify_playlist["tracks"]["total"]
+                        cached["total_tracks"] != spotify_total_tracks
                     )
                     
                     if needs_update:
@@ -221,14 +222,14 @@ class PlaylistService:
                         update_data = {
                             "name": spotify_playlist["name"],
                             "description": spotify_playlist.get("description", ""),
-                            "total_tracks": spotify_playlist["tracks"]["total"],
+                            "total_tracks": spotify_total_tracks,
                             "updated_at": datetime.now(timezone.utc).isoformat()
                         }
                         
                         updated_playlist = await database.update_record("playlists", cached["id"], update_data)
                         
                         # Refresh tracks if track count changed
-                        if cached["total_tracks"] != spotify_playlist["tracks"]["total"]:
+                        if cached["total_tracks"] != spotify_total_tracks:
                             await self._refresh_playlist_tracks(updated_playlist["id"], spotify_playlist)
                         
                         synced_playlists.append(Playlist(**updated_playlist))
@@ -268,7 +269,7 @@ class PlaylistService:
                 "name": spotify_playlist["name"],
                 "description": spotify_playlist.get("description", ""),
                 "owner_id": user.id,
-                "total_tracks": spotify_playlist["tracks"]["total"],
+                "total_tracks": spotify_playlist.get("tracks", {}).get("total", 0),
                 "created_at": datetime.now(timezone.utc).isoformat(),
                 "updated_at": datetime.now(timezone.utc).isoformat()
             }
@@ -308,7 +309,8 @@ class PlaylistService:
             tracks_data = []
             
             # Store placeholder tracks (in production, fetch from Spotify)
-            for i in range(min(25, spotify_playlist["tracks"]["total"])):
+            total_tracks = spotify_playlist.get("tracks", {}).get("total", 0)
+            for i in range(min(25, total_tracks)):
                 track_data = {
                     "playlist_id": playlist_id,
                     "spotify_track_id": f"track_{i}",

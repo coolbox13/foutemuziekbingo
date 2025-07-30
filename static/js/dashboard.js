@@ -2,7 +2,9 @@
 let socket = null;
 const dashboardState = {
     isConnected: false,
-    fallbackPollingInterval: null
+    fallbackPollingInterval: null,
+    errorCount: 0,
+    lastErrorTime: null
 };
 
 const socketConfig = {
@@ -77,6 +79,18 @@ function startFallbackPolling() {
 
 // Force update all components by making AJAX calls.
 async function forceUpdateAll() {
+    // Implement exponential backoff for repeated errors
+    const now = Date.now();
+    if (dashboardState.errorCount > 0 && dashboardState.lastErrorTime) {
+        const timeSinceError = now - dashboardState.lastErrorTime;
+        const backoffDelay = Math.min(1000 * Math.pow(2, dashboardState.errorCount), 30000); // Max 30s
+        
+        if (timeSinceError < backoffDelay) {
+            console.log(`Skipping update due to backoff (${backoffDelay}ms remaining)`);
+            return;
+        }
+    }
+    
     console.log('Force updating all components...');
     try {
         await Promise.all([
@@ -88,8 +102,18 @@ async function forceUpdateAll() {
             updateDashboardData()
         ]);
         console.log('Force update complete');
+        
+        // Reset error count on successful update
+        dashboardState.errorCount = 0;
+        dashboardState.lastErrorTime = null;
+        
     } catch (error) {
         console.error('Error during force update:', error);
+        
+        // Increment error count and track time
+        dashboardState.errorCount = Math.min(dashboardState.errorCount + 1, 5); // Max 5
+        dashboardState.lastErrorTime = now;
+        
         showError('Failed to update game state');
     }
 }
@@ -894,7 +918,7 @@ function setupDashboardUpdates() {
         } catch (error) {
             console.error('Error during periodic update:', error);
         }
-    }, 3000); // Reduced to 3 seconds for more responsive updates
+    }, 15000); // Reduced from 3s to 15s to decrease server load
 }
 
 // game management functions

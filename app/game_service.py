@@ -538,7 +538,7 @@ class GameStateService:
                 self._check_diagonal_pattern(card))
     
     async def get_user_games(self, user_id: str, status_filter: Optional[GameStatus] = None) -> List[GamePublic]:
-        """Get games for a specific user"""
+        """Get games for a specific user with error recovery"""
         try:
             # Build query filters
             filters = {}
@@ -546,25 +546,48 @@ class GameStateService:
                 filters["status"] = status_filter.value
             
             # Get games where user is host
-            hosted_games = await database.query_records(
-                "games",
-                filters={**filters, "host_id": user_id},
-                order_by={"column": "created_at", "ascending": False}
-            )
+            try:
+                hosted_games = await database.query_records(
+                    "games",
+                    filters={**filters, "host_id": user_id},
+                    order_by={"column": "created_at", "ascending": False}
+                )
+            except Exception as db_error:
+                logger.warning(f"[GAME-HOST-WARN] Failed to query hosted games", extra={
+                    "user_id": user_id,
+                    "error": str(db_error)
+                })
+                hosted_games = []
             
             # Get games where user is a player
-            player_games_data = await database.query_records(
-                "game_players",
-                filters={"user_id": user_id}
-            )
-            
-            player_game_ids = [pg["game_id"] for pg in player_games_data]
-            joined_games = []
-            
-            for game_id in player_game_ids:
-                game_data = await database.get_record("games", game_id)
-                if game_data and (not status_filter or game_data["status"] == status_filter.value):
-                    joined_games.append(game_data)
+            try:
+                player_games_data = await database.query_records(
+                    "game_players",
+                    filters={"user_id": user_id}
+                )
+                
+                player_game_ids = [pg["game_id"] for pg in player_games_data]
+                joined_games = []
+                
+                for game_id in player_game_ids:
+                    try:
+                        game_data = await database.get_record("games", game_id)
+                        if game_data and (not status_filter or game_data["status"] == status_filter.value):
+                            joined_games.append(game_data)
+                    except Exception as game_error:
+                        logger.warning(f"[GAME-SINGLE-WARN] Failed to get game data", extra={
+                            "user_id": user_id,
+                            "game_id": game_id,
+                            "error": str(game_error)
+                        })
+                        continue
+                        
+            except Exception as player_error:
+                logger.warning(f"[GAME-PLAYER-WARN] Failed to query player games", extra={
+                    "user_id": user_id,
+                    "error": str(player_error)
+                })
+                joined_games = []
             
             # Combine and convert to GamePublic
             all_games = hosted_games + joined_games
@@ -577,35 +600,53 @@ class GameStateService:
                 if game_data["id"] not in seen_ids:
                     seen_ids.add(game_data["id"])
                     
-                    # Get player count
-                    players = await database.query_records(
-                        "game_players",
-                        filters={"game_id": game_data["id"]}
-                    )
+                    # Get player count with error recovery
+                    try:
+                        players = await database.query_records(
+                            "game_players",
+                            filters={"game_id": game_data["id"]}
+                        )
+                    except Exception as player_count_error:
+                        logger.warning(f"[GAME-PLAYERS-WARN] Failed to get player count", extra={
+                            "user_id": user_id,
+                            "game_id": game_data["id"],
+                            "error": str(player_count_error)
+                        })
+                        players = []
                     
-                    public_game = GamePublic(
-                        id=game_data["id"],
-                        name=game_data["name"],
-                        description=game_data.get("description"),
-                        host_id=game_data["host_id"],
-                        status=GameStatus(game_data["status"]),
-                        room_code=game_data.get("room_code"),
-                        max_players=game_data["max_players"],
-                        current_players=len(players),
-                        is_private=game_data["is_private"],
-                        created_at=datetime.fromisoformat(game_data["created_at"]),
-                        started_at=datetime.fromisoformat(game_data["started_at"]) if game_data.get("started_at") else None
-                    )
-                    public_games.append(public_game)
+                    try:
+                        public_game = GamePublic(
+                            id=game_data["id"],
+                            name=game_data["name"],
+                            description=game_data.get("description"),
+                            host_id=game_data["host_id"],
+                            status=GameStatus(game_data["status"]),
+                            room_code=game_data.get("room_code"),
+                            max_players=game_data["max_players"],
+                            current_players=len(players),
+                            is_private=game_data["is_private"],
+                            created_at=datetime.fromisoformat(game_data["created_at"]),
+                            started_at=datetime.fromisoformat(game_data["started_at"]) if game_data.get("started_at") else None
+                        )
+                        public_games.append(public_game)
+                    except Exception as model_error:
+                        logger.warning(f"[GAME-MODEL-WARN] Failed to create GamePublic model", extra={
+                            "user_id": user_id,
+                            "game_id": game_data["id"],
+                            "error": str(model_error)
+                        })
+                        continue
             
             return sorted(public_games, key=lambda g: g.created_at, reverse=True)
             
         except Exception as e:
-            logger.error(f"[GAME-USER-ERROR] Error getting user games", extra={
+            logger.warning(f"[GAME-USER-WARN] Unexpected error getting user games, returning empty list", extra={
                 "user_id": user_id,
                 "status_filter": status_filter.value if status_filter else None,
-                "error": str(e)
+                "error": str(e),
+                "error_type": type(e).__name__
             })
+            # Return empty list rather than failing completely
             return []
 
 

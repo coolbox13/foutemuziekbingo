@@ -168,10 +168,26 @@ class SupabaseService:
             logger.debug(f"[DB-HEALTH-002] Testing basic connection", extra={"health_check_id": health_check_id})
             
             # Try to access a dummy table - if we get a "relation does not exist" error, that's good
-            response = self.client.table("_dummy_").select("*").limit(0).execute()
-            
-            # Connection is good if we can make the request (even if table doesn't exist)
-            result["checks"]["connection"] = True
+            try:
+                response = self.client.table("_dummy_").select("*").limit(0).execute()
+                # Connection is good if we can make the request (even if table doesn't exist)
+                result["checks"]["connection"] = True
+            except Exception as conn_error:
+                # A "relation does not exist" error means connection is working
+                error_str = str(conn_error)
+                if "relation" in error_str and "does not exist" in error_str:
+                    logger.debug(f"[DB-HEALTH-CONN-OK] Connection test passed (dummy table doesn't exist as expected)", extra={
+                        "health_check_id": health_check_id
+                    })
+                    result["checks"]["connection"] = True
+                else:
+                    logger.error(f"[DB-HEALTH-CONN-ERROR] Connection test failed", extra={
+                        "health_check_id": health_check_id,
+                        "error": error_str,
+                        "error_type": type(conn_error).__name__
+                    })
+                    result["checks"]["connection"] = False
+                    raise conn_error
             
             if result["checks"]["connection"]:
                 logger.debug(f"[DB-HEALTH-003] Basic connection successful", extra={"health_check_id": health_check_id})
@@ -185,9 +201,10 @@ class SupabaseService:
                         "auth_result": result["checks"]["auth"]
                     })
                 except Exception as auth_error:
-                    logger.debug(f"[DB-HEALTH-WARN-004] Auth check failed", extra={
+                    logger.error(f"[DB-HEALTH-WARN-004] Auth check failed", extra={
                         "health_check_id": health_check_id,
-                        "error": str(auth_error)
+                        "error": str(auth_error),
+                        "error_type": type(auth_error).__name__
                     })
                     result["checks"]["auth"] = False
 
@@ -219,7 +236,8 @@ class SupabaseService:
             result["error"] = str(error)
             logger.error(f"[DB-HEALTH-ERROR] Health check failed", extra={
                 "health_check_id": health_check_id,
-                "error": result["error"]
+                "error": result["error"],
+                "error_type": type(error).__name__
             })
 
         end_time = datetime.now()
