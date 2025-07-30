@@ -24,11 +24,26 @@ _token_refresh_lock = Lock()
 
 
 async def get_current_session(request: Request = None):
-    """Get current session - enhanced with Supabase user support"""
-    # Try to get user from JWT token first
-    if request:
+    """Get current session - enhanced with secure session support and Supabase user support"""
+    if not request:
+        return {}
+    
+    # Try secure session first
+    try:
+        from app.secure_session import get_session_from_request
+        from app.auth_routes import SECRET_KEY
+        session_data = get_session_from_request(request, SECRET_KEY)
+        if session_data:
+            logger.debug("[SESSION-GET] Using secure session")
+            return session_data
+    except Exception as e:
+        logger.warning(f"[SESSION-GET] Error getting secure session: {e}")
+    
+    # Try to get user from JWT token
+    try:
         user = await get_current_user_optional(request)
         if user and user.spotify_access_token:
+            logger.debug("[SESSION-GET] Using JWT token session")
             return {
                 "token_info": {
                     "access_token": user.spotify_access_token,
@@ -37,13 +52,20 @@ async def get_current_session(request: Request = None):
                 },
                 "user": user
             }
+    except Exception as e:
+        logger.debug(f"[SESSION-GET] No JWT token session: {e}")
     
     # Fallback to legacy session storage
-    if request:
+    try:
         from app.auth_routes import sessions
         client_ip = request.client.host
-        return sessions.get(client_ip, {})
-    return {}
+        legacy_session = sessions.get(client_ip, {})
+        if legacy_session:
+            logger.debug("[SESSION-GET] Using legacy IP-based session")
+        return legacy_session
+    except Exception as e:
+        logger.warning(f"[SESSION-GET] Error getting legacy session: {e}")
+        return {}
 
 
 def get_spotify_oauth():
