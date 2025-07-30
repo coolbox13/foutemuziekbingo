@@ -56,22 +56,19 @@ async def api_play_track(
         track = random.choice(available_tracks)
         track.played = True
         
-        # Get Spotify client and play track
+        # Get Spotify client and play track with fallback
         sp = await get_spotify_client(request)
-        devices = sp.devices()
-        active_device = next((d for d in devices["devices"] if d["is_active"]), None)
-
-        if not active_device:
-            raise HTTPException(status_code=400, detail="No active Spotify device found")
-
-        sp.start_playback(device_id=active_device["id"], uris=[f"spotify:track:{track.id}"])
+        
+        # Use improved playback with device fallback
+        track_uri = f"spotify:track:{track.id}"
+        playback_info = await play_track_with_fallback(sp, track_uri)
         
         logger.info(f"[PLAYBACK-001] Track started playing", extra={
             "game_id": game_id,
             "track_id": track.id,
             "track_name": track.name,
             "user_id": current_user.id,
-            "device": active_device["name"]
+            "device": playback_info["device_name"]
         })
         
         # Broadcast track playing to all game participants
@@ -83,7 +80,7 @@ async def api_play_track(
                 "artist": track.artist,
                 "album": track.album
             },
-            "device": active_device["name"],
+            "device": playback_info["device_name"],
             "timestamp": datetime.now(timezone.utc).isoformat()
         })
 
