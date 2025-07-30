@@ -633,12 +633,22 @@ function setupKeyboardShortcuts() {
 // Utility Functions
 async function fetchJSON(url, options = {}) {
     try {
+        // Get JWT token from localStorage
+        const accessToken = localStorage.getItem('access_token');
+        
+        const headers = {
+            'Content-Type': 'application/json',
+            ...options.headers
+        };
+        
+        // Add Authorization header if token is available
+        if (accessToken) {
+            headers['Authorization'] = `Bearer ${accessToken}`;
+        }
+        
         const response = await fetch(url, {
             ...options,
-            headers: {
-                'Content-Type': 'application/json',
-                ...options.headers
-            }
+            headers
         });
 
         if (!response.ok) {
