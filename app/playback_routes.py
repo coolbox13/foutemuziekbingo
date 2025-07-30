@@ -92,18 +92,24 @@ async def api_play_track(
                 "artist": track.artist,
                 "album": track.album
             },
-            "device": active_device["name"],
+            "device": playback_info["device_name"],
         }
 
     except HTTPException:
         raise
+    except SpotifyAPIError as e:
+        raise convert_spotify_exception_to_http(e, "play track")
     except Exception as e:
-        logger.error(f"[PLAYBACK-ERROR] Error playing track", extra={
+        logger.error(f"[PLAYBACK-ERROR] Unexpected error playing track", extra={
             "game_id": game_id,
             "user_id": current_user.id,
-            "error": str(e)
+            "error": str(e),
+            "error_type": type(e).__name__
         })
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(
+            status_code=500, 
+            detail="Unable to play track. Please check your Spotify connection and try again."
+        )
 
 
 @router.post("/api/play")
@@ -154,11 +160,15 @@ async def api_play_legacy(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"[PLAYBACK-LEGACY-ERROR] Error in legacy play endpoint", extra={
+        logger.error(f"[PLAYBACK-LEGACY-ERROR] Unexpected error in legacy play endpoint", extra={
             "user_id": current_user.id,
-            "error": str(e)
+            "error": str(e),
+            "error_type": type(e).__name__
         })
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(
+            status_code=500, 
+            detail="Unable to play track. Please try the game-specific endpoint."
+        )
 
 
 @router.post("/api/games/{game_id}/pause")
@@ -178,7 +188,7 @@ async def api_pause_game(
             raise HTTPException(status_code=403, detail="Only the game host can control playback")
         
         sp = await get_spotify_client(request)
-        pause_playback(sp)
+        await pause_playback(sp)
         
         logger.info(f"[PLAYBACK-002] Playback paused", extra={
             "game_id": game_id,
@@ -195,13 +205,19 @@ async def api_pause_game(
 
     except HTTPException:
         raise
+    except SpotifyAPIError as e:
+        raise convert_spotify_exception_to_http(e, "pause playback")
     except Exception as e:
-        logger.error(f"[PLAYBACK-ERROR] Error pausing playback", extra={
+        logger.error(f"[PLAYBACK-ERROR] Unexpected error pausing playback", extra={
             "game_id": game_id,
             "user_id": current_user.id,
-            "error": str(e)
+            "error": str(e),
+            "error_type": type(e).__name__
         })
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(
+            status_code=500, 
+            detail="Unable to pause playback. Please try again."
+        )
 
 
 @router.post("/api/pause")
@@ -246,11 +262,15 @@ async def api_pause_legacy(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"[PLAYBACK-LEGACY-ERROR] Error in legacy pause endpoint", extra={
+        logger.error(f"[PLAYBACK-LEGACY-ERROR] Unexpected error in legacy pause endpoint", extra={
             "user_id": current_user.id,
-            "error": str(e)
+            "error": str(e),
+            "error_type": type(e).__name__
         })
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(
+            status_code=500, 
+            detail="Unable to pause playback. Please try the game-specific endpoint."
+        )
 
 
 @router.get("/api/games/{game_id}/played-tracks")
@@ -311,12 +331,16 @@ async def api_game_played_tracks(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"[PLAYBACK-ERROR] Error getting played tracks", extra={
+        logger.error(f"[PLAYBACK-ERROR] Unexpected error getting played tracks", extra={
             "game_id": game_id,
             "user_id": current_user.id,
-            "error": str(e)
+            "error": str(e),
+            "error_type": type(e).__name__
         })
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(
+            status_code=500, 
+            detail="Unable to retrieve played tracks. Please try again."
+        )
 
 
 @router.get("/api/played_tracks")
@@ -353,8 +377,12 @@ async def api_played_tracks_legacy(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"[PLAYBACK-LEGACY-ERROR] Error in legacy played_tracks endpoint", extra={
+        logger.error(f"[PLAYBACK-LEGACY-ERROR] Unexpected error in legacy played_tracks endpoint", extra={
             "user_id": current_user.id,
-            "error": str(e)
+            "error": str(e),
+            "error_type": type(e).__name__
         })
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(
+            status_code=500, 
+            detail="Unable to retrieve played tracks. Please try the game-specific endpoint."
+        )
