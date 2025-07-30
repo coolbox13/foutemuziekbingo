@@ -34,9 +34,9 @@
         }
         
         .glass-effect {
-            background: rgba(255, 255, 255, 0.95);
+            background: rgba(255, 255, 255, 0.98);
             backdrop-filter: blur(10px);
-            border: 1px solid rgba(255, 255, 255, 0.2);
+            border: 1px solid rgba(255, 255, 255, 0.3);
         }
         
         .spotify-connected {
@@ -49,6 +49,16 @@
         
         .connection-pulse {
             animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+        
+        .stat-card {
+            background: rgba(255, 255, 255, 0.15) !important;
+            border: 1px solid rgba(255, 255, 255, 0.3) !important;
+        }
+        
+        .section-bg {
+            background: rgba(255, 255, 255, 0.12) !important;
+            border: 1px solid rgba(255, 255, 255, 0.25) !important;
         }
         
         @keyframes pulse {
@@ -104,7 +114,7 @@
                 <p class="text-white text-opacity-70">Live updates from your music bingo session</p>
             </div>
             <div class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4">
-                <div class="bg-white bg-opacity-10 backdrop-blur-sm rounded-xl p-4 border border-white border-opacity-20">
+                <div class="stat-card backdrop-blur-sm rounded-xl p-4">
                     <div class="flex items-center space-x-3 mb-2">
                         <div class="w-8 h-8 rounded-lg bg-blue-500 bg-opacity-20 flex items-center justify-center">
                             <i data-lucide="list" class="w-4 h-4 text-blue-300"></i>
@@ -113,7 +123,7 @@
                     </div>
                     <p id="totalTracksCount" class="text-2xl font-bold text-white">0</p>
                 </div>
-                <div class="bg-white bg-opacity-10 backdrop-blur-sm rounded-xl p-4 border border-white border-opacity-20">
+                <div class="stat-card backdrop-blur-sm rounded-xl p-4">
                     <div class="flex items-center space-x-3 mb-2">
                         <div class="w-8 h-8 rounded-lg bg-green-500 bg-opacity-20 flex items-center justify-center">
                             <i data-lucide="play" class="w-4 h-4 text-green-300"></i>
@@ -122,7 +132,7 @@
                     </div>
                     <p id="playedTracksCount" class="text-2xl font-bold text-white">0</p>
                 </div>
-                <div class="bg-white bg-opacity-10 backdrop-blur-sm rounded-xl p-4 border border-white border-opacity-20">
+                <div class="stat-card backdrop-blur-sm rounded-xl p-4">
                     <div class="flex items-center space-x-3 mb-2">
                         <div class="w-8 h-8 rounded-lg bg-yellow-500 bg-opacity-20 flex items-center justify-center">
                             <i data-lucide="clock" class="w-4 h-4 text-yellow-300"></i>
@@ -131,7 +141,7 @@
                     </div>
                     <p id="remainingTracksCount" class="text-2xl font-bold text-white">0</p>
                 </div>
-                <div class="bg-white bg-opacity-10 backdrop-blur-sm rounded-xl p-4 border border-white border-opacity-20">
+                <div class="stat-card backdrop-blur-sm rounded-xl p-4">
                     <div class="flex items-center space-x-3 mb-2">
                         <div class="w-8 h-8 rounded-lg bg-purple-500 bg-opacity-20 flex items-center justify-center">
                             <i data-lucide="grid-3x3" class="w-4 h-4 text-purple-300"></i>
@@ -140,7 +150,7 @@
                     </div>
                     <p id="cardsWithMatches" class="text-2xl font-bold text-white">0</p>
                 </div>
-                <div class="bg-white bg-opacity-10 backdrop-blur-sm rounded-xl p-4 border border-white border-opacity-20">
+                <div class="stat-card backdrop-blur-sm rounded-xl p-4">
                     <div class="flex items-center space-x-3 mb-2">
                         <div class="w-8 h-8 rounded-lg bg-red-500 bg-opacity-20 flex items-center justify-center">
                             <i data-lucide="trophy" class="w-4 h-4 text-red-300"></i>

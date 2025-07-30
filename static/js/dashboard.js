@@ -652,6 +652,12 @@ async function fetchJSON(url, options = {}) {
         });
 
         if (!response.ok) {
+            // If unauthorized, clear localStorage and suggest re-login
+            if (response.status === 401 || response.status === 403) {
+                localStorage.clear();
+                showError('Session expired. Please <a href="/auth/login/page" class="underline text-blue-300">re-authenticate</a> to continue.');
+                return;
+            }
             const error = await response.json();
             throw new Error(error.error || `HTTP error! status: ${response.status}`);
         }

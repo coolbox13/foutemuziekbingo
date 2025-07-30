@@ -6,6 +6,7 @@ from spotipy.oauth2 import SpotifyOAuth
 from spotipy import Spotify
 import os
 import logging
+import json
 from app.models import (
     AuthRequest, AuthResponse, TokenRefreshRequest, TokenRefreshResponse,
     SpotifyUserProfile, UserPublic, APIResponse
@@ -205,6 +206,13 @@ async def spotify_callback(request: Request, code: str = None, error: str = None
             "spotify_id": auth_response.user.spotify_id
         })
         
+        logger.info(f"[DEBUG-001] Starting HTML response generation", extra={
+            "callback_id": callback_id,
+            "access_token_length": len(auth_response.tokens.access_token),
+            "user_display_name": auth_response.user.display_name,
+            "user_dict_keys": list(auth_response.user.dict().keys())
+        })
+        
         # Store tokens in session for legacy compatibility
         client_ip = request.client.host
         if client_ip not in sessions:
@@ -213,7 +221,33 @@ async def spotify_callback(request: Request, code: str = None, error: str = None
         sessions[client_ip]["user"] = auth_response.user.dict()
         sessions[client_ip]["jwt_tokens"] = auth_response.tokens.dict()
         
+        logger.info(f"[DEBUG-002] Session data stored", extra={
+            "callback_id": callback_id,
+            "session_keys": list(sessions[client_ip].keys())
+        })
+        
         # Return success page with tokens (in production, use secure cookies or redirect)
+        logger.info(f"[DEBUG-003] About to generate HTML response", extra={
+            "callback_id": callback_id,
+            "user_display_name": str(auth_response.user.display_name),
+            "access_token_preview": auth_response.tokens.access_token[:20] + "...",
+            "user_dict_type": type(auth_response.user.dict())
+        })
+        
+        try:
+            user_json = json.dumps(auth_response.user.dict())
+            logger.info(f"[DEBUG-004] User JSON serialized successfully", extra={
+                "callback_id": callback_id,
+                "user_json_length": len(user_json),
+                "user_json_preview": user_json[:100] + "..." if len(user_json) > 100 else user_json
+            })
+        except Exception as json_error:
+            logger.error(f"[DEBUG-004-ERROR] User JSON serialization failed", extra={
+                "callback_id": callback_id,
+                "error": str(json_error)
+            })
+            raise
+        
         return HTMLResponse(
             content=f"""
             <!DOCTYPE html>
@@ -260,7 +294,7 @@ async def spotify_callback(request: Request, code: str = None, error: str = None
                     // Store tokens for frontend use
                     localStorage.setItem('access_token', '{auth_response.tokens.access_token}');
                     localStorage.setItem('refresh_token', '{auth_response.tokens.refresh_token}');
-                    localStorage.setItem('user', JSON.stringify({auth_response.user.json()}));
+                    localStorage.setItem('user', `{json.dumps(auth_response.user.dict())}`);
                     
                     // Initialize icons and redirect
                     lucide.createIcons();
