@@ -2,6 +2,7 @@ from fastapi import FastAPI, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.templating import Jinja2Templates
 from dotenv import load_dotenv
 import os
 import logging
@@ -28,6 +29,9 @@ def create_app():
 
     # Mount static files
     app.mount("/static", StaticFiles(directory="static"), name="static")
+    
+    # Configure Jinja2 templates
+    templates = Jinja2Templates(directory="templates")
 
     # Configure logging
     if not os.path.exists("logs"):
@@ -77,10 +81,7 @@ def create_app():
         from app.auth_routes import sessions
         if client_ip in sessions and "token_info" in sessions[client_ip]:
             return RedirectResponse(url="/dashboard", status_code=302)
-        return """
-        <h1>Welcome to Foute Muziek Bingo</h1>
-        <p><a href='/auth/login'>Login with Spotify</a></p>
-        """
+        return templates.TemplateResponse("homepage.html", {"request": request})
 
     # Socket.IO will be mounted separately in app.py
 

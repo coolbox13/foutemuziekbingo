@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - Music Bingo</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'bingo-primary': '#8b5cf6',
+                        'bingo-secondary': '#06b6d4',
+                        'spotify-green': '#1db954',
+                        'spotify-dark': '#121212',
+                    },
+                    fontFamily: {
+                        'display': ['Inter', 'system-ui', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-spotify-dark py-12 px-4 sm:px-6 lg:px-8">
+    <div class="max-w-md w-full space-y-8">
+        <div>
+            <div class="flex justify-center">
+                <div class="flex items-center space-x-2">
+                    <i data-lucide="music" class="h-10 w-10 text-bingo-primary"></i>
+                    <span class="font-display font-bold text-2xl text-gray-900 dark:text-white">
+                        Music Bingo
+                    </span>
+                </div>
+            </div>
+            <h2 class="mt-6 text-center text-3xl font-bold text-gray-900 dark:text-white">
+                Welcome to Music Bingo
+            </h2>
+            <p class="mt-2 text-center text-sm text-gray-600 dark:text-gray-400">
+                Connect with Spotify to start playing multiplayer music bingo
+            </p>
+        </div>
+
+        <div class="mt-8 space-y-6">
+            <!-- Spotify Login Button -->
+            <div>
+                <a href="/auth/login" class="group relative w-full flex justify-center py-4 px-6 border border-transparent text-lg font-medium rounded-lg text-white bg-spotify-green hover:bg-spotify-green/90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-spotify-green transition-colors">
+                    <svg class="h-6 w-6 mr-3" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M12 0C5.4 0 0 5.4 0 12s5.4 12 12 12 12-5.4 12-12S18.66 0 12 0zm5.521 17.34c-.24.359-.66.48-1.021.24-2.82-1.74-6.36-2.101-10.561-1.141-.418.122-.779-.179-.899-.539-.12-.421.18-.78.54-.9 4.56-1.021 8.52-.6 11.64 1.32.42.18.479.659.301 1.02zm1.44-3.3c-.301.42-.841.6-1.262.3-3.239-1.98-8.159-2.58-11.939-1.38-.479.12-1.02-.12-1.14-.6-.12-.48.12-1.021.6-1.141C9.6 9.9 15 10.561 18.72 12.84c.361.181.54.78.241 1.2zm.12-3.36C15.24 8.4 8.82 8.16 5.16 9.301c-.6.179-1.2-.181-1.38-.721-.18-.601.18-1.2.72-1.381 4.26-1.26 11.28-1.02 15.721 1.621.539.3.719 1.02.42 1.56-.299.421-1.02.599-1.559.3z"/>
+                    </svg>
+                    Continue with Spotify
+                </a>
+            </div>
+
+            <!-- Why Spotify explanation -->
+            <div class="bg-gray-100 dark:bg-gray-800 rounded-lg p-4">
+                <h3 class="text-sm font-medium text-gray-900 dark:text-white mb-2">
+                    Why Spotify?
+                </h3>
+                <ul class="text-xs text-gray-600 dark:text-gray-400 space-y-1">
+                    <li>• Access your music playlists for bingo games</li>
+                    <li>• Control music playback during games</li>
+                    <li>• Seamless integration with your music library</li>
+                    <li>• One-click login for returning users</li>
+                </ul>
+            </div>
+
+            <!-- Note about account creation -->
+            <div class="text-center">
+                <p class="text-xs text-gray-500 dark:text-gray-400">
+                    By continuing with Spotify, you'll automatically create an account if you don't have one.
+                </p>
+            </div>
+
+            <div class="text-center">
+                <a href="/" class="text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white">
+                    ← Back to home
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Initialize Lucide icons
+        lucide.createIcons();
+    </script>
+</body>
+</html>

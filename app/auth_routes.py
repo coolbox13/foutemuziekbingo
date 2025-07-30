@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Request, HTTPException, Depends
 from fastapi.responses import RedirectResponse, HTMLResponse
+from fastapi.templating import Jinja2Templates
 from fastapi.security import HTTPBearer
 from spotipy.oauth2 import SpotifyOAuth
 from spotipy import Spotify
@@ -15,10 +16,17 @@ from app.database import database
 router = APIRouter()
 logger = logging.getLogger("music_bingo")
 security = HTTPBearer()
+templates = Jinja2Templates(directory="templates")
 
 # Legacy session storage for backwards compatibility during migration
 # TODO: Remove after full migration to JWT/Supabase
 sessions = {}
+
+
+@router.get("/login/page")
+async def login_page(request: Request):
+    """Show the login page with beautiful UI"""
+    return templates.TemplateResponse("auth.html", {"request": request})
 
 
 @router.get("/login")
@@ -59,11 +67,30 @@ async def spotify_callback(request: Request, code: str = None, error: str = None
         })
         return HTMLResponse(
             content=f"""
-            <html><body>
-                <h1>Authentication Error</h1>
-                <p>Spotify authentication failed: {error}</p>
-                <p><a href="/auth/login">Try Again</a></p>
-            </body></html>
+            <!DOCTYPE html>
+            <html lang="en">
+            <head>
+                <meta charset="UTF-8">
+                <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                <title>Authentication Error - Music Bingo</title>
+                <script src="https://cdn.tailwindcss.com"></script>
+                <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+            </head>
+            <body class="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4">
+                <div class="max-w-md w-full text-center space-y-4">
+                    <i data-lucide="alert-triangle" class="h-16 w-16 text-red-500 mx-auto"></i>
+                    <h1 class="text-2xl font-bold text-gray-900">Authentication Error</h1>
+                    <p class="text-gray-600">Spotify authentication failed: {error}</p>
+                    <a href="/auth/login/page" class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-red-600 hover:bg-red-700">
+                        Try Again
+                    </a>
+                    <div>
+                        <a href="/" class="text-sm text-gray-500 hover:text-gray-700">← Back to home</a>
+                    </div>
+                </div>
+                <script>lucide.createIcons();</script>
+            </body>
+            </html>
             """,
             status_code=400
         )
@@ -74,11 +101,30 @@ async def spotify_callback(request: Request, code: str = None, error: str = None
         })
         return HTMLResponse(
             content="""
-            <html><body>
-                <h1>Authentication Error</h1>
-                <p>No authorization code received from Spotify.</p>
-                <p><a href="/auth/login">Try Again</a></p>
-            </body></html>
+            <!DOCTYPE html>
+            <html lang="en">
+            <head>
+                <meta charset="UTF-8">
+                <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                <title>Authentication Error - Music Bingo</title>
+                <script src="https://cdn.tailwindcss.com"></script>
+                <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+            </head>
+            <body class="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4">
+                <div class="max-w-md w-full text-center space-y-4">
+                    <i data-lucide="alert-triangle" class="h-16 w-16 text-red-500 mx-auto"></i>
+                    <h1 class="text-2xl font-bold text-gray-900">Authentication Error</h1>
+                    <p class="text-gray-600">No authorization code received from Spotify.</p>
+                    <a href="/auth/login/page" class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-red-600 hover:bg-red-700">
+                        Try Again
+                    </a>
+                    <div>
+                        <a href="/" class="text-sm text-gray-500 hover:text-gray-700">← Back to home</a>
+                    </div>
+                </div>
+                <script>lucide.createIcons();</script>
+            </body>
+            </html>
             """,
             status_code=400
         )
@@ -170,25 +216,58 @@ async def spotify_callback(request: Request, code: str = None, error: str = None
         # Return success page with tokens (in production, use secure cookies or redirect)
         return HTMLResponse(
             content=f"""
-            <html>
+            <!DOCTYPE html>
+            <html lang="en">
             <head>
-                <title>Authentication Successful</title>
+                <meta charset="UTF-8">
+                <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                <title>Authentication Successful - Music Bingo</title>
+                <script src="https://cdn.tailwindcss.com"></script>
+                <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+                <script>
+                    tailwind.config = {{
+                        theme: {{
+                            extend: {{
+                                colors: {{
+                                    'bingo-primary': '#8b5cf6',
+                                    'spotify-green': '#1db954',
+                                }}
+                            }}
+                        }}
+                    }}
+                </script>
+            </head>
+            <body class="min-h-screen flex items-center justify-center bg-gradient-to-br from-bingo-primary to-purple-600 py-12 px-4">
+                <div class="max-w-md w-full text-center space-y-6 bg-white rounded-lg shadow-xl p-8">
+                    <div class="flex justify-center">
+                        <div class="bg-spotify-green rounded-full p-3">
+                            <i data-lucide="check" class="h-8 w-8 text-white"></i>
+                        </div>
+                    </div>
+                    <h1 class="text-2xl font-bold text-gray-900">Welcome, {auth_response.user.display_name or 'User'}!</h1>
+                    <p class="text-gray-600">Authentication successful. Redirecting to dashboard...</p>
+                    <div class="bg-gray-100 rounded-lg p-4">
+                        <div class="flex items-center justify-center space-x-2">
+                            <div class="animate-spin rounded-full h-4 w-4 border-b-2 border-bingo-primary"></div>
+                            <span class="text-sm text-gray-600">Loading your dashboard...</span>
+                        </div>
+                    </div>
+                    <p class="text-sm text-gray-500">
+                        If not redirected, <a href="/dashboard" class="text-bingo-primary hover:underline">click here</a>.
+                    </p>
+                </div>
                 <script>
                     // Store tokens for frontend use
                     localStorage.setItem('access_token', '{auth_response.tokens.access_token}');
                     localStorage.setItem('refresh_token', '{auth_response.tokens.refresh_token}');
                     localStorage.setItem('user', JSON.stringify({auth_response.user.json()}));
                     
-                    // Redirect to dashboard
+                    // Initialize icons and redirect
+                    lucide.createIcons();
                     setTimeout(() => {{
                         window.location.href = '/dashboard';
                     }}, 2000);
                 </script>
-            </head>
-            <body>
-                <h1>Welcome, {auth_response.user.display_name or 'User'}!</h1>
-                <p>Authentication successful. Redirecting to dashboard...</p>
-                <p>If not redirected, <a href="/dashboard">click here</a>.</p>
             </body>
             </html>
             """,
@@ -203,11 +282,30 @@ async def spotify_callback(request: Request, code: str = None, error: str = None
         
         return HTMLResponse(
             content=f"""
-            <html><body>
-                <h1>Authentication Failed</h1>
-                <p>An error occurred during authentication: {str(e)}</p>
-                <p><a href="/auth/login">Try Again</a></p>
-            </body></html>
+            <!DOCTYPE html>
+            <html lang="en">
+            <head>
+                <meta charset="UTF-8">
+                <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                <title>Authentication Failed - Music Bingo</title>
+                <script src="https://cdn.tailwindcss.com"></script>
+                <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+            </head>
+            <body class="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4">
+                <div class="max-w-md w-full text-center space-y-4">
+                    <i data-lucide="x-circle" class="h-16 w-16 text-red-500 mx-auto"></i>
+                    <h1 class="text-2xl font-bold text-gray-900">Authentication Failed</h1>
+                    <p class="text-gray-600">An error occurred during authentication: {str(e)}</p>
+                    <a href="/auth/login/page" class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-red-600 hover:bg-red-700">
+                        Try Again
+                    </a>
+                    <div>
+                        <a href="/" class="text-sm text-gray-500 hover:text-gray-700">← Back to home</a>
+                    </div>
+                </div>
+                <script>lucide.createIcons();</script>
+            </body>
+            </html>
             """,
             status_code=500
         )
