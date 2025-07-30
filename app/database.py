@@ -333,10 +333,10 @@ class SupabaseService:
             logger.debug(f"[DB-UPDATE] Updating record", extra={"table": table, "id": record_id, "update_keys": list(updates.keys())})
             
             def query_fn(client):
-                return client.table(table).update(updates).eq("id", record_id).execute()
+                return client.table(table).update(updates).eq("id", record_id)
             
             result = await self.execute_query(query_fn)
-            return result[0] if result and len(result) > 0 else {}
+            return result[0] if result and isinstance(result, list) and len(result) > 0 else {}
             
         except Exception as error:
             message = f"Failed to update record in {table}: {str(error)}"
