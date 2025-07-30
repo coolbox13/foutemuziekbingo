@@ -48,8 +48,23 @@ async def api_get_playlists_legacy(
 ):
     """Legacy endpoint - Get list of saved playlists."""
     try:
+        logger.info("[PLAYLIST-DEBUG-001] Starting get_playlists endpoint", extra={
+            "user_id": current_user.id,
+            "spotify_id": current_user.spotify_id,
+            "has_access_token": bool(current_user.spotify_access_token)
+        })
+        
         spotify_client = await get_spotify_client(request)
+        logger.info("[PLAYLIST-DEBUG-002] Spotify client obtained", extra={
+            "user_id": current_user.id,
+            "client_type": type(spotify_client).__name__
+        })
+        
         playlists = await playlist_service.get_user_playlists(current_user, spotify_client)
+        logger.info("[PLAYLIST-DEBUG-003] Playlists retrieved from service", extra={
+            "user_id": current_user.id,
+            "playlist_count": len(playlists)
+        })
         
         # Convert to legacy format for compatibility
         legacy_playlists = []
@@ -75,7 +90,11 @@ async def api_get_playlists_legacy(
             "default": default_playlist,
         }
     except Exception as e:
-        logger.error(f"Error getting playlists: {e}")
+        logger.error("[PLAYLIST-DEBUG-ERROR] Exception in get_playlists", extra={
+            "user_id": current_user.id if current_user else "unknown",
+            "error": str(e),
+            "error_type": type(e).__name__
+        })
         raise HTTPException(status_code=500, detail=str(e))
 
 

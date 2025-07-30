@@ -3,7 +3,8 @@
     "allow": [
       "Bash(python:*)",
       "Bash(rm:*)",
-      "Bash(pip install:*)"
+      "Bash(pip install:*)",
+      "mcp__kg-memory__create_entities"
     ],
     "deny": []
   }

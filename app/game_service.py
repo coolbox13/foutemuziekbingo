@@ -624,16 +624,18 @@ class GameStateService:
                             room_code=game_data.get("room_code"),
                             max_players=game_data["max_players"],
                             current_players=len(players),
-                            is_private=game_data["is_private"],
+                            is_private=game_data.get("is_private", False),  # Default to False if missing
                             created_at=datetime.fromisoformat(game_data["created_at"]),
                             started_at=datetime.fromisoformat(game_data["started_at"]) if game_data.get("started_at") else None
                         )
                         public_games.append(public_game)
                     except Exception as model_error:
-                        logger.warning(f"[GAME-MODEL-WARN] Failed to create GamePublic model", extra={
+                        logger.warning(f"[GAME-MODEL-WARN] Failed to create GamePublic model: {str(model_error)}", extra={
                             "user_id": user_id,
                             "game_id": game_data["id"],
-                            "error": str(model_error)
+                            "error": str(model_error),
+                            "error_type": type(model_error).__name__,
+                            "game_data_keys": list(game_data.keys()) if game_data else []
                         })
                         continue
             
