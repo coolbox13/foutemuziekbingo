@@ -654,9 +654,46 @@ function setupKeyboardShortcuts() {
     });
 }
 
+// Token refresh functionality
+async function refreshToken() {
+    const refreshToken = localStorage.getItem('refresh_token');
+    if (!refreshToken) {
+        throw new Error('No refresh token available');
+    }
+
+    try {
+        const response = await fetch('/auth/refresh', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                refresh_token: refreshToken
+            })
+        });
+
+        if (!response.ok) {
+            throw new Error('Token refresh failed');
+        }
+
+        const data = await response.json();
+        if (data.success && data.access_token) {
+            localStorage.setItem('access_token', data.access_token);
+            console.log('Token refreshed successfully');
+            return data.access_token;
+        } else {
+            throw new Error('Invalid refresh response');
+        }
+    } catch (error) {
+        console.error('Token refresh failed:', error);
+        localStorage.clear();
+        throw error;
+    }
+}
+
 // Utility Functions
 async function fetchJSON(url, options = {}) {
-    try {
+    async function makeRequest(useRefreshedToken = false) {
         // Get JWT token from localStorage
         const accessToken = localStorage.getItem('access_token');
         
@@ -676,17 +713,35 @@ async function fetchJSON(url, options = {}) {
         });
 
         if (!response.ok) {
-            // If unauthorized, clear localStorage and suggest re-login
+            // If unauthorized and we haven't tried refreshing yet, try token refresh
+            if ((response.status === 401 || response.status === 403) && !useRefreshedToken) {
+                try {
+                    await refreshToken();
+                    return makeRequest(true); // Retry with refreshed token
+                } catch (refreshError) {
+                    console.error('Token refresh failed:', refreshError);
+                    localStorage.clear();
+                    showError('Session expired. Please <a href="/auth/login/page" class="underline text-blue-300">re-authenticate</a> to continue.');
+                    return;
+                }
+            }
+            
+            // If still unauthorized after refresh, or other error
             if (response.status === 401 || response.status === 403) {
                 localStorage.clear();
                 showError('Session expired. Please <a href="/auth/login/page" class="underline text-blue-300">re-authenticate</a> to continue.');
                 return;
             }
+            
             const error = await response.json();
             throw new Error(error.error || `HTTP error! status: ${response.status}`);
         }
 
         return await response.json();
+    }
+
+    try {
+        return await makeRequest();
     } catch (error) {
         console.error(`Error fetching ${url}:`, error);
         showError(error.message);

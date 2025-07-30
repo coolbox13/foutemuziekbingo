@@ -6,13 +6,11 @@ from spotipy.oauth2 import SpotifyOAuth
 from spotipy import Spotify
 import os
 import logging
-import json
 from app.models import (
     AuthRequest, AuthResponse, TokenRefreshRequest, TokenRefreshResponse,
     SpotifyUserProfile, UserPublic, APIResponse
 )
 from app.auth_service import auth_service, get_current_user, get_current_user_optional
-from app.database import database
 
 router = APIRouter()
 logger = logging.getLogger("music_bingo")
@@ -42,7 +40,7 @@ async def spotify_login():
     )
     
     auth_url = sp_oauth.get_authorize_url()
-    logger.info(f"[AUTH-SPOTIFY-001] Redirecting to Spotify OAuth", extra={
+    logger.info("[AUTH-SPOTIFY-001] Redirecting to Spotify OAuth", extra={
         "auth_url": auth_url[:50] + "...",
         "redirect_uri": os.getenv("SPOTIFY_REDIRECT_URI")
     })
@@ -55,14 +53,14 @@ async def spotify_callback(request: Request, code: str = None, error: str = None
     """Handle Spotify OAuth callback and create user session"""
     callback_id = f"callback-{int(request.scope.get('time', 0))}"
     
-    logger.info(f"[AUTH-CALLBACK-001] Processing Spotify callback", extra={
+    logger.info("[AUTH-CALLBACK-001] Processing Spotify callback", extra={
         "callback_id": callback_id,
         "has_code": bool(code),
         "error": error
     })
 
     if error:
-        logger.error(f"[AUTH-CALLBACK-ERROR] Spotify OAuth error", extra={
+        logger.error("[AUTH-CALLBACK-ERROR] Spotify OAuth error", extra={
             "callback_id": callback_id,
             "error": error
         })
@@ -97,7 +95,7 @@ async def spotify_callback(request: Request, code: str = None, error: str = None
         )
 
     if not code:
-        logger.error(f"[AUTH-CALLBACK-ERROR] No authorization code received", extra={
+        logger.error("[AUTH-CALLBACK-ERROR] No authorization code received", extra={
             "callback_id": callback_id
         })
         return HTMLResponse(
@@ -139,7 +137,7 @@ async def spotify_callback(request: Request, code: str = None, error: str = None
             scope="playlist-read-private user-read-playback-state user-modify-playback-state user-read-private user-read-email"
         )
         
-        logger.info(f"[AUTH-CALLBACK-002] Exchanging code for tokens", extra={
+        logger.info("[AUTH-CALLBACK-002] Exchanging code for tokens", extra={
             "callback_id": callback_id,
             "code_length": len(code)
         })
@@ -149,7 +147,7 @@ async def spotify_callback(request: Request, code: str = None, error: str = None
         if not token_info:
             raise Exception("Failed to get token from Spotify")
             
-        logger.info(f"[AUTH-CALLBACK-003] Got tokens from Spotify", extra={
+        logger.info("[AUTH-CALLBACK-003] Got tokens from Spotify", extra={
             "callback_id": callback_id,
             "has_access_token": bool(token_info.get("access_token")),
             "has_refresh_token": bool(token_info.get("refresh_token")),
@@ -160,7 +158,7 @@ async def spotify_callback(request: Request, code: str = None, error: str = None
         sp = Spotify(auth=token_info["access_token"])
         spotify_user = sp.current_user()
         
-        logger.info(f"[AUTH-CALLBACK-004] Got user profile from Spotify", extra={
+        logger.info("[AUTH-CALLBACK-004] Got user profile from Spotify", extra={
             "callback_id": callback_id,
             "spotify_id": spotify_user.get("id"),
             "display_name": spotify_user.get("display_name"),
@@ -190,7 +188,7 @@ async def spotify_callback(request: Request, code: str = None, error: str = None
         )
         
         # Authenticate user through our service
-        logger.info(f"[AUTH-CALLBACK-005] Processing authentication through auth service", extra={
+        logger.info("[AUTH-CALLBACK-005] Processing authentication through auth service", extra={
             "callback_id": callback_id,
             "spotify_id": spotify_profile.id
         })
@@ -200,7 +198,7 @@ async def spotify_callback(request: Request, code: str = None, error: str = None
         if not auth_response.success:
             raise Exception("Authentication failed")
             
-        logger.info(f"[AUTH-CALLBACK-006] Authentication successful", extra={
+        logger.info("[AUTH-CALLBACK-006] Authentication successful", extra={
             "callback_id": callback_id,
             "user_id": auth_response.user.id,
             "spotify_id": auth_response.user.spotify_id
@@ -294,9 +292,8 @@ async def spotify_callback(request: Request, code: str = None, error: str = None
                     </p>
                 </div>
                 <script>
-                    // Store tokens for frontend use
-                    localStorage.setItem('access_token', '{auth_response.tokens.access_token}');
-                    localStorage.setItem('refresh_token', '{auth_response.tokens.refresh_token}');
+                    // Store only non-sensitive user data for frontend use
+                    // Tokens are now handled securely via HTTP-only cookies and server sessions
                     localStorage.setItem('user', `{user_json}`);
                     
                     // Initialize icons and redirect
@@ -332,7 +329,7 @@ async def spotify_callback(request: Request, code: str = None, error: str = None
                 <div class="max-w-md w-full text-center space-y-4">
                     <i data-lucide="x-circle" class="h-16 w-16 text-red-500 mx-auto"></i>
                     <h1 class="text-2xl font-bold text-gray-900">Authentication Failed</h1>
-                    <p class="text-gray-600">An error occurred during authentication: {str(e)}</p>
+                    <p class="text-gray-600">An error occurred during authentication. Please try again.</p>
                     <a href="/auth/login/page" class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-red-600 hover:bg-red-700">
                         Try Again
                     </a>
@@ -358,7 +355,7 @@ async def authenticate(auth_request: AuthRequest):
             "error": str(e),
             "spotify_id": auth_request.spotify_user.id
         })
-        raise HTTPException(status_code=401, detail=str(e))
+        raise HTTPException(status_code=401, detail="Authentication failed. Please try again.")
 
 
 @router.post("/refresh", response_model=TokenRefreshResponse)
@@ -370,7 +367,7 @@ async def refresh_token(refresh_request: TokenRefreshRequest):
         logger.error(f"[AUTH-REFRESH-ERROR] Token refresh failed", extra={
             "error": str(e)
         })
-        raise HTTPException(status_code=401, detail=str(e))
+        raise HTTPException(status_code=401, detail="Authentication failed. Please try again.")
 
 
 @router.get("/me", response_model=UserPublic)

@@ -39,8 +39,16 @@ class JWTService:
         self.jwt_expires_in = os.getenv("JWT_EXPIRES_IN", "15m")
         self.jwt_refresh_expires_in = os.getenv("JWT_REFRESH_EXPIRES_IN", "7d")
         
-        if not self.jwt_secret or not self.jwt_refresh_secret:
-            raise ValueError("JWT secrets must be configured in environment")
+        # Generate fallback secrets if not configured (for development only)
+        if not self.jwt_secret:
+            import secrets
+            self.jwt_secret = secrets.token_hex(32)
+            logger.warning(f"[JWT-INIT-001] JWT_SECRET not configured, using generated secret. Set JWT_SECRET in environment for production!")
+            
+        if not self.jwt_refresh_secret:
+            import secrets
+            self.jwt_refresh_secret = secrets.token_hex(32)
+            logger.warning(f"[JWT-INIT-002] JWT_REFRESH_SECRET not configured, using generated secret. Set JWT_REFRESH_SECRET in environment for production!")
             
         # Validate JWT secret strength
         if len(self.jwt_secret) < 32:

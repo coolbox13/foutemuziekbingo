@@ -1,14 +1,26 @@
 import os
+import asyncio
+from threading import Lock
 from spotipy import Spotify
 from spotipy.oauth2 import SpotifyOAuth
+from spotipy.exceptions import SpotifyException
 import logging
 from typing import Optional
 from app.models import User
 from app.auth_service import get_current_user_optional
-from fastapi import Request
+from app.spotify_utils import (
+    spotify_api_call_with_retry, 
+    SpotifyAPIError, 
+    convert_spotify_exception_to_http,
+    get_devices_with_cache
+)
+from fastapi import Request, HTTPException
 from datetime import datetime, timezone
 
 logger = logging.getLogger("music_bingo")
+
+# Lock for token refresh to prevent race conditions
+_token_refresh_lock = Lock()
 
 
 async def get_current_session(request: Request = None):
@@ -51,121 +63,219 @@ async def get_spotify_client(request: Request = None):
     session = await get_current_session(request)
     token_info = session.get("token_info")
     if not token_info:
-        raise Exception("Spotify authentication required. Please log in again.")
+        raise HTTPException(
+            status_code=401, 
+            detail="Spotify authentication required. Please log in again."
+        )
     
     # Check if token needs refresh
-    await refresh_spotify_token(request)
-    session = await get_current_session(request)  # Get updated session after refresh
-    return Spotify(auth=session["token_info"]["access_token"])
+    try:
+        await refresh_spotify_token(request)
+        session = await get_current_session(request)  # Get updated session after refresh
+        return Spotify(auth=session["token_info"]["access_token"])
+    except SpotifyAPIError as e:
+        raise convert_spotify_exception_to_http(e, "get Spotify client")
+    except Exception as e:
+        logger.error(f"[SPOTIFY-CLIENT] Unexpected error getting client", extra={
+            "error": str(e),
+            "error_type": type(e).__name__
+        })
+        raise HTTPException(
+            status_code=500,
+            detail="Unable to connect to Spotify. Please try logging in again."
+        )
 
 
 async def refresh_spotify_token(request: Request = None):
-    """Refresh Spotify token if expired - enhanced with Supabase support"""
+    """Refresh Spotify token if expired - enhanced with Supabase support and race condition protection"""
     if not request:
         logger.warning("No request provided for token refresh")
         return
 
-    session = await get_current_session(request)
-    token_info = session.get("token_info")
-    
-    if not token_info:
-        raise Exception("No token information found in session.")
+    # Use lock to prevent concurrent refresh attempts
+    with _token_refresh_lock:
+        session = await get_current_session(request)
+        token_info = session.get("token_info")
+        
+        if not token_info:
+            raise SpotifyAPIError(
+                "Spotify authentication required. Please log in again.",
+                401
+            )
 
-    sp_oauth = get_spotify_oauth()
+        sp_oauth = get_spotify_oauth()
 
-    # Check if token is expired
-    if sp_oauth.is_token_expired(token_info):
-        try:
-            logger.info("[SPOTIFY-REFRESH-001] Refreshing expired Spotify token")
-            
-            refreshed_token = sp_oauth.refresh_access_token(token_info["refresh_token"])
-            
-            # Update session storage (legacy)
-            from app.auth_routes import sessions
-            client_ip = request.client.host
-            if client_ip in sessions:
-                sessions[client_ip]["token_info"] = refreshed_token
-            
-            # Update user in database if we have user info
-            user = session.get("user")
-            if user and isinstance(user, dict) and "id" in user:
-                from app.database import database
-                update_data = {
-                    "spotify_access_token": refreshed_token["access_token"],
-                    "spotify_refresh_token": refreshed_token.get("refresh_token", token_info.get("refresh_token")),
-                    "spotify_token_expires_at": datetime.fromtimestamp(
-                        refreshed_token["expires_at"], timezone.utc
-                    ).isoformat() if "expires_at" in refreshed_token else None,
-                    "updated_at": datetime.now(timezone.utc).isoformat()
-                }
+        # Check if token is expired
+        if sp_oauth.is_token_expired(token_info):
+            try:
+                logger.info("[SPOTIFY-REFRESH-001] Refreshing expired Spotify token")
                 
-                try:
-                    await database.update_record("users", user["id"], update_data)
-                    logger.info("[SPOTIFY-REFRESH-002] Updated user tokens in database")
-                except Exception as db_error:
-                    logger.warning(f"[SPOTIFY-REFRESH-WARN] Failed to update tokens in database: {db_error}")
-                    # Continue anyway since session is updated
-            
-            logger.info("[SPOTIFY-REFRESH-003] Spotify token refreshed successfully")
-            
-        except Exception as e:
-            logger.error(f"[SPOTIFY-REFRESH-ERROR] Error refreshing token: {e}")
-            raise Exception("Failed to refresh Spotify token. Please log in again.")
+                # Use retry mechanism for token refresh
+                refreshed_token = await spotify_api_call_with_retry(
+                    lambda: sp_oauth.refresh_access_token(token_info["refresh_token"]),
+                    max_retries=2,
+                    operation_name="refresh Spotify token"
+                )
+                
+                # Update session storage (legacy)
+                from app.auth_routes import sessions
+                client_ip = request.client.host
+                if client_ip in sessions:
+                    sessions[client_ip]["token_info"] = refreshed_token
+                
+                # Update user in database if we have user info
+                user = session.get("user")
+                if user and isinstance(user, dict) and "id" in user:
+                    from app.database import database
+                    update_data = {
+                        "spotify_access_token": refreshed_token["access_token"],
+                        "spotify_refresh_token": refreshed_token.get("refresh_token", token_info.get("refresh_token")),
+                        "spotify_token_expires_at": datetime.fromtimestamp(
+                            refreshed_token["expires_at"], timezone.utc
+                        ).isoformat() if "expires_at" in refreshed_token else None,
+                        "updated_at": datetime.now(timezone.utc).isoformat()
+                    }
+                    
+                    try:
+                        await database.update_record("users", user["id"], update_data)
+                        logger.info("[SPOTIFY-REFRESH-002] Updated user tokens in database")
+                    except Exception as db_error:
+                        logger.warning(f"[SPOTIFY-REFRESH-WARN] Failed to update tokens in database: {db_error}")
+                        # Continue anyway since session is updated
+                
+                logger.info("[SPOTIFY-REFRESH-003] Spotify token refreshed successfully")
+                
+            except SpotifyException as e:
+                logger.error(f"[SPOTIFY-REFRESH-ERROR] Spotify error refreshing token", extra={
+                    "error": str(e),
+                    "status_code": getattr(e, 'http_status', 'unknown')
+                })
+                raise SpotifyAPIError(
+                    "Failed to refresh Spotify token. Please log in again.",
+                    401, e
+                )
+            except Exception as e:
+                logger.error(f"[SPOTIFY-REFRESH-ERROR] Unexpected error refreshing token", extra={
+                    "error": str(e),
+                    "error_type": type(e).__name__
+                })
+                raise SpotifyAPIError(
+                    "Failed to refresh Spotify token. Please log in again.",
+                    500, e
+                )
 
 
-def get_available_devices(sp):
-    """Retrieve available devices from Spotify."""
+async def get_available_devices(sp):
+    """Retrieve available devices from Spotify with caching and proper error handling."""
     try:
-        devices_info = sp.devices()
-        return devices_info.get("devices", [])
+        return await get_devices_with_cache(sp)
+    except SpotifyAPIError:
+        # Re-raise SpotifyAPIError as-is
+        raise
     except Exception as e:
-        logger.error(f"Error getting devices: {e}")
-        raise Exception("Failed to get Spotify devices. Please try again.")
+        logger.error(f"[SPOTIFY-DEVICES] Unexpected error getting devices", extra={
+            "error": str(e),
+            "error_type": type(e).__name__
+        })
+        raise SpotifyAPIError(
+            "Unable to retrieve Spotify devices. Please try again.",
+            500, e
+        )
 
 
-def load_playlist_tracks(sp, playlist_id):
-    """Load tracks from a Spotify playlist."""
+async def load_playlist_tracks(sp, playlist_id):
+    """Load tracks from a Spotify playlist with proper error handling and pagination."""
     try:
-        results = sp.playlist_items(playlist_id)
         tracks = []
+        
+        # Get initial results with retry logic
+        results = await spotify_api_call_with_retry(
+            lambda: sp.playlist_items(playlist_id),
+            operation_name=f"load playlist {playlist_id}"
+        )
+        
         while results:
-            tracks.extend(
-                {
-                    "id": track["track"]["id"],
-                    "name": track["track"]["name"],
-                    "artist": ", ".join(a["name"] for a in track["track"]["artists"]),
-                }
-                for track in results.get("items", [])
-                if track["track"]
-            )
-            results = sp.next(results)  # Handle pagination
+            # Process current batch of tracks
+            batch_tracks = []
+            for item in results.get("items", []):
+                if item["track"] and item["track"]["id"]:  # Ensure track exists and has ID
+                    batch_tracks.append({
+                        "id": item["track"]["id"],
+                        "name": item["track"]["name"],
+                        "artist": ", ".join(a["name"] for a in item["track"]["artists"]),
+                    })
+            
+            tracks.extend(batch_tracks)
+            
+            # Get next page if available
+            if results.get("next"):
+                results = await spotify_api_call_with_retry(
+                    lambda: sp.next(results),
+                    operation_name=f"load playlist {playlist_id} (pagination)"
+                )
+            else:
+                results = None
+                
+        logger.info(f"[SPOTIFY-PLAYLIST] Loaded playlist tracks", extra={
+            "playlist_id": playlist_id,
+            "track_count": len(tracks)
+        })
+        
         return tracks
+        
+    except SpotifyAPIError:
+        # Re-raise SpotifyAPIError as-is
+        raise
     except Exception as e:
-        logger.error(f"Error loading playlist: {e}")
-        raise Exception("Failed to load playlist tracks. Please try again.")
+        logger.error(f"[SPOTIFY-PLAYLIST] Unexpected error loading playlist", extra={
+            "playlist_id": playlist_id,
+            "error": str(e),
+            "error_type": type(e).__name__
+        })
+        raise SpotifyAPIError(
+            "Failed to load playlist tracks. Please try again.",
+            500, e
+        )
 
 
-def play_random_track(sp):
-    """Play a random track."""
+async def find_active_device(sp):
+    """Find an active Spotify device with fallback strategies."""
     try:
-        devices = sp.devices()
-        active_device = next((d for d in devices["devices"] if d["is_active"]), None)
+        from app.spotify_utils import find_active_device_with_fallback
+        return await find_active_device_with_fallback(sp)
+    except SpotifyAPIError:
+        # Re-raise SpotifyAPIError as-is
+        raise
+    except Exception as e:
+        logger.error(f"[SPOTIFY-DEVICE] Unexpected error finding device", extra={
+            "error": str(e),
+            "error_type": type(e).__name__
+        })
+        raise SpotifyAPIError(
+            "Unable to find an active Spotify device. Please try again.",
+            500, e
+        )
 
-        if not active_device:
-            raise Exception(
-                "No active Spotify device found. Please ensure a Spotify client is active."
+
+async def pause_playback(sp, device_id=None):
+    """Pause Spotify playback with proper error handling."""
+    try:
+        from app.spotify_utils import pause_playback_safe
+        success = await pause_playback_safe(sp, device_id)
+        if not success:
+            raise SpotifyAPIError(
+                "Failed to pause playback. The device may not be available.",
+                400
             )
-
-        return active_device
+    except SpotifyAPIError:
+        # Re-raise SpotifyAPIError as-is
+        raise
     except Exception as e:
-        logger.error(f"Error in play_random_track: {e}")
-        raise Exception("Failed to play track. Please try again.")
-
-
-def pause_playback(sp):
-    """Pause Spotify playback."""
-    try:
-        sp.pause_playback()
-    except Exception as e:
-        logger.error(f"Error pausing playback: {e}")
-        raise Exception("Failed to pause playback. Please try again.")
+        logger.error(f"[SPOTIFY-PLAYBACK] Unexpected error pausing playback", extra={
+            "error": str(e),
+            "error_type": type(e).__name__
+        })
+        raise SpotifyAPIError(
+            "Failed to pause playback. Please try again.",
+            500, e
+        )

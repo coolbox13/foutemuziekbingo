@@ -1,6 +1,11 @@
 from fastapi import APIRouter, HTTPException, Request, Depends
 from typing import Optional
-from app.spotify import get_spotify_client, pause_playback  
+from app.spotify import get_spotify_client, pause_playback, find_active_device
+from app.spotify_utils import (
+    convert_spotify_exception_to_http, 
+    SpotifyAPIError, 
+    play_track_with_fallback
+)
 from app.auth_service import get_current_user
 from app.game_service import game_service
 from app.playlist_service import playlist_service
