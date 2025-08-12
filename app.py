@@ -11,7 +11,7 @@ app = socketio.ASGIApp(sio, other_asgi_app=fastapi_app)
 
 # Print all registered routes for debugging
 for route in fastapi_app.routes:
-    if hasattr(route, 'methods'):
+    if hasattr(route, "methods"):
         print(f"{route.methods}: {route.path}")
     else:
         print(f"Route: {route}")

@@ -43,8 +43,10 @@ class ThreadSafeGameState:
                 return json.load(f)
         except (FileNotFoundError, json.JSONDecodeError) as e:
             # Log the error (you may also use the logging module)
-            print(f"Warning: Unable to load game state from {GAME_STATE_FILE}: "
-                  f"{e}. Resetting to default state.")
+            print(
+                f"Warning: Unable to load game state from {GAME_STATE_FILE}: "
+                f"{e}. Resetting to default state."
+            )
             return self.reset_to_default()
 
     def save_state(self, state):

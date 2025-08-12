@@ -33,16 +33,18 @@ async def dashboard(request: Request):
     try:
         logger.info("Dashboard route accessed")
         dashboard_data = get_dashboard_data()
-        return templates.TemplateResponse("dashboard.html", {
-            "request": request,
-            **dashboard_data
-        })
+        return templates.TemplateResponse(
+            "dashboard.html", {"request": request, **dashboard_data}
+        )
     except Exception as e:
         logger.error(f"Error rendering dashboard: {e}")
-        return templates.TemplateResponse("error.html", {
-            "request": request,
-            "error_message": "Failed to load dashboard. Please try again."
-        })
+        return templates.TemplateResponse(
+            "error.html",
+            {
+                "request": request,
+                "error_message": "Failed to load dashboard. Please try again.",
+            },
+        )
 
 
 @router.get("/api/dashboard_data")
@@ -62,13 +64,19 @@ async def api_dashboard_stats():
         state = game_state.get_state()
         cards = state.get("cards", {})
         stats = {
-            "total_tracks": (len(state.get("unplayed_tracks", [])) +
-                             len(state.get("played_tracks", []))),
+            "total_tracks": (
+                len(state.get("unplayed_tracks", []))
+                + len(state.get("played_tracks", []))
+            ),
             "played_tracks": len(state.get("played_tracks", [])),
             "remaining_tracks": len(state.get("unplayed_tracks", [])),
             "total_cards": len(cards),
-            "cards_with_matches": sum(1 for card in cards.values() if card.get("matches")),
-            "bingos": sum(1 for card in cards.values() if card.get("bingo_status") == "BINGO!")
+            "cards_with_matches": sum(
+                1 for card in cards.values() if card.get("matches")
+            ),
+            "bingos": sum(
+                1 for card in cards.values() if card.get("bingo_status") == "BINGO!"
+            ),
         }
         return stats
     except Exception as e:

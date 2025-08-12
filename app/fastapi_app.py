@@ -10,6 +10,7 @@ import asyncio
 from logging.handlers import RotatingFileHandler
 from app.routes import register_routes
 from app.database import database
+from datetime import datetime, timezone
 
 
 def create_app():
@@ -18,10 +19,12 @@ def create_app():
 
     app = FastAPI(title="Foute Muziek Bingo")
 
-    # Add CORS middleware
+    # Add CORS middleware with restricted origins
+    allowed_origins_env = os.getenv("ALLOWED_ORIGINS", "http://localhost:1313")
+    allowed_origins = [o.strip() for o in allowed_origins_env.split(",") if o.strip()]
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["*"],
+        allow_origins=allowed_origins,
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
@@ -29,7 +32,7 @@ def create_app():
 
     # Mount static files
     app.mount("/static", StaticFiles(directory="static"), name="static")
-    
+
     # Configure Jinja2 templates
     templates = Jinja2Templates(directory="templates")
 
@@ -42,8 +45,7 @@ def create_app():
     )
     file_handler.setFormatter(
         logging.Formatter(
-            "%(asctime)s %(levelname)s: %(message)s "
-            "[in %(pathname)s:%(lineno)d]"
+            "%(asctime)s %(levelname)s: %(message)s " "[in %(pathname)s:%(lineno)d]"
         )
     )
     file_handler.setLevel(logging.INFO)
@@ -66,6 +68,63 @@ def create_app():
             if os.getenv("NODE_ENV") != "development":
                 raise
 
+        # Start background token maintenance task
+        async def _token_maintenance_loop():
+            from app.secure_session import (
+                get_sessions_snapshot,
+                update_session_token_info,
+            )
+            from app.spotify import get_spotify_oauth
+            from app.spotify_utils import SpotifyAPIError
+            from app.auth_routes import SECRET_KEY
+            from app.secure_session import SESSION_COOKIE_NAME
+            from spotipy.oauth2 import SpotifyOAuth
+            import time
+
+            sp_oauth: SpotifyOAuth = get_spotify_oauth()
+            check_interval = int(os.getenv("SPOTIFY_TOKEN_MAINTENANCE_INTERVAL", "60"))
+            safety_window = int(os.getenv("SPOTIFY_TOKEN_SAFETY_WINDOW", "180"))
+
+            while True:
+                try:
+                    snapshot = get_sessions_snapshot()
+                    now_epoch = time.time()
+                    for token, data in snapshot.items():
+                        token_info = data.get("token_info") or {}
+                        refresh_token = token_info.get("refresh_token")
+                        expires_at = token_info.get("expires_at")
+                        if not refresh_token:
+                            continue
+                        needs_refresh = False
+                        try:
+                            needs_refresh = (not expires_at) or (
+                                now_epoch > float(expires_at) - safety_window
+                            )
+                        except Exception:
+                            needs_refresh = True
+                        if not needs_refresh:
+                            continue
+                        try:
+                            refreshed = sp_oauth.refresh_access_token(refresh_token)
+                            update_session_token_info(token, refreshed)
+                            logger.info("[SPOTIFY-MAINT] Proactive refresh successful")
+                        except Exception as e:
+                            logger.warning(
+                                f"[SPOTIFY-MAINT] Proactive refresh failed: {e}"
+                            )
+                except Exception as loop_err:
+                    logger.warning(
+                        f"[SPOTIFY-MAINT] Maintenance loop error: {loop_err}"
+                    )
+                finally:
+                    await asyncio.sleep(check_interval)
+
+        try:
+            asyncio.create_task(_token_maintenance_loop())
+            logger.info("[SPOTIFY-MAINT] Token maintenance task started")
+        except Exception as e:
+            logger.warning(f"[SPOTIFY-MAINT] Failed to start maintenance task: {e}")
+
     @app.on_event("shutdown")
     async def shutdown_event():
         """Cleanup on shutdown"""
@@ -77,10 +136,16 @@ def create_app():
     # Add root route
     @app.get("/", response_class=HTMLResponse)
     async def root(request: Request):
-        client_ip = request.client.host
-        from app.auth_routes import sessions
-        if client_ip in sessions and "token_info" in sessions[client_ip]:
-            return RedirectResponse(url="/dashboard", status_code=302)
+        # Prefer secure session
+        try:
+            from app.secure_session import get_session_from_request
+            from app.auth_routes import SECRET_KEY
+
+            session_data = get_session_from_request(request, SECRET_KEY)
+            if session_data and session_data.get("user"):
+                return RedirectResponse(url="/dashboard", status_code=302)
+        except Exception:
+            pass
         return templates.TemplateResponse("homepage.html", {"request": request})
 
     # Socket.IO will be mounted separately in app.py

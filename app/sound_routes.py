@@ -8,12 +8,12 @@ router = APIRouter()
 logger = logging.getLogger("music_bingo")
 
 # Get the absolute path to the sounds directory
-SOUNDS_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'sounds'))
+SOUNDS_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "sounds"))
 
 # Ensure proper MIME type registration
-mimetypes.add_type('audio/mpeg', '.mp3')
-mimetypes.add_type('audio/wav', '.wav')
-mimetypes.add_type('audio/ogg', '.ogg')
+mimetypes.add_type("audio/mpeg", ".mp3")
+mimetypes.add_type("audio/wav", ".wav")
+mimetypes.add_type("audio/ogg", ".ogg")
 
 
 @router.get("/api/list_sounds")
@@ -27,15 +27,12 @@ async def list_sounds():
 
         sounds = []
         for filename in os.listdir(SOUNDS_DIR):
-            if filename.lower().endswith(('.mp3', '.wav', '.ogg')):
+            if filename.lower().endswith((".mp3", ".wav", ".ogg")):
                 mime_type = mimetypes.guess_type(filename)[0]
-                sounds.append({
-                    'filename': filename,
-                    'mime_type': mime_type
-                })
+                sounds.append({"filename": filename, "mime_type": mime_type})
 
         logger.info(f"Found {len(sounds)} sound files in {SOUNDS_DIR}")
-        return {"sounds": sorted(sounds, key=lambda x: x['filename'])}
+        return {"sounds": sorted(sounds, key=lambda x: x["filename"])}
 
     except HTTPException:
         raise
@@ -64,7 +61,7 @@ async def serve_sound(filename: str):
         return FileResponse(
             path=file_path,
             media_type=mime_type or "application/octet-stream",
-            filename=filename
+            filename=filename,
         )
 
     except HTTPException:

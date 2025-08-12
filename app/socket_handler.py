@@ -1,12 +1,39 @@
+import os
 import socketio
 from app.state import game_state
 import logging
+from urllib.parse import parse_qs
+from app.secure_session import get_session_from_cookie_value, SESSION_COOKIE_NAME
+from app.auth_service import AuthService, AuthenticationError
 
-# Create Socket.IO server
-sio = socketio.AsyncServer(cors_allowed_origins="*", async_mode='asgi')
+# Create Socket.IO server with restricted CORS
+_allowed_origins_env = os.getenv("ALLOWED_ORIGINS", "http://localhost:1313")
+_allowed_origins = [o.strip() for o in _allowed_origins_env.split(",") if o.strip()]
+
+# Optional Redis/Valkey manager for multi-process scaling and reliable broadcasts
+_valkey_url = os.getenv("VALKEY_URL", os.getenv("REDIS_URL", ""))
+client_manager = None
+if _valkey_url:
+    try:
+        client_manager = socketio.AsyncRedisManager(_valkey_url)
+        logger = logging.getLogger("music_bingo")
+        logger.info("[SIO] Using Redis/Valkey manager", extra={"url": _valkey_url})
+    except Exception as e:
+        logger = logging.getLogger("music_bingo")
+        logger.warning(
+            "[SIO] Failed to init Redis/Valkey manager, falling back to in-memory",
+            extra={"error": str(e)},
+        )
+
+sio = socketio.AsyncServer(
+    cors_allowed_origins=_allowed_origins,
+    async_mode="asgi",
+    client_manager=client_manager,
+)
 sio_app = socketio.ASGIApp(sio)
 
 logger = logging.getLogger("music_bingo")
+auth_service = AuthService()
 
 
 def check_bingo_status(card_id):
@@ -29,19 +56,84 @@ def check_bingo_status(card_id):
 
 @sio.event
 async def connect(sid, environ):
-    logger.info("WebSocket client connected.")
-    print("Client connected")
-    await sio.emit("connection_status", {"status": "connected"}, room=sid)
+    # Expect Authorization: Bearer <token> header or ?token= query param
+    scope = environ.get("asgi.scope") or {}
+    headers = {}
+    for k, v in scope.get("headers", []):
+        try:
+            headers[k.decode()] = v.decode()
+        except Exception:
+            continue
+
+    token = None
+    auth_header = headers.get("authorization")
+    if auth_header and auth_header.lower().startswith("bearer "):
+        token = auth_header.split(" ", 1)[1]
+    if not token:
+        query_string = environ.get("QUERY_STRING", "")
+        if query_string:
+            qs = parse_qs(query_string)
+            token_vals = qs.get("token")
+            if token_vals:
+                token = token_vals[0]
+    # As a last resort, accept our secure session cookie
+    if not token:
+        cookie_header = headers.get("cookie", "")
+        cookies = {}
+        for part in cookie_header.split(";"):
+            if "=" in part:
+                k, v = part.strip().split("=", 1)
+                cookies[k] = v
+        raw_cookie = cookies.get(SESSION_COOKIE_NAME)
+        if raw_cookie:
+            try:
+                from app.auth_routes import SECRET_KEY
+
+                session_data = get_session_from_cookie_value(raw_cookie, SECRET_KEY)
+                if (
+                    session_data
+                    and session_data.get("user")
+                    and session_data["user"].get("id")
+                ):
+                    await sio.save_session(sid, {"user_id": session_data["user"]["id"]})
+                    logger.info(
+                        "[SIO] Client connected via secure session cookie",
+                        extra={"user_id": session_data["user"]["id"]},
+                    )
+                    await sio.emit(
+                        "connection_status", {"status": "connected"}, room=sid
+                    )
+                    return
+            except Exception:
+                pass
+
+    if not token:
+        logger.warning("[SIO-AUTH] Missing token on connect; rejecting")
+        return False  # Reject connection
+
+    try:
+        user = await auth_service.get_current_user(token)
+        await sio.save_session(sid, {"user_id": user.id})
+        logger.info("[SIO] Client connected", extra={"user_id": user.id})
+        await sio.emit("connection_status", {"status": "connected"}, room=sid)
+    except AuthenticationError as e:
+        logger.warning(
+            "[SIO-AUTH] Invalid token on connect; rejecting", extra={"error": e.message}
+        )
+        return False
 
 
 @sio.event
 async def disconnect(sid):
     logger.info("WebSocket client disconnected.")
-    print("Client disconnected")
 
 
 @sio.event
 async def card_validated(sid, data):
+    session = await sio.get_session(sid)
+    if not session or not session.get("user_id"):
+        await sio.emit("error", {"error": "Unauthorized"}, room=sid)
+        return
     card_id = data.get("card_id")
     if not card_id:
         await sio.emit("error", {"error": "No card ID provided"}, room=sid)
@@ -49,15 +141,23 @@ async def card_validated(sid, data):
     state = game_state.get_state()
     card = state["cards"].get(card_id)
     if card:
-        await sio.emit("card_status_update", {
-            "card_id": card_id,
-            "status": card.get("bingo_status", "Not checked"),
-            "matches": card.get("matches", []),
-        }, room=sid)
+        await sio.emit(
+            "card_status_update",
+            {
+                "card_id": card_id,
+                "status": card.get("bingo_status", "Not checked"),
+                "matches": card.get("matches", []),
+            },
+            room=sid,
+        )
 
 
 @sio.event
 async def check_bingo(sid, data):
+    session = await sio.get_session(sid)
+    if not session or not session.get("user_id"):
+        await sio.emit("bingo_result", {"error": "Unauthorized"}, room=sid)
+        return
     card_id = data.get("card_id")
     if not card_id:
         await sio.emit("bingo_result", {"error": "No card ID provided"}, room=sid)
@@ -68,6 +168,10 @@ async def check_bingo(sid, data):
 
 @sio.event
 async def track_played(sid, track_data):
+    session = await sio.get_session(sid)
+    if not session or not session.get("user_id"):
+        await sio.emit("error", {"error": "Unauthorized"}, room=sid)
+        return
     if not track_data:
         await sio.emit("error", {"error": "No track data provided"}, room=sid)
         return
@@ -77,6 +181,10 @@ async def track_played(sid, track_data):
 
 @sio.event
 async def join(sid, data):
+    session = await sio.get_session(sid)
+    if not session or not session.get("user_id"):
+        await sio.emit("error", {"error": "Unauthorized"}, room=sid)
+        return
     room = data.get("room")
     if room:
         await sio.enter_room(sid, room)
@@ -88,6 +196,10 @@ async def join(sid, data):
 
 @sio.event
 async def leave(sid, data):
+    session = await sio.get_session(sid)
+    if not session or not session.get("user_id"):
+        await sio.emit("error", {"error": "Unauthorized"}, room=sid)
+        return
     room = data.get("room")
     if room:
         await sio.leave_room(sid, room)
@@ -99,12 +211,20 @@ async def leave(sid, data):
 
 @sio.event
 async def request_game_state(sid):
+    session = await sio.get_session(sid)
+    if not session or not session.get("user_id"):
+        await sio.emit("error", {"error": "Unauthorized"}, room=sid)
+        return
     state = game_state.get_state()
     await sio.emit("game_state", state, room=sid)
 
 
 @sio.event
 async def play_track(sid, data):
+    session = await sio.get_session(sid)
+    if not session or not session.get("user_id"):
+        await sio.emit("error", {"error": "Unauthorized"}, room=sid)
+        return
     track_id = data.get("track_id")
     if not track_id:
         await sio.emit("error", {"error": "No track ID provided"}, room=sid)
@@ -113,11 +233,15 @@ async def play_track(sid, data):
     state = game_state.get_state()
     track = next((t for t in state["unplayed_tracks"] if t["id"] == track_id), None)
     if track:
+
         def update_track_lists(state):
             if track in state["unplayed_tracks"]:
                 state["unplayed_tracks"].remove(track)
             state["played_tracks"].append(track)
+
         game_state.update_state(update_track_lists)
         await sio.emit("track_played", {"track_id": track_id, "track": track}, room=sid)
     else:
-        await sio.emit("error", {"error": "Track not found in unplayed tracks"}, room=sid)
+        await sio.emit(
+            "error", {"error": "Track not found in unplayed tracks"}, room=sid
+        )

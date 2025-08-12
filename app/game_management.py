@@ -34,19 +34,16 @@ async def save_game(request: Request):
             "name": game_name,
             "description": description,
             "timestamp": datetime.now().isoformat(),
-            "game_state": current_state
+            "game_state": current_state,
         }
 
         filename = f"{game_name.replace(' ', '_')}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
         filepath = os.path.join(SAVED_GAMES_DIR, filename)
 
-        with open(filepath, 'w') as f:
+        with open(filepath, "w") as f:
             json.dump(save_data, f, indent=4)
 
-        return {
-            "message": "Game saved successfully",
-            "filename": filename
-        }
+        return {"message": "Game saved successfully", "filename": filename}
 
     except HTTPException:
         raise
@@ -64,7 +61,7 @@ async def load_game(filename: str):
         if not os.path.exists(filepath):
             raise HTTPException(status_code=404, detail="Saved game not found")
 
-        with open(filepath, 'r') as f:
+        with open(filepath, "r") as f:
             save_data = json.load(f)
 
         def update_state(state):
@@ -78,8 +75,8 @@ async def load_game(filename: str):
             "game_info": {
                 "name": save_data["name"],
                 "description": save_data["description"],
-                "timestamp": save_data["timestamp"]
-            }
+                "timestamp": save_data["timestamp"],
+            },
         }
 
     except HTTPException:
@@ -97,19 +94,23 @@ async def list_saved_games():
         saved_games = []
 
         for filename in os.listdir(SAVED_GAMES_DIR):
-            if filename.endswith('.json'):
+            if filename.endswith(".json"):
                 filepath = os.path.join(SAVED_GAMES_DIR, filename)
-                with open(filepath, 'r') as f:
+                with open(filepath, "r") as f:
                     save_data = json.load(f)
-                    saved_games.append({
-                        "filename": filename,
-                        "name": save_data["name"],
-                        "description": save_data["description"],
-                        "timestamp": save_data["timestamp"]
-                    })
+                    saved_games.append(
+                        {
+                            "filename": filename,
+                            "name": save_data["name"],
+                            "description": save_data["description"],
+                            "timestamp": save_data["timestamp"],
+                        }
+                    )
 
         return {
-            "saved_games": sorted(saved_games, key=lambda x: x["timestamp"], reverse=True)
+            "saved_games": sorted(
+                saved_games, key=lambda x: x["timestamp"], reverse=True
+            )
         }
 
     except Exception as e:

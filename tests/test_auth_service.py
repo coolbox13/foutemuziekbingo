@@ -13,7 +13,7 @@ from app.models import SpotifyUserProfile, AuthRequest
 async def test_jwt_tokens():
     """Test JWT token creation and validation"""
     print("Testing JWT token operations...")
-    
+
     # Test token creation
     user_id = "test-user-123"
     try:
@@ -24,16 +24,16 @@ async def test_jwt_tokens():
     except Exception as e:
         print(f"❌ JWT token creation: FAIL - {e}")
         return
-    
+
     # Test token validation
     try:
-        payload = auth_service.verify_token(tokens['access_token'])
+        payload = auth_service.verify_token(tokens["access_token"])
         print("✅ JWT token validation: PASS")
         print(f"  User ID from token: {payload.get('user_id')}")
         print(f"  Token type: {payload.get('type')}")
     except Exception as e:
         print(f"❌ JWT token validation: FAIL - {e}")
-    
+
     # Test expired token (simulate)
     try:
         # Create a token that expires immediately
@@ -47,23 +47,23 @@ async def test_jwt_tokens():
 async def test_spotify_auth_flow():
     """Test Spotify authentication flow (mock)"""
     print("\nTesting Spotify authentication flow...")
-    
+
     # Create mock Spotify user profile
     spotify_profile = SpotifyUserProfile(
         id="spotify_test_user",
         display_name="Test User",
-        email="test@example.com", 
+        email="test@example.com",
         country="US",
-        product="premium"
+        product="premium",
     )
-    
+
     # Create auth request
     auth_request = AuthRequest(
         spotify_user=spotify_profile,
         access_token="mock_access_token",
-        refresh_token="mock_refresh_token"
+        refresh_token="mock_refresh_token",
     )
-    
+
     try:
         # This would normally call Supabase, but we'll test the model creation
         print("✅ Auth request creation: PASS")
@@ -77,9 +77,9 @@ async def test_spotify_auth_flow():
 async def test_user_session_management():
     """Test user session management"""
     print("\nTesting user session management...")
-    
+
     user_id = "test-session-user"
-    
+
     try:
         # Test session creation
         tokens = auth_service.create_tokens(user_id)
@@ -87,15 +87,17 @@ async def test_user_session_management():
             "user_id": user_id,
             "access_token": tokens["access_token"],
             "refresh_token": tokens["refresh_token"],
-            "created_at": datetime.now().isoformat()
+            "created_at": datetime.now().isoformat(),
         }
         print("✅ Session data creation: PASS")
-        
+
         # Test token refresh simulation
         new_tokens = auth_service.create_tokens(user_id)
         print("✅ Token refresh simulation: PASS")
-        print(f"  New access token different: {tokens['access_token'] != new_tokens['access_token']}")
-        
+        print(
+            f"  New access token different: {tokens['access_token'] != new_tokens['access_token']}"
+        )
+
     except Exception as e:
         print(f"❌ Session management: FAIL - {e}")
 
@@ -105,11 +107,11 @@ async def run_auth_tests():
     print("=" * 50)
     print("AUTHENTICATION SERVICE TESTS")
     print("=" * 50)
-    
+
     await test_jwt_tokens()
     await test_spotify_auth_flow()
     await test_user_session_management()
-    
+
     print("\nAuthentication tests completed!")
 
 

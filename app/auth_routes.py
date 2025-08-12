@@ -8,15 +8,20 @@ from spotipy.exceptions import SpotifyException
 import os
 import logging
 from app.models import (
-    AuthRequest, AuthResponse, TokenRefreshRequest, TokenRefreshResponse,
-    SpotifyUserProfile, UserPublic, APIResponse
+    AuthRequest,
+    AuthResponse,
+    TokenRefreshRequest,
+    TokenRefreshResponse,
+    SpotifyUserProfile,
+    UserPublic,
+    APIResponse,
 )
 from app.auth_service import auth_service, get_current_user, get_current_user_optional
 from app.secure_session import (
-    create_secure_session, 
-    get_session_from_request, 
+    create_secure_session,
+    get_session_from_request,
     invalidate_session,
-    generate_csrf_token
+    generate_csrf_token,
 )
 
 router = APIRouter()
@@ -43,42 +48,52 @@ async def spotify_login():
     """Initiate Spotify OAuth flow with CSRF protection"""
     # Generate CSRF state parameter
     csrf_state = generate_csrf_token()
-    
+
     sp_oauth = SpotifyOAuth(
         client_id=os.getenv("SPOTIFY_CLIENT_ID"),
         client_secret=os.getenv("SPOTIFY_CLIENT_SECRET"),
-        redirect_uri=os.getenv("SPOTIFY_REDIRECT_URI", "http://localhost:1313/auth/spotify/callback"),
+        redirect_uri=os.getenv(
+            "SPOTIFY_REDIRECT_URI", "http://localhost:1313/auth/spotify/callback"
+        ),
         scope="playlist-read-private user-read-playback-state user-modify-playback-state user-read-private user-read-email",
         state=csrf_state,  # Add CSRF protection
-        show_dialog=True  # Always show dialog for better UX
+        show_dialog=True,  # Always show dialog for better UX
     )
-    
+
     auth_url = sp_oauth.get_authorize_url()
-    logger.info("[AUTH-SPOTIFY-001] Redirecting to Spotify OAuth", extra={
-        "auth_url": auth_url[:50] + "...",
-        "redirect_uri": os.getenv("SPOTIFY_REDIRECT_URI"),
-        "csrf_state": csrf_state[:8] + "..."  # Log only first 8 chars
-    })
-    
+    logger.info(
+        "[AUTH-SPOTIFY-001] Redirecting to Spotify OAuth",
+        extra={
+            "auth_url": auth_url[:50] + "...",
+            "redirect_uri": os.getenv("SPOTIFY_REDIRECT_URI"),
+            "csrf_state": csrf_state[:8] + "...",  # Log only first 8 chars
+        },
+    )
+
     return RedirectResponse(url=auth_url, status_code=302)
 
 
 @router.get("/spotify/callback")
-async def spotify_callback(request: Request, response: Response, code: str = None, error: str = None, state: str = None):
+async def spotify_callback(
+    request: Request,
+    response: Response,
+    code: str = None,
+    error: str = None,
+    state: str = None,
+):
     """Handle Spotify OAuth callback and create user session"""
     callback_id = f"callback-{int(request.scope.get('time', 0))}"
-    
-    logger.info("[AUTH-CALLBACK-001] Processing Spotify callback", extra={
-        "callback_id": callback_id,
-        "has_code": bool(code),
-        "error": error
-    })
+
+    logger.info(
+        "[AUTH-CALLBACK-001] Processing Spotify callback",
+        extra={"callback_id": callback_id, "has_code": bool(code), "error": error},
+    )
 
     if error:
-        logger.error("[AUTH-CALLBACK-ERROR] Spotify OAuth error", extra={
-            "callback_id": callback_id,
-            "error": error
-        })
+        logger.error(
+            "[AUTH-CALLBACK-ERROR] Spotify OAuth error",
+            extra={"callback_id": callback_id, "error": error},
+        )
         return HTMLResponse(
             content=f"""
             <!DOCTYPE html>
@@ -106,13 +121,14 @@ async def spotify_callback(request: Request, response: Response, code: str = Non
             </body>
             </html>
             """,
-            status_code=400
+            status_code=400,
         )
 
     if not code:
-        logger.error("[AUTH-CALLBACK-ERROR] No authorization code received", extra={
-            "callback_id": callback_id
-        })
+        logger.error(
+            "[AUTH-CALLBACK-ERROR] No authorization code received",
+            extra={"callback_id": callback_id},
+        )
         return HTMLResponse(
             content="""
             <!DOCTYPE html>
@@ -140,63 +156,78 @@ async def spotify_callback(request: Request, response: Response, code: str = Non
             </body>
             </html>
             """,
-            status_code=400
+            status_code=400,
         )
 
     try:
         # Validate CSRF state parameter
         if not state:
-            logger.error("[AUTH-CALLBACK-CSRF] Missing state parameter", extra={
-                "callback_id": callback_id
-            })
+            logger.error(
+                "[AUTH-CALLBACK-CSRF] Missing state parameter",
+                extra={"callback_id": callback_id},
+            )
             raise Exception("Missing security state parameter")
-            
+
         # Exchange code for tokens with proper error handling
         sp_oauth = SpotifyOAuth(
             client_id=os.getenv("SPOTIFY_CLIENT_ID"),
             client_secret=os.getenv("SPOTIFY_CLIENT_SECRET"),
-            redirect_uri=os.getenv("SPOTIFY_REDIRECT_URI", "http://localhost:1313/auth/spotify/callback"),
+            redirect_uri=os.getenv(
+                "SPOTIFY_REDIRECT_URI", "http://localhost:1313/auth/spotify/callback"
+            ),
             scope="playlist-read-private user-read-playback-state user-modify-playback-state user-read-private user-read-email",
-            state=state
+            state=state,
         )
-        
-        logger.info("[AUTH-CALLBACK-002] Exchanging code for tokens", extra={
-            "callback_id": callback_id,
-            "code_length": len(code),
-            "state_present": bool(state)
-        })
-        
+
+        logger.info(
+            "[AUTH-CALLBACK-002] Exchanging code for tokens",
+            extra={
+                "callback_id": callback_id,
+                "code_length": len(code),
+                "state_present": bool(state),
+            },
+        )
+
         try:
             token_info = sp_oauth.get_access_token(code)
         except SpotifyException as e:
-            logger.error("[AUTH-CALLBACK-SPOTIFY-ERROR] Spotify OAuth error", extra={
-                "callback_id": callback_id,
-                "error": str(e),
-                "status_code": getattr(e, 'http_status', 'unknown')
-            })
+            logger.error(
+                "[AUTH-CALLBACK-SPOTIFY-ERROR] Spotify OAuth error",
+                extra={
+                    "callback_id": callback_id,
+                    "error": str(e),
+                    "status_code": getattr(e, "http_status", "unknown"),
+                },
+            )
             raise Exception("Spotify authentication failed")
-        
+
         if not token_info:
             raise Exception("Failed to get token from Spotify")
-            
-        logger.info("[AUTH-CALLBACK-003] Got tokens from Spotify", extra={
-            "callback_id": callback_id,
-            "has_access_token": bool(token_info.get("access_token")),
-            "has_refresh_token": bool(token_info.get("refresh_token")),
-            "expires_in": token_info.get("expires_in")
-        })
+
+        logger.info(
+            "[AUTH-CALLBACK-003] Got tokens from Spotify",
+            extra={
+                "callback_id": callback_id,
+                "has_access_token": bool(token_info.get("access_token")),
+                "has_refresh_token": bool(token_info.get("refresh_token")),
+                "expires_in": token_info.get("expires_in"),
+            },
+        )
 
         # Get user profile from Spotify
         sp = Spotify(auth=token_info["access_token"])
         spotify_user = sp.current_user()
-        
-        logger.info("[AUTH-CALLBACK-004] Got user profile from Spotify", extra={
-            "callback_id": callback_id,
-            "spotify_id": spotify_user.get("id"),
-            "display_name": spotify_user.get("display_name"),
-            "email": spotify_user.get("email")
-        })
-        
+
+        logger.info(
+            "[AUTH-CALLBACK-004] Got user profile from Spotify",
+            extra={
+                "callback_id": callback_id,
+                "spotify_id": spotify_user.get("id"),
+                "display_name": spotify_user.get("display_name"),
+                "email": spotify_user.get("email"),
+            },
+        )
+
         # Create Spotify user profile
         spotify_profile = SpotifyUserProfile(
             id=spotify_user["id"],
@@ -209,49 +240,55 @@ async def spotify_callback(request: Request, response: Response, code: str = Non
             external_urls=spotify_user.get("external_urls"),
             href=spotify_user.get("href"),
             uri=spotify_user.get("uri"),
-            explicit_content=spotify_user.get("explicit_content")
+            explicit_content=spotify_user.get("explicit_content"),
         )
-        
+
         # Create auth request
         auth_request = AuthRequest(
             spotify_user=spotify_profile,
             access_token=token_info["access_token"],
-            refresh_token=token_info.get("refresh_token")
+            refresh_token=token_info.get("refresh_token"),
         )
-        
+
         # Authenticate user through our service
-        logger.info("[AUTH-CALLBACK-005] Processing authentication through auth service", extra={
-            "callback_id": callback_id,
-            "spotify_id": spotify_profile.id
-        })
-        
+        logger.info(
+            "[AUTH-CALLBACK-005] Processing authentication through auth service",
+            extra={"callback_id": callback_id, "spotify_id": spotify_profile.id},
+        )
+
         auth_response = await auth_service.authenticate_spotify_user(auth_request)
-        
+
         if not auth_response.success:
             raise Exception("Authentication failed")
-            
-        logger.info("[AUTH-CALLBACK-006] Authentication successful", extra={
-            "callback_id": callback_id,
-            "user_id": auth_response.user.id,
-            "spotify_id": auth_response.user.spotify_id
-        })
-        
-        logger.info(f"[DEBUG-001] Starting HTML response generation", extra={
-            "callback_id": callback_id,
-            "access_token_length": len(auth_response.tokens.access_token),
-            "user_display_name": auth_response.user.display_name,
-            "user_dict_keys": list(auth_response.user.dict().keys())
-        })
-        
+
+        logger.info(
+            "[AUTH-CALLBACK-006] Authentication successful",
+            extra={
+                "callback_id": callback_id,
+                "user_id": auth_response.user.id,
+                "spotify_id": auth_response.user.spotify_id,
+            },
+        )
+
+        logger.info(
+            f"[DEBUG-001] Starting HTML response generation",
+            extra={
+                "callback_id": callback_id,
+                "access_token_length": len(auth_response.tokens.access_token),
+                "user_display_name": auth_response.user.display_name,
+                "user_dict_keys": list(auth_response.user.dict().keys()),
+            },
+        )
+
         # Create secure session (replaces IP-based sessions)
         session_token = create_secure_session(
             user_id=auth_response.user.id,
             spotify_token_info=token_info,
             user_data=auth_response.user.dict(),
             response=response,
-            secret_key=SECRET_KEY
+            secret_key=SECRET_KEY,
         )
-        
+
         # Store in legacy session storage for backwards compatibility during migration
         client_ip = request.client.host
         if client_ip not in sessions:
@@ -259,38 +296,52 @@ async def spotify_callback(request: Request, response: Response, code: str = Non
         sessions[client_ip]["token_info"] = token_info
         sessions[client_ip]["user"] = auth_response.user.dict()
         sessions[client_ip]["jwt_tokens"] = auth_response.tokens.dict()
-        
-        logger.info(f"[AUTH-CALLBACK-007] Secure session created", extra={
-            "callback_id": callback_id,
-            "session_token": session_token[:8] + "...",
-            "user_id": auth_response.user.id
-        })
-        
+
+        logger.info(
+            f"[AUTH-CALLBACK-007] Secure session created",
+            extra={
+                "callback_id": callback_id,
+                "session_token": session_token[:8] + "...",
+                "user_id": auth_response.user.id,
+            },
+        )
+
         # Return success page with tokens (in production, use secure cookies or redirect)
-        logger.info(f"[DEBUG-003] About to generate HTML response", extra={
-            "callback_id": callback_id,
-            "user_display_name": str(auth_response.user.display_name),
-            "access_token_preview": auth_response.tokens.access_token[:20] + "...",
-            "user_dict_type": type(auth_response.user.dict())
-        })
-        
+        logger.info(
+            f"[DEBUG-003] About to generate HTML response",
+            extra={
+                "callback_id": callback_id,
+                "user_display_name": str(auth_response.user.display_name),
+                "access_token_preview": auth_response.tokens.access_token[:20] + "...",
+                "user_dict_type": type(auth_response.user.dict()),
+            },
+        )
+
         try:
             # Use Pydantic's built-in JSON serialization which handles datetime objects
             user_json = auth_response.user.json()
-            logger.info(f"[DEBUG-004] User JSON serialized successfully", extra={
-                "callback_id": callback_id,
-                "user_json_length": len(user_json),
-                "user_json_preview": user_json[:100] + "..." if len(user_json) > 100 else user_json
-            })
+            logger.info(
+                f"[DEBUG-004] User JSON serialized successfully",
+                extra={
+                    "callback_id": callback_id,
+                    "user_json_length": len(user_json),
+                    "user_json_preview": user_json[:100] + "..."
+                    if len(user_json) > 100
+                    else user_json,
+                },
+            )
         except Exception as json_error:
-            logger.error(f"[DEBUG-004-ERROR] User JSON serialization failed", extra={
-                "callback_id": callback_id,
-                "error": str(json_error),
-                "error_type": type(json_error).__name__,
-                "user_dict_sample": str(auth_response.user.dict())[:200]
-            })
+            logger.error(
+                f"[DEBUG-004-ERROR] User JSON serialization failed",
+                extra={
+                    "callback_id": callback_id,
+                    "error": str(json_error),
+                    "error_type": type(json_error).__name__,
+                    "user_dict_sample": str(auth_response.user.dict())[:200],
+                },
+            )
             raise
-        
+
         return HTMLResponse(
             content=f"""
             <!DOCTYPE html>
@@ -347,15 +398,15 @@ async def spotify_callback(request: Request, response: Response, code: str = Non
             </body>
             </html>
             """,
-            status_code=200
+            status_code=200,
         )
 
     except Exception as e:
-        logger.error(f"[AUTH-CALLBACK-ERROR] Authentication failed", extra={
-            "callback_id": callback_id,
-            "error": str(e)
-        })
-        
+        logger.error(
+            f"[AUTH-CALLBACK-ERROR] Authentication failed",
+            extra={"callback_id": callback_id, "error": str(e)},
+        )
+
         return HTMLResponse(
             content=f"""
             <!DOCTYPE html>
@@ -383,7 +434,7 @@ async def spotify_callback(request: Request, response: Response, code: str = Non
             </body>
             </html>
             """,
-            status_code=500
+            status_code=500,
         )
 
 
@@ -393,11 +444,13 @@ async def authenticate(auth_request: AuthRequest):
     try:
         return await auth_service.authenticate_spotify_user(auth_request)
     except Exception as e:
-        logger.error(f"[AUTH-API-ERROR] Authentication failed", extra={
-            "error": str(e),
-            "spotify_id": auth_request.spotify_user.id
-        })
-        raise HTTPException(status_code=401, detail="Authentication failed. Please try again.")
+        logger.error(
+            f"[AUTH-API-ERROR] Authentication failed",
+            extra={"error": str(e), "spotify_id": auth_request.spotify_user.id},
+        )
+        raise HTTPException(
+            status_code=401, detail="Authentication failed. Please try again."
+        )
 
 
 @router.post("/refresh", response_model=TokenRefreshResponse)
@@ -406,10 +459,12 @@ async def refresh_token(refresh_request: TokenRefreshRequest):
     try:
         return await auth_service.refresh_token(refresh_request)
     except Exception as e:
-        logger.error(f"[AUTH-REFRESH-ERROR] Token refresh failed", extra={
-            "error": str(e)
-        })
-        raise HTTPException(status_code=401, detail="Authentication failed. Please try again.")
+        logger.error(
+            f"[AUTH-REFRESH-ERROR] Token refresh failed", extra={"error": str(e)}
+        )
+        raise HTTPException(
+            status_code=401, detail="Authentication failed. Please try again."
+        )
 
 
 @router.get("/me", response_model=UserPublic)
@@ -420,42 +475,42 @@ async def get_current_user_info(current_user: UserPublic = Depends(get_current_u
 
 @router.post("/logout")
 async def logout(
-    request: Request, 
-    response: Response, 
-    current_user: UserPublic = Depends(get_current_user_optional)
+    request: Request,
+    response: Response,
+    current_user: UserPublic = Depends(get_current_user_optional),
 ):
     """Logout user (clear session and cookies)"""
     # Get session from secure cookie
     session_data = get_session_from_request(request, SECRET_KEY)
     session_token = None
-    
+
     if session_data:
         # Extract session token from cookie for invalidation
         cookie_value = request.cookies.get("music_bingo_session", "")
         if "." in cookie_value:
             session_token = cookie_value.split(".")[0]
-    
+
     # Invalidate secure session
     if session_token:
         invalidate_session(session_token, response)
-    
+
     # Clear legacy session for backwards compatibility
     client_ip = request.client.host
     if client_ip in sessions:
         del sessions[client_ip]
-    
+
     # In a full JWT implementation, we'd add the token to a blacklist
     # For now, we just rely on token expiration and session invalidation
-    
-    logger.info(f"[AUTH-LOGOUT] User logged out", extra={
-        "user_id": current_user.id if current_user else "unknown",
-        "session_token": session_token[:8] + "..." if session_token else "none"
-    })
-    
-    return APIResponse(
-        success=True,
-        message="Logged out successfully"
+
+    logger.info(
+        f"[AUTH-LOGOUT] User logged out",
+        extra={
+            "user_id": current_user.id if current_user else "unknown",
+            "session_token": session_token[:8] + "..." if session_token else "none",
+        },
     )
+
+    return APIResponse(success=True, message="Logged out successfully")
 
 
 @router.get("/status")
@@ -463,12 +518,7 @@ async def auth_status(current_user: UserPublic = Depends(get_current_user_option
     """Check authentication status"""
     if current_user:
         return APIResponse(
-            success=True,
-            message="Authenticated",
-            data={"user": current_user}
+            success=True, message="Authenticated", data={"user": current_user}
         )
     else:
-        return APIResponse(
-            success=False,
-            message="Not authenticated"
-        )
+        return APIResponse(success=False, message="Not authenticated")

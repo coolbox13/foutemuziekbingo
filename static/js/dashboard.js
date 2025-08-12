@@ -17,7 +17,12 @@ const socketConfig = {
 
 // Initialize the WebSocket connection and set up event handlers
 function initializeWebSocket() {
-    socket = io(window.location.origin, socketConfig);
+    const token = localStorage.getItem('access_token');
+    const config = {
+        ...socketConfig,
+        query: token ? { token } : {}
+    };
+    socket = io(window.location.origin, config);
     
     socket.on('connect', () => {
         console.log('Connected to websocket');

@@ -114,7 +114,7 @@ async def api_check_card(card_id: str):
                 "card_id": card_id,
                 "status": card["bingo_status"],
                 "matches": matches,
-                "has_bingo": has_bingo
+                "has_bingo": has_bingo,
             }
 
         result = game_state.update_state(update_card_status)
@@ -142,7 +142,7 @@ async def api_download_cards_pdf():
         return StreamingResponse(
             BytesIO(pdf_data),
             media_type="application/pdf",
-            headers={"Content-Disposition": "attachment; filename=bingo_cards.pdf"}
+            headers={"Content-Disposition": "attachment; filename=bingo_cards.pdf"},
         )
 
     except HTTPException:
