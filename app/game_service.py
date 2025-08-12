@@ -90,10 +90,29 @@ class GameStateService:
         )
 
         try:
-            # Verify playlist exists
+            # Verify playlist exists (accept either DB playlist id or Spotify playlist id)
             playlist = await database.get_record("playlists", game_data.playlist_id)
             if not playlist:
-                raise GameError(f"Playlist {game_data.playlist_id} not found")
+                # Try resolving by spotify_id for robustness
+                try:
+                    candidates = await database.query_records(
+                        "playlists",
+                        filters={
+                            "spotify_id": game_data.playlist_id,
+                            "owner_id": host_user.id,
+                        },
+                    )
+                    if candidates:
+                        playlist = candidates[0]
+                        # Normalize to DB id for downstream usage
+                        game_data.playlist_id = playlist["id"]
+                except Exception:
+                    playlist = None
+
+            if not playlist:
+                raise GameError(
+                    f"Playlist not found. Ensure playlists are synced (open dashboard once) and pass a valid playlist id."
+                )
 
             # Generate unique room code if private game
             room_code = None

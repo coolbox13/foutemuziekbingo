@@ -1117,12 +1117,13 @@ async function createGameWithAutoPlaylist(playlistIdOrNull) {
         const res = await fetchJSON('/playlist/api/playlists');
         const list = Array.isArray(res) ? res : [];
         if (list.length > 0) {
-            playlistId = list[0].spotify_id || list[0].id;
+            // Prefer DB playlist id; fallback to spotify_id
+            playlistId = list[0].id || list[0].spotify_id;
         } else {
             const suitable = await fetchJSON('/playlist/api/suitable-for-games');
             const suitList = suitable.playlists || [];
             if (!suitList.length) throw new Error('No suitable playlists found');
-            playlistId = suitList[0].spotify_id || suitList[0].id;
+            playlistId = suitList[0].id || suitList[0].spotify_id;
         }
     }
     return await createGameWithPlaylist(playlistId);

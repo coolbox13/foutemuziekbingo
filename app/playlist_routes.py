@@ -16,10 +16,13 @@ async def get_user_playlists(
 ):
     """Get user's playlists from Spotify with caching"""
     try:
+        logger.info("[PLAYLIST-DEBUG-001] Starting get_playlists endpoint")
         spotify_client = await get_spotify_client(request)
+        logger.info("[PLAYLIST-DEBUG-002] Spotify client obtained")
         playlists = await playlist_service.get_user_playlists(
             current_user, spotify_client
         )
+        logger.info("[PLAYLIST-DEBUG-003] Playlists retrieved from service")
 
         logger.info(
             "[PLAYLIST-API-001] Retrieved user playlists",
