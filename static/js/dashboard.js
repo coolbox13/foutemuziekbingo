@@ -334,9 +334,12 @@ async function loadPlaylists() {
         const data = await fetchJSON('/playlist/api/get_playlists');
         const sel = document.getElementById('playlistSelect');
         sel.innerHTML = '';
-        data.playlists.forEach(pl => {
+        // Support both legacy format and new list of Playlist objects
+        const list = Array.isArray(data.playlists) ? data.playlists : (Array.isArray(data) ? data : []);
+        list.forEach(pl => {
+            const id = pl.id || pl.spotify_id;
             const opt = document.createElement('option');
-            opt.value = pl.id;
+            opt.value = id;
             opt.textContent = pl.name;
             if (pl.is_default) opt.selected = true;
             sel.appendChild(opt);

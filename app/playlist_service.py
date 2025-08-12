@@ -68,11 +68,37 @@ class PlaylistService:
             return updated_playlists
 
         except Exception as e:
+            # Fallback: if database/cache fails, return playlists directly from Spotify
             logger.error(
                 f"[PLAYLIST-GET-ERROR] Error getting user playlists",
                 extra={"user_id": user.id, "error": str(e)},
             )
-            raise PlaylistError(f"Failed to get playlists: {str(e)}")
+            try:
+                logger.warning(
+                    "[PLAYLIST-GET-FALLBACK] Falling back to direct Spotify playlists without caching",
+                    extra={"user_id": user.id},
+                )
+                spotify_playlists = await self._fetch_spotify_playlists(
+                    spotify_client, user
+                )
+                ephemeral: List[Playlist] = []
+                for sp_pl in spotify_playlists:
+                    total_tracks = sp_pl.get("tracks", {}).get("total", 0)
+                    p = Playlist(
+                        id=str(uuid.uuid4()),
+                        spotify_id=sp_pl["id"],
+                        name=sp_pl.get("name", "Unnamed playlist"),
+                        description=sp_pl.get("description", ""),
+                        owner_id=user.id,
+                        tracks=[],
+                        total_tracks=total_tracks,
+                        created_at=datetime.now(timezone.utc),
+                        updated_at=datetime.now(timezone.utc),
+                    )
+                    ephemeral.append(p)
+                return ephemeral
+            except Exception as inner:
+                raise PlaylistError(f"Failed to get playlists: {str(inner)}")
 
     async def get_playlist_by_id(
         self, playlist_id: str, include_tracks: bool = True
