@@ -127,71 +127,7 @@ async def api_play_track(
         )
 
 
-@router.post("/api/play")
-async def api_play_legacy(
-    request: Request, current_user: User = Depends(get_current_user)
-):
-    """Legacy endpoint - Play a random track from active game."""
-    logger.warning(
-        f"[PLAYBACK-LEGACY] Legacy play endpoint called",
-        extra={"user_id": current_user.id},
-    )
-
-    try:
-        # Find an active game where this user is the host
-        from app.models import GameStatus
-
-        user_games = await game_service.get_user_games(
-            current_user.id, GameStatus.IN_PROGRESS
-        )
-
-        # Look for a game where user is host
-        host_game = None
-        for game in user_games:
-            if game.host_id == current_user.id:
-                host_game = game
-                break
-
-        if not host_game:
-            # Try to find any waiting game they're hosting
-            waiting_games = await game_service.get_user_games(
-                current_user.id, GameStatus.WAITING
-            )
-            for game in waiting_games:
-                if game.host_id == current_user.id:
-                    host_game = game
-                    break
-
-        if not host_game:
-            raise HTTPException(
-                status_code=400,
-                detail="No active game found. Create a game first, then use the new API: /api/games/{game_id}/play",
-            )
-
-        # Redirect to the new endpoint logic
-        logger.info(
-            f"[PLAYBACK-LEGACY] Redirecting to game-specific endpoint",
-            extra={"user_id": current_user.id, "game_id": host_game.id},
-        )
-
-        # Call the new game-specific play endpoint
-        return await api_play_track(host_game.id, request, current_user)
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(
-            f"[PLAYBACK-LEGACY-ERROR] Unexpected error in legacy play endpoint",
-            extra={
-                "user_id": current_user.id,
-                "error": str(e),
-                "error_type": type(e).__name__,
-            },
-        )
-        raise HTTPException(
-            status_code=500,
-            detail="Unable to play track. Please try the game-specific endpoint.",
-        )
+# Legacy play endpoint removed
 
 
 @router.post("/api/games/{game_id}/pause")
@@ -245,65 +181,7 @@ async def api_pause_game(
         )
 
 
-@router.post("/api/pause")
-async def api_pause_legacy(
-    request: Request, current_user: User = Depends(get_current_user)
-):
-    """Legacy pause endpoint - Pause playback for active game."""
-    logger.warning(
-        f"[PLAYBACK-LEGACY] Legacy pause endpoint called",
-        extra={"user_id": current_user.id},
-    )
-
-    try:
-        # Find an active game where this user is the host
-        from app.models import GameStatus
-
-        user_games = await game_service.get_user_games(
-            current_user.id, GameStatus.IN_PROGRESS
-        )
-
-        # Look for a game where user is host
-        host_game = None
-        for game in user_games:
-            if game.host_id == current_user.id:
-                host_game = game
-                break
-
-        if not host_game:
-            # Try to find any waiting game they're hosting
-            waiting_games = await game_service.get_user_games(
-                current_user.id, GameStatus.WAITING
-            )
-            for game in waiting_games:
-                if game.host_id == current_user.id:
-                    host_game = game
-                    break
-
-        if not host_game:
-            raise HTTPException(
-                status_code=400,
-                detail="No active game found. Create a game first, then use the new API: /api/games/{game_id}/pause",
-            )
-
-        # Call the new game-specific pause endpoint
-        return await api_pause_game(host_game.id, request, current_user)
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(
-            f"[PLAYBACK-LEGACY-ERROR] Unexpected error in legacy pause endpoint",
-            extra={
-                "user_id": current_user.id,
-                "error": str(e),
-                "error_type": type(e).__name__,
-            },
-        )
-        raise HTTPException(
-            status_code=500,
-            detail="Unable to pause playback. Please try the game-specific endpoint.",
-        )
+# Legacy pause endpoint removed
 
 
 @router.get("/api/games/{game_id}/played-tracks")
@@ -381,53 +259,4 @@ async def api_game_played_tracks(
         )
 
 
-@router.get("/api/played_tracks")
-async def api_played_tracks_legacy(current_user: User = Depends(get_current_user)):
-    """Legacy endpoint - Get list of played tracks from active game."""
-    logger.warning(
-        f"[PLAYBACK-LEGACY] Legacy played_tracks endpoint called",
-        extra={"user_id": current_user.id},
-    )
-
-    try:
-        # Find an active game where this user is the host or participant
-        from app.models import GameStatus
-
-        user_games = await game_service.get_user_games(
-            current_user.id, GameStatus.IN_PROGRESS
-        )
-
-        if not user_games:
-            # Try waiting games
-            user_games = await game_service.get_user_games(
-                current_user.id, GameStatus.WAITING
-            )
-
-        if not user_games:
-            return {
-                "played_tracks": [],
-                "total_played": 0,
-                "total_remaining": 0,
-            }
-
-        # Use the first game found
-        active_game = user_games[0]
-
-        # Call the new game-specific played tracks endpoint
-        return await api_game_played_tracks(active_game.id, current_user)
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(
-            f"[PLAYBACK-LEGACY-ERROR] Unexpected error in legacy played_tracks endpoint",
-            extra={
-                "user_id": current_user.id,
-                "error": str(e),
-                "error_type": type(e).__name__,
-            },
-        )
-        raise HTTPException(
-            status_code=500,
-            detail="Unable to retrieve played tracks. Please try the game-specific endpoint.",
-        )
+# Legacy played_tracks endpoint removed

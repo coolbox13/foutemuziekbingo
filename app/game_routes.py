@@ -326,16 +326,4 @@ async def get_user_bingo_card(
         raise HTTPException(status_code=500, detail="Failed to get bingo card")
 
 
-# Legacy compatibility endpoint
-@router.post("/api/new_round")
-async def api_new_round(current_user: User = Depends(get_current_user)):
-    """Legacy endpoint - Start a new round by resetting the game state."""
-    logger.warning(
-        "[GAME-API-LEGACY] Legacy new_round endpoint called",
-        extra={"user_id": current_user.id},
-    )
-
-    return APIResponse(
-        success=True,
-        message="This endpoint is deprecated. Use /api/games to create new games.",
-    )
+# Legacy new_round endpoint removed

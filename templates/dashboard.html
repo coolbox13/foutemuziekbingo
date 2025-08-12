@@ -124,10 +124,14 @@
                     </div>
                 </div>
                 
-                <button onclick="toggleSetupModal(true)" class="flex items-center space-x-2 px-6 py-3 bg-white bg-opacity-20 hover:bg-opacity-30 text-white rounded-xl transition-all duration-200 backdrop-blur-sm">
-                    <i data-lucide="settings" class="w-5 h-5"></i>
-                    <span class="font-medium">Game Setup</span>
-                </button>
+                <div class="flex items-center gap-3">
+                    <a href="/" class="px-4 py-3 bg-white/20 hover:bg-white/30 text-white rounded-xl transition-all">Home</a>
+                    <button id="btnLogout" class="px-4 py-3 bg-white/20 hover:bg-white/30 text-white rounded-xl transition-all">Logout</button>
+                    <button onclick="toggleSetupModal(true)" class="flex items-center space-x-2 px-6 py-3 bg-white bg-opacity-20 hover:bg-opacity-30 text-white rounded-xl transition-all duration-200 backdrop-blur-sm">
+                        <i data-lucide="settings" class="w-5 h-5"></i>
+                        <span class="font-medium">Game Setup</span>
+                    </button>
+                </div>
             </div>
         </div>
 

@@ -331,7 +331,7 @@ async function validateCardPosition(cardId, trackId, position) {
 // Data Loading Functions
 async function loadPlaylists() {
     try {
-        const data = await fetchJSON('/playlist/api/get_playlists');
+        const data = await fetchJSON('/playlist/api/playlists');
         const sel = document.getElementById('playlistSelect');
         sel.innerHTML = '';
         // Support both legacy format and new list of Playlist objects
@@ -553,6 +553,19 @@ function initializeEventListeners() {
 
     // Keyboard Shortcuts
     setupKeyboardShortcuts();
+
+    // Logout
+    const btnLogout = document.getElementById('btnLogout');
+    if (btnLogout) {
+        btnLogout.addEventListener('click', async () => {
+            try {
+                await fetchJSON('/auth/logout', { method: 'POST' });
+                window.location.href = '/';
+            } catch (e) {
+                window.location.href = '/';
+            }
+        });
+    }
 }
 
 function setupDeviceManagement() {
