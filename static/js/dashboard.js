@@ -17,12 +17,7 @@ const socketConfig = {
 
 // Initialize the WebSocket connection and set up event handlers
 function initializeWebSocket() {
-    const token = localStorage.getItem('access_token');
-    const config = {
-        ...socketConfig,
-        query: token ? { token } : {}
-    };
-    socket = io(window.location.origin, config);
+    socket = io(window.location.origin, socketConfig);
     
     socket.on('connect', () => {
         console.log('Connected to websocket');
@@ -699,17 +694,16 @@ async function refreshToken() {
 // Utility Functions
 async function fetchJSON(url, options = {}) {
     async function makeRequest(useRefreshedToken = false) {
-        // Get JWT token from localStorage
-        const accessToken = localStorage.getItem('access_token');
-        
         const headers = {
             'Content-Type': 'application/json',
             ...options.headers
         };
         
-        // Add Authorization header if token is available
-        if (accessToken) {
-            headers['Authorization'] = `Bearer ${accessToken}`;
+        // Add CSRF header for mutating requests, if cookie present
+        const method = (options.method || 'GET').toUpperCase();
+        if (['POST','PUT','PATCH','DELETE'].includes(method)) {
+            const csrf = getCookie('music_bingo_csrf');
+            if (csrf) headers['X-CSRF-Token'] = csrf;
         }
         
         const response = await fetch(url, {
@@ -751,6 +745,14 @@ async function fetchJSON(url, options = {}) {
         showError(error.message);
         throw error;
     }
+}
+
+// Read cookie by name
+function getCookie(name) {
+    const value = `; ${document.cookie}`;
+    const parts = value.split(`; ${name}=`);
+    if (parts.length === 2) return parts.pop().split(';').shift();
+    return null;
 }
 
 function createBingoCardDisplay(cardId, cardData) {

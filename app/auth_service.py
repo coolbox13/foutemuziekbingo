@@ -513,24 +513,13 @@ class AuthService:
             raise AuthenticationError("Failed to get current user")
 
 
-# Dependency for FastAPI routes (supports Bearer OR secure session cookie)
+# Dependency for FastAPI routes (supports secure session cookie; Bearer for non-browser clients)
 async def get_current_user(
     request: Request, credentials: HTTPAuthorizationCredentials = Depends(security)
 ) -> User:
-    """Get current user using Authorization header or secure session cookie."""
+    """Get current user using secure session cookie (preferred) or Authorization header for non-browser clients."""
     auth_service_local = AuthService()
-    # Try Bearer first if provided
-    if credentials and credentials.credentials:
-        try:
-            return await auth_service_local.get_current_user(credentials.credentials)
-        except AuthenticationError as e:
-            raise HTTPException(
-                status_code=e.status_code,
-                detail=e.message,
-                headers={"WWW-Authenticate": "Bearer"},
-            )
-
-    # Fallback to secure session cookie
+    # Prefer secure session cookie
     try:
         from app.secure_session import get_session_from_request
         from app.auth_routes import SECRET_KEY
@@ -545,6 +534,9 @@ async def get_current_user(
                 )
                 if user:
                     return user
+        # Fallback to Bearer for non-browser clients
+        if credentials and credentials.credentials:
+            return await auth_service_local.get_current_user(credentials.credentials)
         raise AuthenticationError("Not authenticated")
     except AuthenticationError as e:
         raise HTTPException(

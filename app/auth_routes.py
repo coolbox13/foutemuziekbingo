@@ -379,11 +379,8 @@ async def spotify_callback(
                     </p>
                 </div>
                 <script>
-                    // Store non-sensitive user data for frontend use
+                    // Store non-sensitive user data for frontend use (no tokens stored)
                     localStorage.setItem('user', `{user_json}`);
-                    // Optionally store access/refresh for API calls (still prefer cookies)
-                    localStorage.setItem('access_token', `{auth_response.tokens.access_token}`);
-                    localStorage.setItem('refresh_token', `{auth_response.tokens.refresh_token}`);
                     
                     // Initialize icons and redirect
                     lucide.createIcons();

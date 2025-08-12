@@ -104,6 +104,16 @@ def create_secure_session(
         samesite="lax",  # CSRF protection
     )
 
+    # Expose CSRF token in a separate cookie (readable by JS)
+    response.set_cookie(
+        key="music_bingo_csrf",
+        value=csrf_token,
+        max_age=SESSION_LIFETIME_HOURS * 3600,
+        httponly=False,
+        secure=secure_cookie,
+        samesite="lax",
+    )
+
     logger.info(
         "[SESSION-CREATE] Secure session created",
         extra={

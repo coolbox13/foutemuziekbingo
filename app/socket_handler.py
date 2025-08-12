@@ -56,7 +56,7 @@ def check_bingo_status(card_id):
 
 @sio.event
 async def connect(sid, environ):
-    # Expect Authorization: Bearer <token> header or ?token= query param
+    # Expect Authorization: Bearer <token> header OR session cookie
     scope = environ.get("asgi.scope") or {}
     headers = {}
     for k, v in scope.get("headers", []):
@@ -69,13 +69,7 @@ async def connect(sid, environ):
     auth_header = headers.get("authorization")
     if auth_header and auth_header.lower().startswith("bearer "):
         token = auth_header.split(" ", 1)[1]
-    if not token:
-        query_string = environ.get("QUERY_STRING", "")
-        if query_string:
-            qs = parse_qs(query_string)
-            token_vals = qs.get("token")
-            if token_vals:
-                token = token_vals[0]
+    # Do not use ?token= for browser clients; rely on cookie as fallback
     # As a last resort, accept our secure session cookie
     if not token:
         cookie_header = headers.get("cookie", "")
