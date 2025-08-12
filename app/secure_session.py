@@ -4,6 +4,7 @@ Provides UUID-based session tokens and secure cookie handling.
 """
 
 import uuid
+import os
 import secrets
 import logging
 from typing import Optional, Dict, Any
@@ -93,12 +94,13 @@ def create_secure_session(
     cookie_value = f"{session_token}.{signature}"
 
     # Set secure HTTP-only cookie
+    secure_cookie = os.getenv("APP_ENV", "development") == "production"
     response.set_cookie(
         key=SESSION_COOKIE_NAME,
         value=cookie_value,
         max_age=SESSION_LIFETIME_HOURS * 3600,  # Convert to seconds
         httponly=True,  # Prevent JavaScript access
-        secure=True,  # HTTPS only (set to False for development)
+        secure=secure_cookie,  # HTTPS only in production; allow HTTP in development
         samesite="lax",  # CSRF protection
     )
 
@@ -240,8 +242,9 @@ def invalidate_session(session_token: str, response: Response) -> bool:
         )
 
     # Clear cookie regardless
+    secure_cookie = os.getenv("APP_ENV", "development") == "production"
     response.delete_cookie(
-        key=SESSION_COOKIE_NAME, httponly=True, secure=True, samesite="lax"
+        key=SESSION_COOKIE_NAME, httponly=True, secure=secure_cookie, samesite="lax"
     )
 
     return session_found
