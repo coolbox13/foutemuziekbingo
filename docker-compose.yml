@@ -1,0 +1,21 @@
+
+
+services:
+  muziekbingo_draginfly:
+    image: docker.dragonflydb.io/dragonflydb/dragonfly:latest
+    container_name: muziekbingo_draginfly
+    ports:
+      - "6379:6379"
+    # Dragonfly persists to disk at /data when --dir is set
+    volumes:
+      - dragonfly_data:/data
+    command: ["--dir=/data", "--logtostderr"]
+    ulimits:
+      memlock: -1
+    restart: unless-stopped
+
+volumes:
+  dragonfly_data:
+    driver: local
+
+
