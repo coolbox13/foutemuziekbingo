@@ -663,7 +663,8 @@ function setupKeyboardShortcuts() {
 async function refreshToken() {
     const refreshToken = localStorage.getItem('refresh_token');
     if (!refreshToken) {
-        throw new Error('No refresh token available');
+        // No refresh token stored; rely on secure session cookie if present
+        return null;
     }
 
     try {
@@ -678,7 +679,7 @@ async function refreshToken() {
         });
 
         if (!response.ok) {
-            throw new Error('Token refresh failed');
+            return null;
         }
 
         const data = await response.json();
@@ -687,12 +688,11 @@ async function refreshToken() {
             console.log('Token refreshed successfully');
             return data.access_token;
         } else {
-            throw new Error('Invalid refresh response');
+            return null;
         }
     } catch (error) {
         console.error('Token refresh failed:', error);
-        localStorage.clear();
-        throw error;
+        return null;
     }
 }
 
@@ -714,28 +714,27 @@ async function fetchJSON(url, options = {}) {
         
         const response = await fetch(url, {
             ...options,
-            headers
+            headers,
+            credentials: 'include' // send secure session cookie
         });
 
         if (!response.ok) {
             // If unauthorized and we haven't tried refreshing yet, try token refresh
             if ((response.status === 401 || response.status === 403) && !useRefreshedToken) {
                 try {
-                    await refreshToken();
-                    return makeRequest(true); // Retry with refreshed token
+                    const newToken = await refreshToken();
+                    if (newToken) {
+                        return makeRequest(true); // Retry with refreshed token
+                    }
                 } catch (refreshError) {
                     console.error('Token refresh failed:', refreshError);
-                    localStorage.clear();
-                    showError('Session expired. Please <a href="/auth/login/page" class="underline text-blue-300">re-authenticate</a> to continue.');
-                    return;
                 }
             }
             
             // If still unauthorized after refresh, or other error
             if (response.status === 401 || response.status === 403) {
-                localStorage.clear();
-                showError('Session expired. Please <a href="/auth/login/page" class="underline text-blue-300">re-authenticate</a> to continue.');
-                return;
+                showError('Session not authenticated. Please <a href="/auth/login/page" class="underline text-blue-300">log in</a>.');
+                throw new Error('Unauthorized');
             }
             
             const error = await response.json();

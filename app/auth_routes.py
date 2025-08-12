@@ -289,13 +289,7 @@ async def spotify_callback(
             secret_key=SECRET_KEY,
         )
 
-        # Store in legacy session storage for backwards compatibility during migration
-        client_ip = request.client.host
-        if client_ip not in sessions:
-            sessions[client_ip] = {}
-        sessions[client_ip]["token_info"] = token_info
-        sessions[client_ip]["user"] = auth_response.user.dict()
-        sessions[client_ip]["jwt_tokens"] = auth_response.tokens.dict()
+        # Do not use IP-based legacy session anymore (security)
 
         logger.info(
             f"[AUTH-CALLBACK-007] Secure session created",
@@ -385,9 +379,11 @@ async def spotify_callback(
                     </p>
                 </div>
                 <script>
-                    // Store only non-sensitive user data for frontend use
-                    // Tokens are now handled securely via HTTP-only cookies and server sessions
+                    // Store non-sensitive user data for frontend use
                     localStorage.setItem('user', `{user_json}`);
+                    // Optionally store access/refresh for API calls (still prefer cookies)
+                    localStorage.setItem('access_token', `{auth_response.tokens.access_token}`);
+                    localStorage.setItem('refresh_token', `{auth_response.tokens.refresh_token}`);
                     
                     // Initialize icons and redirect
                     lucide.createIcons();
