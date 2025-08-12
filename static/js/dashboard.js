@@ -1067,7 +1067,8 @@ async function getOrCreateActiveGame(allowCreate = true) {
                 const existing = await fetchJSON(`/game/api/games/${activeGameId}`);
                 return existing;
             } catch (_) {
-                // fall through to discovery
+                // Reset invalid game id and fall through to discovery/creation
+                activeGameId = null;
             }
         }
 
@@ -1088,6 +1089,8 @@ async function getOrCreateActiveGame(allowCreate = true) {
         // Create using selected playlist or a suitable fallback
         const playlistId = document.getElementById('playlistSelect')?.value || null;
         const game = await createGameWithAutoPlaylist(playlistId);
+        // Ensure host joins before starting (backend requires at least one player)
+        await joinGame(game.id);
         await startGame(game.id);
         return game;
     } catch (e) {
@@ -1099,10 +1102,13 @@ async function getOrCreateActiveGame(allowCreate = true) {
 async function createGameWithPlaylist(playlistId) {
     if (!playlistId) throw new Error('No playlist selected');
     const name = `Quick Game ${new Date().toLocaleTimeString()}`;
-    return await fetchJSON('/game/api/games', {
+    const game = await fetchJSON('/game/api/games', {
         method: 'POST',
         body: JSON.stringify({ name, playlist_id: playlistId })
     });
+    // Join as host player immediately
+    await joinGame(game.id);
+    return game;
 }
 
 async function createGameWithAutoPlaylist(playlistIdOrNull) {
@@ -1124,4 +1130,13 @@ async function createGameWithAutoPlaylist(playlistIdOrNull) {
 
 async function startGame(gameId) {
     return await fetchJSON(`/game/api/games/${gameId}/start`, { method: 'POST' });
+}
+
+async function joinGame(gameId) {
+    try {
+        return await fetchJSON(`/game/api/games/${gameId}/join`, { method: 'POST' });
+    } catch (e) {
+        // If already joined or game not in waiting, ignore
+        return null;
+    }
 }
