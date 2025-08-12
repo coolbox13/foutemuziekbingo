@@ -698,6 +698,16 @@ async function fetchJSON(url, options = {}) {
             'Content-Type': 'application/json',
             ...options.headers
         };
+
+        // Attach Bearer token if available so API works even without session cookie
+        try {
+            const accessToken = localStorage.getItem('access_token');
+            if (accessToken) {
+                headers['Authorization'] = `Bearer ${accessToken}`;
+            }
+        } catch (_) {
+            // ignore storage errors
+        }
         
         // Add CSRF header for mutating requests, if cookie present
         const method = (options.method || 'GET').toUpperCase();

@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Request, HTTPException, Depends, Response
+from typing import Optional
 from fastapi.responses import RedirectResponse, HTMLResponse
 from fastapi.templating import Jinja2Templates
 from fastapi.security import HTTPBearer
@@ -77,9 +78,9 @@ async def spotify_login():
 async def spotify_callback(
     request: Request,
     response: Response,
-    code: str = None,
-    error: str = None,
-    state: str = None,
+    code: Optional[str] = None,
+    error: Optional[str] = None,
+    state: Optional[str] = None,
 ):
     """Handle Spotify OAuth callback and create user session"""
     callback_id = f"callback-{int(request.scope.get('time', 0))}"
