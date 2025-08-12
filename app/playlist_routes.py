@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException, Request, Depends
-from typing import List, Optional
+from typing import List
 import logging
-from app.models import Playlist, User, APIResponse
+from app.models import Playlist, User
 from app.auth_service import get_current_user
 from app.playlist_service import playlist_service, PlaylistError
 from app.spotify import get_spotify_client
@@ -22,7 +22,7 @@ async def get_user_playlists(
         )
 
         logger.info(
-            f"[PLAYLIST-API-001] Retrieved user playlists",
+            "[PLAYLIST-API-001] Retrieved user playlists",
             extra={"user_id": current_user.id, "playlist_count": len(playlists)},
         )
 
@@ -30,13 +30,13 @@ async def get_user_playlists(
 
     except PlaylistError as e:
         logger.error(
-            f"[PLAYLIST-API-ERROR] Playlist service error",
+            "[PLAYLIST-API-ERROR] Playlist service error",
             extra={"user_id": current_user.id, "error": e.message},
         )
         raise HTTPException(status_code=e.status_code, detail=e.message)
     except Exception as e:
         logger.error(
-            f"[PLAYLIST-API-ERROR] Unexpected error getting playlists",
+            "[PLAYLIST-API-ERROR] Unexpected error getting playlists",
             extra={"user_id": current_user.id, "error": str(e)},
         )
         raise HTTPException(status_code=500, detail="Failed to get playlists")
@@ -69,7 +69,7 @@ async def sync_playlist(
             raise HTTPException(status_code=404, detail="Playlist not found")
 
         logger.info(
-            f"[PLAYLIST-API-002] Playlist synced successfully",
+            "[PLAYLIST-API-002] Playlist synced successfully",
             extra={
                 "user_id": current_user.id,
                 "playlist_id": playlist_id,
@@ -83,7 +83,7 @@ async def sync_playlist(
         raise
     except Exception as e:
         logger.error(
-            f"[PLAYLIST-API-ERROR] Error syncing playlist",
+            "[PLAYLIST-API-ERROR] Error syncing playlist",
             extra={
                 "user_id": current_user.id,
                 "playlist_id": playlist_id,
@@ -91,74 +91,6 @@ async def sync_playlist(
             },
         )
         raise HTTPException(status_code=500, detail="Failed to sync playlist")
-
-
-# Legacy add_playlist endpoint removed
-    request: Request, current_user: User = Depends(get_current_user)
-):
-    """Legacy endpoint - Add a new playlist to saved playlists."""
-    try:
-        data = await request.json()
-        playlist_id = data.get("playlist_id")
-        if not playlist_id:
-            raise HTTPException(status_code=400, detail="No playlist ID provided")
-
-        # Trigger sync of user playlists to ensure this playlist is cached
-        spotify_client = await get_spotify_client(request)
-        playlists = await playlist_service.get_user_playlists(
-            current_user, spotify_client
-        )
-
-        # Find the playlist that was just synced
-        target_playlist = None
-        for playlist in playlists:
-            if playlist.spotify_id == playlist_id:
-                target_playlist = playlist
-                break
-
-        if not target_playlist:
-            raise HTTPException(
-                status_code=404, detail="Playlist not found in your Spotify library"
-            )
-
-        # Return legacy format
-        new_playlist = {
-            "id": target_playlist.spotify_id,
-            "name": target_playlist.name,
-            "owner": current_user.display_name,
-            "is_default": False,
-        }
-
-        return {"message": "Playlist added successfully", "playlist": new_playlist}
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error adding playlist: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-# Legacy remove_playlist endpoint removed
-    request: Request, current_user: User = Depends(get_current_user)
-):
-    """Legacy endpoint - Remove a playlist from saved playlists."""
-    try:
-        data = await request.json()
-        playlist_id = data.get("playlist_id")
-        if not playlist_id:
-            raise HTTPException(status_code=400, detail="No playlist ID provided")
-
-        # Note: In the new system, playlists are automatically synced from Spotify
-        # This endpoint now just returns success for compatibility
-        logger.info(
-            f"[PLAYLIST-API-003] Legacy playlist removal called",
-            extra={"user_id": current_user.id, "playlist_id": playlist_id},
-        )
-
-        return {"message": "Playlist removed successfully"}
-    except Exception as e:
-        logger.error(f"Error removing playlist: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/api/playlists/{playlist_id}/tracks")
@@ -189,7 +121,7 @@ async def get_playlist_tracks(
         raise
     except Exception as e:
         logger.error(
-            f"[PLAYLIST-API-ERROR] Error getting playlist tracks",
+            "[PLAYLIST-API-ERROR] Error getting playlist tracks",
             extra={
                 "user_id": current_user.id,
                 "playlist_id": playlist_id,
@@ -197,51 +129,6 @@ async def get_playlist_tracks(
             },
         )
         raise HTTPException(status_code=500, detail="Failed to get playlist tracks")
-
-
-# Legacy load_playlist endpoint removed
-    request: Request, current_user: User = Depends(get_current_user)
-):
-    """Legacy endpoint - Load tracks from a playlist into the game state."""
-    try:
-        data = await request.json()
-        playlist_id = data.get("playlist_id")
-        if not playlist_id:
-            raise HTTPException(status_code=400, detail="No playlist_id provided")
-
-        # Load tracks using the new service
-        spotify_client = await get_spotify_client(request)
-        tracks = await playlist_service.load_playlist_tracks_from_spotify(
-            spotify_client, playlist_id
-        )
-
-        if not tracks:
-            raise HTTPException(status_code=400, detail="No tracks found in playlist")
-
-        # Legacy response format for compatibility
-        track_data = [
-            {
-                "id": track.id,
-                "name": track.name,
-                "artist": track.artist,
-            }
-            for track in tracks
-        ]
-
-        # Note: In the new system, game state is managed through the game service
-        # This endpoint now just returns track information for compatibility
-        return {
-            "message": f"Loaded {len(tracks)} tracks from playlist",
-            "tracks_available": len(tracks),
-            "tracks_loaded": min(100, len(tracks)),
-            "tracks": track_data,
-        }
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error loading playlist: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/api/playlists/suitable-for-games")
@@ -255,7 +142,7 @@ async def get_suitable_playlists(
         )
 
         logger.info(
-            f"[PLAYLIST-API-004] Retrieved suitable playlists",
+            "[PLAYLIST-API-004] Retrieved suitable playlists",
             extra={"user_id": current_user.id, "suitable_count": len(playlists)},
         )
 
@@ -263,33 +150,7 @@ async def get_suitable_playlists(
 
     except Exception as e:
         logger.error(
-            f"[PLAYLIST-API-ERROR] Error getting suitable playlists",
+            "[PLAYLIST-API-ERROR] Error getting suitable playlists",
             extra={"user_id": current_user.id, "error": str(e)},
         )
         raise HTTPException(status_code=500, detail="Failed to get suitable playlists")
-
-
-# Legacy set_default_playlist endpoint removed
-    request: Request, current_user: User = Depends(get_current_user)
-):
-    """Legacy endpoint - Set a playlist as the default."""
-    try:
-        data = await request.json()
-        playlist_id = data.get("playlist_id")
-        if not playlist_id:
-            raise HTTPException(status_code=400, detail="No playlist ID provided")
-
-        # Note: In the new system, default playlist logic would be implemented
-        # through user preferences or game settings. For now, just return success.
-        logger.info(
-            f"[PLAYLIST-API-005] Legacy default playlist set",
-            extra={"user_id": current_user.id, "playlist_id": playlist_id},
-        )
-
-        return {"message": "Default playlist updated successfully"}
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error setting default playlist: {e}")
-        raise HTTPException(status_code=500, detail=str(e))

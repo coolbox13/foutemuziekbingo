@@ -1,5 +1,6 @@
 // Global state and socket configuration
 let socket = null;
+let activeGameId = null;
 const dashboardState = {
     isConnected: false,
     fallbackPollingInterval: null,
@@ -375,7 +376,19 @@ async function loadDevices() {
 
 async function loadPlayedTracks() {
     try {
-        const data = await fetchJSON('/playback/api/played_tracks');
+        // Ensure we have an active game before loading played tracks
+        if (!activeGameId) {
+            const existing = await getOrCreateActiveGame(false);
+            if (existing) activeGameId = existing.id;
+        }
+
+        if (!activeGameId) {
+            const listElem = document.getElementById('playedTracksList');
+            if (listElem) listElem.innerHTML = '';
+            return;
+        }
+
+        const data = await fetchJSON(`/playback/api/games/${activeGameId}/played-tracks`);
         const listElem = document.getElementById('playedTracksList');
         listElem.innerHTML = '';
         
@@ -509,12 +522,13 @@ function initializeEventListeners() {
             }
 
             try {
-                const res = await fetchJSON('/playlist/api/load_playlist', {
-                    method: 'POST',
-                    body: JSON.stringify({ playlist_id: playlistSelect.value })
-                });
-                showSuccess(res.message);
+                // Create a new game with the selected playlist and start it
+                const game = await createGameWithPlaylist(playlistSelect.value);
+                await startGame(game.id);
+                activeGameId = game.id;
+                showSuccess('Playlist loaded into a new game and started');
                 msgEl.textContent = '';
+                await forceUpdateAll();
             } catch (error) {
                 msgEl.textContent = error.message;
             }
@@ -604,7 +618,9 @@ function setupPlaybackControls() {
     if (btnPlay) {
         btnPlay.addEventListener('click', async () => {
             try {
-                const res = await fetchJSON('/playback/api/play', { method: 'POST' });
+                const game = await getOrCreateActiveGame(true);
+                activeGameId = game.id;
+                const res = await fetchJSON(`/playback/api/games/${activeGameId}/play`, { method: 'POST' });
                 showSuccess(`Playing: ${res.track.artist} - ${res.track.name}`);
                 await loadPlayedTracks();
                 await loadCards();
@@ -618,7 +634,10 @@ function setupPlaybackControls() {
     if (btnPause) {
         btnPause.addEventListener('click', async () => {
             try {
-                await fetchJSON('/playback/api/pause', { method: 'POST' });
+                const game = await getOrCreateActiveGame(false);
+                if (!game) throw new Error('No active game');
+                activeGameId = game.id;
+                await fetchJSON(`/playback/api/games/${activeGameId}/pause`, { method: 'POST' });
                 showSuccess('Playback paused');
             } catch (error) {
                 showError(error.message);
@@ -630,8 +649,12 @@ function setupPlaybackControls() {
     if (btnNewRound) {
         btnNewRound.addEventListener('click', async () => {
             try {
-                await fetchJSON('/game/api/new_round', { method: 'POST' });
-                showSuccess('New round started');
+                // Start a brand new game using current selected playlist or suitable one
+                const playlistId = document.getElementById('playlistSelect')?.value || null;
+                const game = await createGameWithAutoPlaylist(playlistId);
+                await startGame(game.id);
+                activeGameId = game.id;
+                showSuccess('New game started');
                 document.getElementById('playedTracksList').innerHTML = '';
                 await loadCards();
             } catch (error) {
@@ -1034,3 +1057,71 @@ window.addEventListener('beforeunload', () => {
         clearInterval(dashboardState.updateInterval);
     }
 });
+
+// Game helpers
+async function getOrCreateActiveGame(allowCreate = true) {
+    try {
+        // If we already have a game, verify it exists and is accessible
+        if (activeGameId) {
+            try {
+                const existing = await fetchJSON(`/game/api/games/${activeGameId}`);
+                return existing;
+            } catch (_) {
+                // fall through to discovery
+            }
+        }
+
+        // Try to find an in-progress game
+        const inProgress = await fetchJSON('/game/api/games?status=in_progress').catch(() => []);
+        if (Array.isArray(inProgress) && inProgress.length > 0) {
+            return inProgress[0];
+        }
+
+        // Try to find a waiting game
+        const waiting = await fetchJSON('/game/api/games?status=waiting').catch(() => []);
+        if (Array.isArray(waiting) && waiting.length > 0) {
+            return waiting[0];
+        }
+
+        if (!allowCreate) return null;
+
+        // Create using selected playlist or a suitable fallback
+        const playlistId = document.getElementById('playlistSelect')?.value || null;
+        const game = await createGameWithAutoPlaylist(playlistId);
+        await startGame(game.id);
+        return game;
+    } catch (e) {
+        console.error('Failed to get or create active game:', e);
+        return null;
+    }
+}
+
+async function createGameWithPlaylist(playlistId) {
+    if (!playlistId) throw new Error('No playlist selected');
+    const name = `Quick Game ${new Date().toLocaleTimeString()}`;
+    return await fetchJSON('/game/api/games', {
+        method: 'POST',
+        body: JSON.stringify({ name, playlist_id: playlistId })
+    });
+}
+
+async function createGameWithAutoPlaylist(playlistIdOrNull) {
+    let playlistId = playlistIdOrNull;
+    if (!playlistId) {
+        const res = await fetchJSON('/playlist/api/playlists');
+        const list = Array.isArray(res) ? res : [];
+        if (list.length > 0) {
+            playlistId = list[0].spotify_id || list[0].id;
+        } else {
+            const suitable = await fetchJSON('/playlist/api/suitable-for-games');
+            const suitList = suitable.playlists || [];
+            if (!suitList.length) throw new Error('No suitable playlists found');
+            playlistId = suitList[0].spotify_id || suitList[0].id;
+        }
+    }
+    return await createGameWithPlaylist(playlistId);
+}
+
+async function startGame(gameId) {
+    return await fetchJSON(`/game/api/games/${gameId}/start`, { method: 'POST' });
+}

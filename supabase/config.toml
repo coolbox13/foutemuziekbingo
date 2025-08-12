@@ -1,0 +1,11 @@
+project_id = "cgxgqoyzxokunbcpnajb"
+
+[api]
+enabled = true
+
+[db]
+shadow_port = 54322
+port = 54321
+major_version = 15
+
+
