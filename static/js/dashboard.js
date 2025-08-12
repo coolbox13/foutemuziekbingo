@@ -24,6 +24,7 @@ function initializeWebSocket() {
         console.log('Connected to websocket');
         dashboardState.isConnected = true;
         updateConnectionStatus('Connected');
+        updateWebsocketBadge(true);
         forceUpdateAll();
         socket.emit('request_game_state');
         // Stop fallback polling if running
@@ -37,6 +38,7 @@ function initializeWebSocket() {
         console.log('Disconnected from websocket:', reason);
         dashboardState.isConnected = false;
         updateConnectionStatus('Disconnected');
+        updateWebsocketBadge(false);
         // Restart fallback polling when disconnected
         startFallbackPolling();
     });
@@ -138,6 +140,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (typeof io !== 'undefined') {
         initializeWebSocket();
         initializeEventListeners();
+        updateSpotifyBadge('checking');
         
         // If socket doesn't connect within 5 seconds, start fallback polling.
         setTimeout(() => {
@@ -861,6 +864,35 @@ function updateConnectionStatus(status) {
     }
 }
 
+function updateWebsocketBadge(connected) {
+    const ws = document.getElementById('websocketStatus');
+    if (!ws) return;
+    ws.classList.remove('bg-gray-500','bg-green-600','bg-red-600');
+    ws.classList.add(connected ? 'bg-green-600' : 'bg-red-600');
+    const span = ws.querySelector('#connectionStatus');
+    if (span) span.textContent = connected ? 'Connected' : 'Disconnected';
+}
+
+function updateSpotifyBadge(state) {
+    const el = document.getElementById('spotifyStatus');
+    if (!el) return;
+    const span = el.querySelector('span');
+    if (!span) return;
+    if (state === 'connected') {
+        el.classList.remove('spotify-disconnected');
+        el.classList.add('spotify-connected');
+        span.textContent = 'Spotify: Connected';
+    } else if (state === 'disconnected') {
+        el.classList.remove('spotify-connected');
+        el.classList.add('spotify-disconnected');
+        span.textContent = 'Spotify: Disconnected';
+    } else {
+        el.classList.remove('spotify-connected');
+        el.classList.add('spotify-disconnected');
+        span.textContent = 'Spotify: Checking...';
+    }
+}
+
 function showNotification(message, type = 'info') {
     const container = document.getElementById('notificationContainer');
     const notification = document.createElement('div');
@@ -916,6 +948,14 @@ async function updateDashboardData() {
         ]);
         console.log('Received dashboard data:', dashboardData);
         console.log('Received stats:', stats);
+        // Update Spotify badge based on device presence
+        try {
+            const devices = await fetchJSON('/device/api/get_devices');
+            const hasActive = Array.isArray(devices.devices) && devices.devices.some(d => d.is_active);
+            updateSpotifyBadge(hasActive ? 'connected' : 'disconnected');
+        } catch (_) {
+            updateSpotifyBadge('disconnected');
+        }
         
         updateDashboardUI(dashboardData);
         if (stats) {
