@@ -42,71 +42,7 @@ async def get_user_playlists(
         raise HTTPException(status_code=500, detail="Failed to get playlists")
 
 
-@router.get("/api/get_playlists")
-async def api_get_playlists_legacy(
-    request: Request, current_user: User = Depends(get_current_user)
-):
-    """Legacy endpoint - Get list of saved playlists."""
-    try:
-        logger.info(
-            "[PLAYLIST-DEBUG-001] Starting get_playlists endpoint",
-            extra={
-                "user_id": current_user.id,
-                "spotify_id": current_user.spotify_id,
-                "has_access_token": bool(current_user.spotify_access_token),
-            },
-        )
-
-        spotify_client = await get_spotify_client(request)
-        logger.info(
-            "[PLAYLIST-DEBUG-002] Spotify client obtained",
-            extra={
-                "user_id": current_user.id,
-                "client_type": type(spotify_client).__name__,
-            },
-        )
-
-        playlists = await playlist_service.get_user_playlists(
-            current_user, spotify_client
-        )
-        logger.info(
-            "[PLAYLIST-DEBUG-003] Playlists retrieved from service",
-            extra={"user_id": current_user.id, "playlist_count": len(playlists)},
-        )
-
-        # Convert to legacy format for compatibility
-        legacy_playlists = []
-        default_playlist = None
-
-        for playlist in playlists:
-            legacy_format = {
-                "id": playlist.spotify_id,
-                "name": playlist.name,
-                "owner": current_user.display_name,
-                "is_default": False,  # TODO: Add default playlist logic
-            }
-            legacy_playlists.append(legacy_format)
-
-            # For now, treat first playlist as default
-            if not default_playlist:
-                legacy_format["is_default"] = True
-                default_playlist = legacy_format
-
-        return {
-            "playlists": legacy_playlists,
-            "total": len(legacy_playlists),
-            "default": default_playlist,
-        }
-    except Exception as e:
-        logger.error(
-            "[PLAYLIST-DEBUG-ERROR] Exception in get_playlists",
-            extra={
-                "user_id": current_user.id if current_user else "unknown",
-                "error": str(e),
-                "error_type": type(e).__name__,
-            },
-        )
-        raise HTTPException(status_code=500, detail=str(e))
+# Legacy get_playlists endpoint removed
 
 
 @router.post("/api/playlists/{playlist_id}/sync", response_model=Playlist)
@@ -157,8 +93,7 @@ async def sync_playlist(
         raise HTTPException(status_code=500, detail="Failed to sync playlist")
 
 
-@router.post("/api/add_playlist")
-async def api_add_playlist_legacy(
+# Legacy add_playlist endpoint removed
     request: Request, current_user: User = Depends(get_current_user)
 ):
     """Legacy endpoint - Add a new playlist to saved playlists."""
@@ -203,8 +138,7 @@ async def api_add_playlist_legacy(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.post("/api/remove_playlist")
-async def api_remove_playlist_legacy(
+# Legacy remove_playlist endpoint removed
     request: Request, current_user: User = Depends(get_current_user)
 ):
     """Legacy endpoint - Remove a playlist from saved playlists."""
@@ -265,8 +199,7 @@ async def get_playlist_tracks(
         raise HTTPException(status_code=500, detail="Failed to get playlist tracks")
 
 
-@router.post("/api/load_playlist")
-async def api_load_playlist_legacy(
+# Legacy load_playlist endpoint removed
     request: Request, current_user: User = Depends(get_current_user)
 ):
     """Legacy endpoint - Load tracks from a playlist into the game state."""
@@ -336,8 +269,7 @@ async def get_suitable_playlists(
         raise HTTPException(status_code=500, detail="Failed to get suitable playlists")
 
 
-@router.post("/api/set_default_playlist")
-async def api_set_default_playlist_legacy(
+# Legacy set_default_playlist endpoint removed
     request: Request, current_user: User = Depends(get_current_user)
 ):
     """Legacy endpoint - Set a playlist as the default."""
