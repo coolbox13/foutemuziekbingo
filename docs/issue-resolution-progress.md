@@ -161,3 +161,76 @@
 ## Current Status: Moving to Code Quality & Performance Improvements
 **Next Priority**: Code quality enhancements and performance optimization
 **Remaining Items**: 8 code quality and performance improvements
+
+## Current Issue: State Management Architecture Migration
+**Status**: IN_PROGRESS
+**Priority**: CRITICAL (enables horizontal scaling and production deployment)
+**Estimated Time**: 4h | **Actual Time**: Starting now
+**Started**: 2025-08-13
+
+### Plan
+**Approach**: Replace file-based state with Redis/Database hybrid architecture
+- **Ephemeral State (Redis)**: Current active games, real-time data, WebSocket sessions
+- **Persistent State (Database)**: Saved games, user data, game history, playlists
+- **Migration Strategy**: Gradual migration with backward compatibility
+
+### Files Affected:
+- `app/state.py` → **REFACTOR** to hybrid state manager
+- `app/game_state_manager.py` → **CREATE** new Redis-based game state
+- `app/persistent_state_manager.py` → **CREATE** database-based persistent state
+- `app/models.py` → **EXTEND** with game state data models
+- `app/database.py` → **EXTEND** with game state operations
+- Migration scripts and tests
+
+### Architecture Design:
+```
+Current: File-based JSON storage (game_state.json)
+├── All game state in single file
+├── Thread locks for concurrency
+└── No horizontal scaling support
+
+New: Redis/Database Hybrid
+├── Redis (Ephemeral - TTL managed)
+│   ├── Active game sessions
+│   ├── Real-time player states
+│   ├── Bingo card validations
+│   └── WebSocket session mapping
+├── Database (Persistent)
+│   ├── Saved games
+│   ├── Game history
+│   ├── User preferences
+│   └── Playlist metadata
+└── Unified API with automatic routing
+```
+
+### Implementation Steps:
+1. **Create data models** for game state entities
+2. **Design Redis key schemas** with proper TTL management
+3. **Implement Redis game state manager** with async operations
+4. **Implement database persistent state manager** with Supabase
+5. **Create unified state interface** maintaining existing API
+6. **Add migration utilities** for existing data
+7. **Update all state consumers** to use new managers
+8. **Add comprehensive tests** for both storage backends
+9. **Implement state synchronization** between Redis and DB
+10. **Add monitoring and health checks** for state systems
+
+### Dependencies:
+- Redis/Dragonfly connection (already implemented)
+- Supabase database connection (already implemented)
+- Existing validation models (already implemented)
+
+### Risks:
+- Data loss during migration if not carefully handled
+- Performance impact during transition period
+- Complex state synchronization between Redis and Database
+- WebSocket session management changes
+
+### Success Criteria:
+- Zero data loss during migration
+- Improved performance for real-time operations
+- Horizontal scaling capability enabled
+- Backward compatibility maintained
+- Full test coverage for new state management
+
+EOF < /dev/null
