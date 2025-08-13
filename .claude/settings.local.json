@@ -5,7 +5,8 @@
       "Bash(rm:*)",
       "Bash(pip install:*)",
       "mcp__kg-memory__create_entities",
-      "mcp__kg-memory__add_observations"
+      "mcp__kg-memory__add_observations",
+      "mcp__desktop-commander__read_file"
     ],
     "deny": []
   }

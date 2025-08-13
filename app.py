@@ -1,7 +1,12 @@
 import uvicorn
+import os
+from dotenv import load_dotenv
 from app.fastapi_app import create_app
 from app.socket_handler import sio, sio_app
 import socketio
+
+# Load .env before building the app stack
+load_dotenv(dotenv_path=os.path.join(os.getcwd(), ".env"), override=False)
 
 # Create FastAPI app
 fastapi_app = create_app()

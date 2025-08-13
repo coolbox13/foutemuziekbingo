@@ -15,7 +15,8 @@ from datetime import datetime, timezone
 
 def create_app():
     """Create and configure the FastAPI application."""
-    load_dotenv()
+    # Load environment variables from .env at project root
+    load_dotenv(dotenv_path=os.path.join(os.getcwd(), ".env"), override=False)
 
     app = FastAPI(title="Foute Muziek Bingo")
 
