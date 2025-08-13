@@ -19,7 +19,6 @@ from app.config import get_config
 from app.routes import register_routes
 from app.database import database
 from app.csrf_middleware import add_csrf_protection, CSRFConfig
-from app.cors_config import get_cors_config, get_cors_security_report
 from app.rate_limiter import (
     RateLimitMiddleware, 
     create_default_rate_limiter,
@@ -47,12 +46,30 @@ def create_app() -> FastAPI:
     # =============================================
     
     # 1. CORS middleware (must be first for preflight requests)
-    cors_config = get_cors_config()
-    cors_settings = cors_config.get_cors_config()
-    
+    allowed_origins = [o.strip() for o in config.allowed_origins.split(",") if o.strip()]
     app.add_middleware(
         CORSMiddleware,
-        **cors_settings
+        allow_origins=allowed_origins,
+        allow_credentials=True,
+        allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+        allow_headers=[
+            "Accept",
+            "Accept-Language", 
+            "Content-Language",
+            "Content-Type",
+            "Authorization",
+            "X-CSRF-Token",
+            "X-CSRFToken",
+            "X-Requested-With",
+            "User-Agent",
+        ],
+        expose_headers=[
+            "X-RateLimit-Limit",
+            "X-RateLimit-Remaining", 
+            "X-RateLimit-Reset",
+            "X-RateLimit-Warning",
+            "Retry-After",
+        ]
     )
 
     # 2. Rate limiting middleware (before authentication)
@@ -326,9 +343,6 @@ def create_app() -> FastAPI:
             session_health = await session_store.health_check()
             session_stats = await session_store.get_session_stats()
             
-            # Check CORS security configuration
-            cors_security = get_cors_security_report()
-            
             # Check rate limiter health
             rate_limiter_stats = rate_limiter.get_statistics()
             rate_limiter_backend_stats = await rate_limiter.backend.get_statistics()
@@ -347,7 +361,6 @@ def create_app() -> FastAPI:
                 "checks": {
                     "configuration": config_health,
                     "session_store": session_health,
-                    "cors_security": cors_security,
                     "rate_limiter": {
                         **rate_limiter_stats,
                         "backend": rate_limiter_backend_stats

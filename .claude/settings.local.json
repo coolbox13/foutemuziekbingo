@@ -14,7 +14,9 @@
       "Bash(PYTHONPATH=. python3.11 tests/test_csrf_protection.py)",
       "Bash(PYTHONPATH=. python3.11 tests/test_input_validation.py)",
       "Bash(flake8:*)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(# Remove unused imports\nsed -i '''' ''s/, Set, Dict, Any, Optional, Union/, Dict, Any, Optional/'' app/cors_config.py\n\n# Remove trailing whitespace from blank lines\nsed -i '''' ''s/^[[:space:]]*$//'' app/cors_config.py)"
     ],
     "deny": []
   }
