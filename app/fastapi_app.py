@@ -325,6 +325,11 @@ def create_app() -> FastAPI:
             session_store = get_redis_session_store()
             session_health = await session_store.health_check()
             session_stats = await session_store.get_session_stats()
+
+            # Check cache manager health
+            cache_manager = get_cache_manager()
+            cache_health = await cache_manager.health_check()
+            cache_stats = await cache_manager.get_cache_stats()
             
             # Check CORS security configuration
             cors_security = get_cors_security_report()
@@ -347,6 +352,7 @@ def create_app() -> FastAPI:
                 "checks": {
                     "configuration": config_health,
                     "session_store": session_health,
+                    "cache_manager": cache_health,
                     "cors_security": cors_security,
                     "rate_limiter": {
                         **rate_limiter_stats,
@@ -355,6 +361,7 @@ def create_app() -> FastAPI:
                 },
                 "statistics": {
                     "sessions": session_stats,
+                    "cache": cache_stats,
                     "uptime_hours": None,  # Could add application uptime tracking
                 }
             }
@@ -454,6 +461,20 @@ def create_app() -> FastAPI:
                 f"rate_limit_requests_blocked_total {rate_limiter_stats.get('requests_blocked', 0)}",
             ])
             
+            
+            # Cache metrics
+            metrics_lines.extend([
+                f"# HELP cache_keys_total Total number of cache keys",
+                f"# TYPE cache_keys_total gauge",
+                f"cache_keys_total {cache_stats.total_keys}",
+                f"# HELP cache_memory_bytes Memory used by cache",
+                f"# TYPE cache_memory_bytes gauge",
+                f"cache_memory_bytes {cache_stats.total_memory}",
+                f"# HELP cache_hit_rate_percent Cache hit rate percentage",
+                f"# TYPE cache_hit_rate_percent gauge",
+                f"cache_hit_rate_percent {cache_stats.hit_rate}",
+            ])
+
             return Response(
                 content="\n".join(metrics_lines) + "\n",
                 media_type="text/plain"
