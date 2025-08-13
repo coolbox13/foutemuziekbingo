@@ -1,3 +1,56 @@
+"""
+Game Routes Module
+
+This module handles all game-related endpoints for the Musical Bingo application.
+It provides comprehensive game management functionality including game creation,
+player management, game state control, and real-time bingo card interaction.
+
+Key Features:
+- Complete game lifecycle management (create, join, start, end)
+- Multi-player game support with real-time Socket.IO integration
+- Bingo card generation and track marking system
+- Room code-based game joining for easy access
+- Host-only controls for game management
+- Comprehensive game state tracking and persistence
+
+Security Features:
+- JWT authentication required for all endpoints
+- Host-only access control for game management actions
+- Private game access validation
+- Input validation for all game parameters
+- Rate limiting via global middleware
+- CSRF protection via global middleware
+
+Real-time Features:
+- Socket.IO integration for live game updates
+- Real-time player join/leave notifications
+- Live game start broadcasts
+- Instant bingo card updates and validation
+- Multi-client synchronization
+
+Game States:
+- WAITING: Game created, accepting players
+- ACTIVE: Game in progress, tracks being played
+- PAUSED: Temporarily paused by host
+- COMPLETED: Game finished, winners declared
+
+Routes:
+- POST /api/games: Create new game
+- GET /api/games: List user's games (with optional status filter)
+- GET /api/games/{game_id}: Get specific game details
+- POST /api/games/{game_id}/join: Join game by ID
+- POST /api/games/join-by-code/{room_code}: Join game by room code
+- POST /api/games/{game_id}/start: Start game (host only)
+- POST /api/games/{game_id}/mark-track: Mark track on bingo card
+- GET /api/games/{game_id}/card: Get user's bingo card
+
+Error Handling:
+- Standard HTTP status codes (200, 201, 400, 403, 404, 500)
+- Structured error responses with user-friendly messages
+- Comprehensive audit logging for game events
+- Graceful error handling for game service failures
+"""
+
 from fastapi import APIRouter, HTTPException, Depends
 from typing import List, Optional
 import logging
