@@ -3,7 +3,7 @@
 services:
   muziekbingo_draginfly:
     image: docker.dragonflydb.io/dragonflydb/dragonfly:latest
-    container_name: muziekbingo_draginfly
+    container_name: dragonfly
     ports:
       - "6379:6379"
     # Dragonfly persists to disk at /data when --dir is set

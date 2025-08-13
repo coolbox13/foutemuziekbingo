@@ -32,9 +32,9 @@ async def get_current_session(request: Request = None):
     # Try secure session first
     try:
         from app.secure_session import get_session_from_request
-        from app.auth_routes import SECRET_KEY
+        from app.config import get_config
 
-        session_data = get_session_from_request(request, SECRET_KEY)
+        config = get_config(); session_data = get_session_from_request(request, config.secret_key)
         if session_data:
             logger.debug("[SESSION-GET] Using secure session")
             return session_data
@@ -160,9 +160,9 @@ async def refresh_spotify_token(request: Request = None):
                 # Update secure session store if present
                 try:
                     from app.secure_session import get_session_from_request
-                    from app.auth_routes import SECRET_KEY
+                    from app.config import get_config
 
-                    session_data = get_session_from_request(request, SECRET_KEY)
+                    config = get_config(); session_data = get_session_from_request(request, config.secret_key)
                     if session_data is not None:
                         session_data["token_info"] = refreshed_token
                 except Exception:

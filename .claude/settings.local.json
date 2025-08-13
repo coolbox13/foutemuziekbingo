@@ -6,7 +6,15 @@
       "Bash(pip install:*)",
       "mcp__kg-memory__create_entities",
       "mcp__kg-memory__add_observations",
-      "mcp__desktop-commander__read_file"
+      "mcp__desktop-commander__read_file",
+      "Bash(cp:*)",
+      "Bash(grep:*)",
+      "Bash(sed:*)",
+      "Bash(PYTHONPATH=. python3.11 tests/test_redis_sessions.py)",
+      "Bash(PYTHONPATH=. python3.11 tests/test_csrf_protection.py)",
+      "Bash(PYTHONPATH=. python3.11 tests/test_input_validation.py)",
+      "Bash(flake8:*)",
+      "Bash(git add:*)"
     ],
     "deny": []
   }

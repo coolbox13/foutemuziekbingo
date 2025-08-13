@@ -81,9 +81,9 @@ async def connect(sid, environ):
         raw_cookie = cookies.get(SESSION_COOKIE_NAME)
         if raw_cookie:
             try:
-                from app.auth_routes import SECRET_KEY
+                from app.config import get_config
 
-                session_data = get_session_from_cookie_value(raw_cookie, SECRET_KEY)
+                config = get_config(); session_data = get_session_from_cookie_value(raw_cookie, config.secret_key)
                 if (
                     session_data
                     and session_data.get("user")

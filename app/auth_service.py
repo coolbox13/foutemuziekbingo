@@ -522,9 +522,9 @@ async def get_current_user(
     # Prefer secure session cookie
     try:
         from app.secure_session import get_session_from_request
-        from app.auth_routes import SECRET_KEY
+        from app.config import get_config
 
-        session_data = get_session_from_request(request, SECRET_KEY)
+        config = get_config(); session_data = get_session_from_request(request, config.secret_key)
         if session_data and session_data.get("user"):
             user_dict = session_data["user"]
             # If only user_id is present, fetch full user from DB
@@ -563,9 +563,9 @@ async def get_current_user_optional(request: Request) -> Optional[User]:
             return await auth_service_local.get_current_user(token)
         # Fallback to secure session
         from app.secure_session import get_session_from_request
-        from app.auth_routes import SECRET_KEY
+        from app.config import get_config
 
-        session_data = get_session_from_request(request, SECRET_KEY)
+        config = get_config(); session_data = get_session_from_request(request, config.secret_key)
         if session_data and session_data.get("user"):
             user_dict = session_data["user"]
             if isinstance(user_dict, dict) and user_dict.get("id"):

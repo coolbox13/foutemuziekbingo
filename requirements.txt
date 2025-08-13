@@ -11,3 +11,4 @@ python-socketio
 aiofiles
 python-multipart
 jinja2
+redis[hiredis]
