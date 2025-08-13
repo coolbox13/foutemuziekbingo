@@ -10,18 +10,18 @@ from app.auth_service import AuthService, AuthenticationError
 _allowed_origins_env = os.getenv("ALLOWED_ORIGINS", "http://localhost:1313")
 _allowed_origins = [o.strip() for o in _allowed_origins_env.split(",") if o.strip()]
 
-# Optional Redis/Valkey manager for multi-process scaling and reliable broadcasts
-_valkey_url = os.getenv("VALKEY_URL", os.getenv("REDIS_URL", ""))
+# Optional Dragonfly (Redis protocol) manager for multi-process scaling and reliable broadcasts
+_dragonfly_url = os.getenv("DRAGONFLY_URL", "")
 client_manager = None
-if _valkey_url:
+if _dragonfly_url:
     try:
-        client_manager = socketio.AsyncRedisManager(_valkey_url)
+        client_manager = socketio.AsyncRedisManager(_dragonfly_url)
         logger = logging.getLogger("music_bingo")
-        logger.info("[SIO] Using Redis/Valkey manager", extra={"url": _valkey_url})
+        logger.info("[SIO] Using Dragonfly manager", extra={"url": _dragonfly_url})
     except Exception as e:
         logger = logging.getLogger("music_bingo")
         logger.warning(
-            "[SIO] Failed to init Redis/Valkey manager, falling back to in-memory",
+            "[SIO] Failed to init Dragonfly manager, falling back to in-memory",
             extra={"error": str(e)},
         )
 
