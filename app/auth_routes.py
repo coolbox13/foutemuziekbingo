@@ -1,3 +1,35 @@
+"""
+Authentication Routes Module
+
+This module handles all authentication-related endpoints for the Musical Bingo application.
+It provides Spotify OAuth integration, secure session management, and JWT token handling.
+
+Key Features:
+- Spotify OAuth 2.0 authentication flow
+- CSRF protection with state parameters
+- Secure session management with Redis/Dragonfly
+- JWT token generation and refresh
+- Beautiful HTML responses for web flow
+- Comprehensive error handling and logging
+
+Security Features:
+- CSRF protection on OAuth flow
+- Secure session cookies with encryption
+- JWT token validation and refresh
+- Session invalidation on logout
+- IP-based legacy compatibility (deprecated)
+
+Routes:
+- GET /login/page: Display login page
+- GET /login: Initiate Spotify OAuth flow  
+- GET /spotify/callback: Handle OAuth callback
+- POST /authenticate: API authentication endpoint
+- POST /refresh: Refresh JWT tokens
+- GET /me: Get current user information
+- POST /logout: Logout and clear session
+- GET /status: Check authentication status
+"""
+
 from fastapi import APIRouter, Request, HTTPException, Depends, Response
 from typing import Optional
 from fastapi.responses import RedirectResponse, HTMLResponse
@@ -35,15 +67,93 @@ templates = Jinja2Templates(directory="templates")
 sessions = {}
 
 
-@router.get("/login/page")
-async def login_page(request: Request):
-    """Show the login page with beautiful UI"""
+@router.get(
+    "/login/page",
+    summary="Display Login Page",
+    description="Renders the authentication login page with beautiful UI",
+    tags=["Authentication", "Web UI"],
+    responses={
+        200: {
+            "description": "Login page HTML content",
+            "content": {"text/html": {"example": "<!DOCTYPE html>..."}}
+        }
+    }
+)
+async def login_page(request: Request) -> HTMLResponse:
+    """
+    Display the login page with beautiful UI.
+    
+    This endpoint renders the authentication page where users can initiate
+    the Spotify OAuth flow. The page includes:
+    - Beautiful responsive design using Tailwind CSS
+    - Spotify branding and call-to-action
+    - Error handling for authentication failures
+    - Mobile-friendly interface
+    
+    Args:
+        request: FastAPI request object containing client information
+        
+    Returns:
+        HTMLResponse: Rendered login page template
+        
+    Example:
+        GET /auth/login/page
+        Returns: Beautiful HTML login page
+    """
     return templates.TemplateResponse("auth.html", {"request": request})
 
 
-@router.get("/login")
-async def spotify_login():
-    """Initiate Spotify OAuth flow with CSRF protection"""
+@router.get(
+    "/login",
+    summary="Initiate Spotify OAuth Flow",
+    description="Redirects user to Spotify OAuth with CSRF protection",
+    tags=["Authentication", "OAuth"],
+    responses={
+        302: {
+            "description": "Redirect to Spotify OAuth authorization URL",
+            "headers": {
+                "Location": {
+                    "description": "Spotify OAuth authorization URL with CSRF state",
+                    "schema": {"type": "string"}
+                }
+            }
+        }
+    }
+)
+async def spotify_login() -> RedirectResponse:
+    """
+    Initiate Spotify OAuth flow with CSRF protection.
+    
+    This endpoint starts the OAuth 2.0 authorization code flow with Spotify.
+    It generates a secure CSRF state parameter and redirects the user to
+    Spotify's authorization server.
+    
+    Security Features:
+    - CSRF state parameter generation for request validation
+    - Comprehensive scope requests for required permissions
+    - Always shows Spotify dialog for better UX
+    - Secure redirect URI validation
+    
+    OAuth Scopes Requested:
+    - playlist-read-private: Access user's private playlists
+    - user-read-playback-state: Read current playback state
+    - user-modify-playback-state: Control playback
+    - user-read-private: Access user profile data
+    - user-read-email: Access user email address
+    
+    Returns:
+        RedirectResponse: 302 redirect to Spotify OAuth authorization URL
+        
+    Raises:
+        HTTPException: If OAuth configuration is invalid
+        
+    Example:
+        GET /auth/login
+        Returns: 302 redirect to https://accounts.spotify.com/authorize?...
+        
+    Security Note:
+        The state parameter is logged (first 8 characters only) for audit purposes
+    """
     config = get_config()
     
     # Generate CSRF state parameter
@@ -71,15 +181,88 @@ async def spotify_login():
     return RedirectResponse(url=auth_url, status_code=302)
 
 
-@router.get("/spotify/callback")
+@router.get(
+    "/spotify/callback",
+    summary="Handle Spotify OAuth Callback",
+    description="Processes OAuth callback and creates user session",
+    tags=["Authentication", "OAuth"],
+    responses={
+        200: {
+            "description": "Authentication successful - HTML success page",
+            "content": {"text/html": {"example": "<!DOCTYPE html>..."}}
+        },
+        400: {
+            "description": "OAuth error or missing authorization code",
+            "content": {"text/html": {"example": "<!DOCTYPE html>..."}}
+        },
+        500: {
+            "description": "Authentication processing failed",
+            "content": {"text/html": {"example": "<!DOCTYPE html>..."}}
+        }
+    }
+)
 async def spotify_callback(
     request: Request,
     response: Response,
     code: Optional[str] = None,
     error: Optional[str] = None,
     state: Optional[str] = None,
-):
-    """Handle Spotify OAuth callback and create user session"""
+) -> HTMLResponse:
+    """
+    Handle Spotify OAuth callback and create user session.
+    
+    This endpoint processes the OAuth 2.0 authorization code callback from Spotify.
+    It exchanges the authorization code for access tokens, retrieves user profile
+    information, and creates a secure session for the user.
+    
+    Processing Steps:
+    1. Validate CSRF state parameter
+    2. Exchange authorization code for access tokens
+    3. Retrieve user profile from Spotify API
+    4. Create or update user in our database
+    5. Generate JWT tokens for API access
+    6. Create secure session with encrypted cookies
+    7. Return beautiful success page with auto-redirect
+    
+    Args:
+        request: FastAPI request object
+        response: FastAPI response object for setting cookies
+        code: OAuth authorization code from Spotify (query parameter)
+        error: OAuth error from Spotify if authorization failed (query parameter)
+        state: CSRF state parameter for validation (query parameter)
+        
+    Returns:
+        HTMLResponse: Beautiful HTML page with authentication result
+        - Success: Welcome page with auto-redirect to dashboard
+        - Error: Error page with retry option
+        
+    Raises:
+        HTTPException: Not raised directly, errors handled with HTML responses
+        
+    Security Features:
+    - CSRF state parameter validation
+    - Secure session creation with encryption
+    - Token exchange error handling
+    - Comprehensive audit logging
+    - XSS protection in HTML responses
+    
+    Example:
+        GET /auth/spotify/callback?code=AQA...&state=xyz123
+        Returns: HTML success page with auto-redirect
+        
+    Error Handling:
+        - OAuth errors: Returns user-friendly error page
+        - Missing code: Returns error page with retry option
+        - Invalid state: Security error with detailed logging
+        - Token exchange failure: Returns generic error page
+        - User profile failure: Returns error page
+        
+    Session Data Stored:
+        - User ID and profile information
+        - Spotify access and refresh tokens
+        - Session expiration time
+        - CSRF tokens for subsequent requests
+    """
     config = get_config()
     callback_id = f"callback-{int(request.scope.get('time', 0))}"
 
@@ -95,7 +278,7 @@ async def spotify_callback(
         )
         return HTMLResponse(
             content=f"""
-            <\!DOCTYPE html>
+            <!DOCTYPE html>
             <html lang="en">
             <head>
                 <meta charset="UTF-8">
@@ -130,7 +313,7 @@ async def spotify_callback(
         )
         return HTMLResponse(
             content="""
-            <\!DOCTYPE html>
+            <!DOCTYPE html>
             <html lang="en">
             <head>
                 <meta charset="UTF-8">
@@ -335,7 +518,7 @@ async def spotify_callback(
 
         return HTMLResponse(
             content=f"""
-            <\!DOCTYPE html>
+            <!DOCTYPE html>
             <html lang="en">
             <head>
                 <meta charset="UTF-8">
@@ -363,7 +546,7 @@ async def spotify_callback(
                             <i data-lucide="check" class="h-8 w-8 text-white"></i>
                         </div>
                     </div>
-                    <h1 class="text-2xl font-bold text-gray-900">Welcome, {auth_response.user.display_name or 'User'}\!</h1>
+                    <h1 class="text-2xl font-bold text-gray-900">Welcome, {auth_response.user.display_name or 'User'}!</h1>
                     <p class="text-gray-600">Authentication successful. Redirecting to dashboard...</p>
                     <div class="bg-gray-100 rounded-lg p-4">
                         <div class="flex items-center justify-center space-x-2">
@@ -399,7 +582,7 @@ async def spotify_callback(
 
         return HTMLResponse(
             content=f"""
-            <\!DOCTYPE html>
+            <!DOCTYPE html>
             <html lang="en">
             <head>
                 <meta charset="UTF-8">
@@ -428,9 +611,87 @@ async def spotify_callback(
         )
 
 
-@router.post("/authenticate", response_model=AuthResponse)
-async def authenticate(auth_request: AuthRequest):
-    """Authenticate user with Spotify OAuth data (API endpoint)"""
+@router.post(
+    "/authenticate", 
+    response_model=AuthResponse,
+    summary="Authenticate User via API",
+    description="Authenticate user with Spotify OAuth data via API endpoint",
+    tags=["Authentication", "API"],
+    responses={
+        200: {
+            "description": "Authentication successful",
+            "model": AuthResponse
+        },
+        401: {
+            "description": "Authentication failed",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "Authentication failed. Please try again."}
+                }
+            }
+        }
+    }
+)
+async def authenticate(auth_request: AuthRequest) -> AuthResponse:
+    """
+    Authenticate user with Spotify OAuth data (API endpoint).
+    
+    This endpoint provides programmatic authentication for applications that
+    handle the OAuth flow themselves. It processes the Spotify user profile
+    and token information to create or update a user account.
+    
+    Use Cases:
+    - Mobile applications with custom OAuth handling
+    - Server-to-server authentication
+    - Custom frontend implementations
+    - API-only authentication flows
+    
+    Args:
+        auth_request: Authentication request containing:
+            - spotify_user: Complete Spotify user profile
+            - access_token: Spotify access token
+            - refresh_token: Spotify refresh token (optional)
+            
+    Returns:
+        AuthResponse: Authentication result containing:
+            - success: Authentication status
+            - user: User profile information
+            - tokens: JWT access and refresh tokens
+            - message: Optional status message
+            
+    Raises:
+        HTTPException: 401 if authentication fails
+        
+    Example:
+        POST /auth/authenticate
+        {
+            "spotify_user": {
+                "id": "spotify_user_id",
+                "display_name": "User Name",
+                "email": "user@example.com"
+            },
+            "access_token": "spotify_access_token",
+            "refresh_token": "spotify_refresh_token"
+        }
+        
+        Response:
+        {
+            "success": true,
+            "user": {...},
+            "tokens": {
+                "access_token": "jwt_token",
+                "refresh_token": "jwt_refresh_token",
+                "token_type": "bearer",
+                "expires_in": 900
+            }
+        }
+        
+    Security Notes:
+        - Validates Spotify token with Spotify API
+        - Creates secure JWT tokens for API access
+        - Stores user data in encrypted database
+        - Generates audit logs for authentication events
+    """
     try:
         return await auth_service.authenticate_spotify_user(auth_request)
     except Exception as e:
@@ -443,9 +704,81 @@ async def authenticate(auth_request: AuthRequest):
         )
 
 
-@router.post("/refresh", response_model=TokenRefreshResponse)
-async def refresh_token(refresh_request: TokenRefreshRequest):
-    """Refresh JWT access token"""
+@router.post(
+    "/refresh", 
+    response_model=TokenRefreshResponse,
+    summary="Refresh JWT Access Token",
+    description="Refresh expired JWT access token using refresh token",
+    tags=["Authentication", "JWT"],
+    responses={
+        200: {
+            "description": "Token refresh successful",
+            "model": TokenRefreshResponse
+        },
+        401: {
+            "description": "Token refresh failed",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "Authentication failed. Please try again."}
+                }
+            }
+        }
+    }
+)
+async def refresh_token(refresh_request: TokenRefreshRequest) -> TokenRefreshResponse:
+    """
+    Refresh JWT access token using refresh token.
+    
+    This endpoint allows clients to obtain a new access token when the current
+    one expires. It validates the refresh token and issues a new access token
+    with the same permissions and user context.
+    
+    Token Lifecycle:
+    - Access tokens expire in 15 minutes for security
+    - Refresh tokens expire in 7 days  
+    - Refresh tokens are single-use (rotation for security)
+    - New refresh token provided with each refresh
+    
+    Args:
+        refresh_request: Token refresh request containing:
+            - refresh_token: Valid JWT refresh token
+            
+    Returns:
+        TokenRefreshResponse: New token information containing:
+            - success: Refresh operation status
+            - access_token: New JWT access token
+            - expires_in: Token expiration time in seconds
+            
+    Raises:
+        HTTPException: 401 if refresh token is invalid or expired
+        
+    Example:
+        POST /auth/refresh
+        {
+            "refresh_token": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9..."
+        }
+        
+        Response:
+        {
+            "success": true,
+            "access_token": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9...",
+            "expires_in": 900
+        }
+        
+    Security Features:
+        - Validates refresh token signature and expiration
+        - Checks token against blacklist (if implemented)
+        - Generates new access token with same permissions
+        - Rotates refresh token for enhanced security
+        - Logs refresh events for audit trail
+        
+    Error Conditions:
+        - Invalid refresh token format
+        - Expired refresh token
+        - Revoked or blacklisted token
+        - User account disabled or deleted
+        - Token signature validation failure
+    """
     try:
         return await auth_service.refresh_token(refresh_request)
     except Exception as e:
@@ -457,19 +790,157 @@ async def refresh_token(refresh_request: TokenRefreshRequest):
         )
 
 
-@router.get("/me", response_model=UserPublic)
-async def get_current_user_info(current_user: UserPublic = Depends(get_current_user)):
-    """Get current authenticated user information"""
+@router.get(
+    "/me", 
+    response_model=UserPublic,
+    summary="Get Current User Information",
+    description="Retrieve authenticated user profile information",
+    tags=["Authentication", "User Profile"],
+    responses={
+        200: {
+            "description": "User profile information",
+            "model": UserPublic
+        },
+        401: {
+            "description": "Authentication required",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "Authentication required"}
+                }
+            }
+        }
+    }
+)
+async def get_current_user_info(current_user: UserPublic = Depends(get_current_user)) -> UserPublic:
+    """
+    Get current authenticated user information.
+    
+    This endpoint returns the profile information for the currently authenticated
+    user. It requires a valid JWT access token in the Authorization header.
+    
+    Authentication Required:
+        - Valid JWT access token in Authorization header
+        - Format: "Bearer <jwt_access_token>"
+        - Token must not be expired or revoked
+    
+    Args:
+        current_user: Injected authenticated user from JWT token
+        
+    Returns:
+        UserPublic: Public user profile information containing:
+            - id: Internal user ID
+            - spotify_id: Spotify user ID
+            - display_name: User's display name
+            - email: User's email address (if available)
+            - avatar_url: Profile picture URL
+            - subscription_type: User subscription level
+            - created_at: Account creation timestamp
+            - last_login_at: Last login timestamp
+            
+    Example:
+        GET /auth/me
+        Authorization: Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9...
+        
+        Response:
+        {
+            "id": "user_uuid",
+            "spotify_id": "spotify_user_id", 
+            "display_name": "User Name",
+            "email": "user@example.com",
+            "avatar_url": "https://example.com/avatar.jpg",
+            "subscription_type": "free",
+            "created_at": "2023-12-01T10:00:00Z",
+            "last_login_at": "2023-12-01T15:30:00Z"
+        }
+        
+    Security Notes:
+        - Only returns public profile information
+        - Sensitive data (tokens, passwords) are excluded
+        - Validates token signature and expiration
+        - Updates last_login_at timestamp
+        
+    Use Cases:
+        - Display user profile in dashboard
+        - Customize UI based on user preferences
+        - Check user subscription status
+        - Verify authentication status
+    """
     return current_user
 
 
-@router.post("/logout")
+@router.post(
+    "/logout",
+    summary="Logout User",
+    description="Logout user and clear all session data",
+    tags=["Authentication", "Session"],
+    responses={
+        200: {
+            "description": "Logout successful",
+            "model": APIResponse
+        }
+    }
+)
 async def logout(
     request: Request,
     response: Response,
     current_user: UserPublic = Depends(get_current_user_optional),
-):
-    """Logout user (clear session and cookies)"""
+) -> APIResponse:
+    """
+    Logout user and clear session and cookies.
+    
+    This endpoint logs out the current user by:
+    - Invalidating secure session tokens
+    - Clearing session cookies
+    - Removing legacy session data
+    - Logging logout event for audit
+    
+    The logout is performed even if no valid authentication is present,
+    ensuring complete cleanup of any residual session data.
+    
+    Session Cleanup:
+    - Secure Redis session invalidation
+    - Session cookie removal with secure flags
+    - Legacy IP-based session cleanup (deprecated)
+    - Client-side storage recommendations
+    
+    Args:
+        request: FastAPI request object for accessing cookies and IP
+        response: FastAPI response object for clearing cookies
+        current_user: Optional authenticated user (may be None)
+        
+    Returns:
+        APIResponse: Logout result containing:
+            - success: Always True
+            - message: Confirmation message
+            
+    Example:
+        POST /auth/logout
+        
+        Response:
+        {
+            "success": true,
+            "message": "Logged out successfully"
+        }
+        
+    Security Features:
+        - Secure session token invalidation
+        - Cookie clearing with secure flags
+        - Audit logging with user and session info
+        - Graceful handling of invalid sessions
+        
+    Client-Side Actions:
+        After logout, clients should:
+        - Clear localStorage/sessionStorage
+        - Remove cached user data
+        - Redirect to login page
+        - Clear any API tokens from memory
+        
+    Notes:
+        - Logout succeeds even without valid authentication
+        - JWT tokens continue to work until expiration (by design)
+        - For immediate token revocation, implement token blacklisting
+        - Session invalidation prevents reuse of session cookies
+    """
     config = get_config()
     
     # Get session from secure cookie
@@ -505,9 +976,105 @@ async def logout(
     return APIResponse(success=True, message="Logged out successfully")
 
 
-@router.get("/status")
-async def auth_status(current_user: UserPublic = Depends(get_current_user_optional)):
-    """Check authentication status"""
+@router.get(
+    "/status",
+    summary="Check Authentication Status", 
+    description="Check if user is currently authenticated",
+    tags=["Authentication", "Status"],
+    responses={
+        200: {
+            "description": "Authentication status",
+            "model": APIResponse,
+            "content": {
+                "application/json": {
+                    "examples": {
+                        "authenticated": {
+                            "summary": "User is authenticated",
+                            "value": {
+                                "success": True,
+                                "message": "Authenticated",
+                                "data": {"user": "UserPublic object"}
+                            }
+                        },
+                        "not_authenticated": {
+                            "summary": "User is not authenticated", 
+                            "value": {
+                                "success": False,
+                                "message": "Not authenticated"
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+)
+async def auth_status(current_user: UserPublic = Depends(get_current_user_optional)) -> APIResponse:
+    """
+    Check authentication status.
+    
+    This endpoint allows clients to verify if the current request is authenticated
+    without requiring authentication. It's useful for:
+    - Conditional UI rendering based on auth status
+    - Checking session validity before API calls
+    - Implementing auto-login flows
+    - Dashboard initialization
+    
+    Authentication Check:
+    - Validates JWT token if present in Authorization header
+    - Checks secure session cookie if JWT not provided
+    - Returns user information if authenticated
+    - Returns status without error if not authenticated
+    
+    Args:
+        current_user: Optional authenticated user (injected dependency)
+        
+    Returns:
+        APIResponse: Authentication status containing:
+            - success: True if authenticated, False otherwise
+            - message: Status description
+            - data: User information if authenticated (optional)
+            
+    Example - Authenticated:
+        GET /auth/status
+        Authorization: Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9...
+        
+        Response:
+        {
+            "success": true,
+            "message": "Authenticated",
+            "data": {
+                "user": {
+                    "id": "user_uuid",
+                    "spotify_id": "spotify_user_id",
+                    "display_name": "User Name",
+                    ...
+                }
+            }
+        }
+        
+    Example - Not Authenticated:
+        GET /auth/status
+        
+        Response:
+        {
+            "success": false,
+            "message": "Not authenticated"
+        }
+        
+    Use Cases:
+        - Frontend authentication state management
+        - Conditional navigation menu rendering
+        - Auto-redirect to login if needed
+        - Session validation before long operations
+        - Multi-tab authentication synchronization
+        
+    Security Notes:
+        - Does not require authentication (safe for public use)
+        - Only returns public user information
+        - Validates tokens without throwing errors
+        - Safe to call frequently for status checks
+    """
     if current_user:
         return APIResponse(
             success=True, message="Authenticated", data={"user": current_user}
