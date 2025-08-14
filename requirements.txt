@@ -12,3 +12,21 @@ aiofiles
 python-multipart
 jinja2
 redis[hiredis]
+
+# Testing dependencies for comprehensive security and integration tests
+pytest
+pytest-asyncio
+pytest-xdist
+pytest-cov
+pytest-mock
+httpx
+faker
+factory-boy
+freezegun
+responses
+pyjwt
+supabase
+async-timeout
+aioresponses
+pytest-redis
+pytest-benchmark

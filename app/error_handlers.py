@@ -172,7 +172,7 @@ class ErrorResponse:
 
         # In production, don't expose internal error details
         details = None
-        if config.environment == "development" and error:
+        if config.debug and error:
             details = str(error)
 
         error_obj = StandardError(500, "internal_server_error", message, details)
