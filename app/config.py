@@ -179,7 +179,7 @@ def get_app_config() -> AppConfig:
         spotify_redirect_uri=os.getenv("SPOTIFY_REDIRECT_URI", "http://localhost:1313/auth/callback"),
 
         # Dragonfly Configuration (Redis-compatible)
-        dragonfly_url=os.getenv("DRAGONFLY_URL", "redis://localhost:6379"),
+        dragonfly_url=_normalize_dragonfly_url(os.getenv("DRAGONFLY_URL", "redis://localhost:6379")),
         dragonfly_password=os.getenv("DRAGONFLY_PASSWORD"),
 
         # Application Configuration
@@ -223,6 +223,16 @@ def get_config() -> AppConfig:
     if _app_config is None:
         _app_config = get_app_config()
     return _app_config
+
+
+def _normalize_dragonfly_url(url: str) -> str:
+    """
+    Normalize Dragonfly URL to Redis-compatible format.
+    Dragonfly uses dragonfly:// scheme but Redis client expects redis://
+    """
+    if url and url.startswith("dragonfly://"):
+        return url.replace("dragonfly://", "redis://", 1)
+    return url
 
 
 def reload_config() -> AppConfig:
