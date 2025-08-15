@@ -15,14 +15,16 @@ _dragonfly_url = os.getenv("DRAGONFLY_URL", "")
 client_manager = None
 if _dragonfly_url:
     try:
-        client_manager = socketio.AsyncRedisManager(_dragonfly_url)
+        # Convert dragonfly:// to redis:// scheme for compatibility
+        redis_url = _dragonfly_url.replace("dragonfly://", "redis://", 1) if _dragonfly_url.startswith("dragonfly://") else _dragonfly_url
+        client_manager = socketio.AsyncRedisManager(redis_url)
         logger = logging.getLogger("music_bingo")
-        logger.info("[SIO] Using Dragonfly manager", extra={"url": _dragonfly_url})
+        logger.info("[SIO] Using Dragonfly manager", extra={"original_url": _dragonfly_url, "redis_url": redis_url})
     except Exception as e:
         logger = logging.getLogger("music_bingo")
         logger.warning(
             "[SIO] Failed to init Dragonfly manager, falling back to in-memory",
-            extra={"error": str(e)},
+            extra={"error": str(e), "url": _dragonfly_url},
         )
 
 sio = socketio.AsyncServer(

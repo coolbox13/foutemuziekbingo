@@ -12,6 +12,7 @@ aiofiles
 python-multipart
 jinja2
 redis[hiredis]
+aioredis
 
 # Testing dependencies for comprehensive security and integration tests
 pytest

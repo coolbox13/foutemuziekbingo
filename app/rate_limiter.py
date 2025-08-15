@@ -142,7 +142,7 @@ class RedisRateLimitBackend:
                         connection_kwargs["password"] = config.redis_password
 
                     self.redis = redis.from_url(
-                        config.redis_url,
+                        config.dragonfly_url,
                         **connection_kwargs,
                         socket_connect_timeout=5,
                         socket_timeout=5,

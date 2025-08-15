@@ -199,12 +199,21 @@ class SupabaseService:
                 # Connection is good if we can make the request (even if table doesn't exist)
                 result["checks"]["connection"] = True
             except Exception as conn_error:
-                # A "relation does not exist" error means connection is working
+                # Expected errors that indicate connection is working:
+                # - PostgreSQL: "relation does not exist" 
+                # - Supabase: "Could not find the table" or "schema cache"
                 error_str = str(conn_error)
-                if "relation" in error_str and "does not exist" in error_str:
+                connection_working_indicators = [
+                    "relation" in error_str and "does not exist" in error_str,
+                    "Could not find the table" in error_str,
+                    "schema cache" in error_str,
+                    "PGRST205" in error_str  # Supabase table not found error code
+                ]
+                
+                if any(connection_working_indicators):
                     logger.debug(
                         f"[DB-HEALTH-CONN-OK] Connection test passed (dummy table doesn't exist as expected)",
-                        extra={"health_check_id": health_check_id},
+                        extra={"health_check_id": health_check_id, "error": error_str},
                     )
                     result["checks"]["connection"] = True
                 else:

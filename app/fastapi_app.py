@@ -20,6 +20,7 @@ from app.routes import register_routes
 from app.database import database
 from app.csrf_middleware import add_csrf_protection, CSRFConfig
 from app.cors_config import get_cors_config, get_cors_security_report
+from app.cache_manager import get_cache_manager
 from app.rate_limiter import (
     RateLimitMiddleware, 
     create_default_rate_limiter,

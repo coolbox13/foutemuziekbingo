@@ -142,13 +142,13 @@ class CacheManager:
                             connection_kwargs["password"] = self.config.redis_password
                         
                         self.redis_client = redis.from_url(
-                            self.config.redis_url,
+                            self.config.dragonfly_url,
                             **connection_kwargs
                         )
                         
                         # Test connection
                         await self.redis_client.ping()
-                        logger.info(f"Cache manager connected to Redis at {self.config.redis_url}")
+                        logger.info(f"Cache manager connected to Dragonfly at {self.config.dragonfly_url}")
                         
                         # Initialize cache statistics if needed
                         await self._initialize_stats()

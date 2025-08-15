@@ -29,7 +29,7 @@ class RedisSessionStore:
             redis_password: Redis password (defaults to config)
         """
         config = get_config()
-        self.redis_url = redis_url or config.redis_url
+        self.redis_url = redis_url or config.dragonfly_url
         self.redis_password = redis_password or config.redis_password
         self.session_lifetime_hours = config.session_lifetime_hours
         self.max_sessions_per_user = config.max_sessions_per_user
