@@ -378,7 +378,7 @@ class SupabaseService:
             )
 
             def query_fn(client):
-                return client.table(table).insert(data).execute()
+                return client.table(table).insert(data)
 
             result = await self.execute_query(query_fn)
             return result[0] if result and len(result) > 0 else {}
@@ -444,11 +444,7 @@ class SupabaseService:
                 return client.table(table).update(updates).eq("id", record_id)
 
             result = await self.execute_query(query_fn)
-            return (
-                result[0]
-                if result and isinstance(result, list) and len(result) > 0
-                else {}
-            )
+            return result[0] if result and len(result) > 0 else {}
 
         except Exception as error:
             message = f"Failed to update record in {table}: {str(error)}"
