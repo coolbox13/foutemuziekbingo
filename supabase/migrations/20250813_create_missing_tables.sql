@@ -97,16 +97,19 @@ begin
 end;
 $$;
 
--- Create updated_at triggers for new tables
-create trigger if not exists set_game_states_updated_at
+-- Create updated_at triggers for new tables (drop first to ensure idempotency)
+drop trigger if exists set_game_states_updated_at on public.game_states;
+create trigger set_game_states_updated_at
     before update on public.game_states
     for each row execute function public.set_updated_at();
 
-create trigger if not exists set_saved_games_updated_at
+drop trigger if exists set_saved_games_updated_at on public.saved_games;
+create trigger set_saved_games_updated_at
     before update on public.saved_games
     for each row execute function public.set_updated_at();
 
-create trigger if not exists set_user_preferences_updated_at
+drop trigger if exists set_user_preferences_updated_at on public.user_preferences;
+create trigger set_user_preferences_updated_at
     before update on public.user_preferences
     for each row execute function public.set_updated_at();
 
