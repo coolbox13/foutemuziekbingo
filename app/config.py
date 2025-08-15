@@ -37,6 +37,7 @@ class AppConfig:
     
     # Application Configuration
     app_env: str
+    debug: bool
     allowed_origins: str
     session_lifetime_hours: int
     max_sessions_per_user: int
@@ -183,6 +184,7 @@ def get_app_config() -> AppConfig:
         
         # Application Configuration
         app_env=app_env,
+        debug=os.getenv("DEBUG", "false").lower() in ("true", "1", "yes", "on") or app_env == "development",
         allowed_origins=os.getenv("ALLOWED_ORIGINS", "http://localhost:1313"),
         session_lifetime_hours=int(os.getenv("SESSION_LIFETIME_HOURS", "24")),
         max_sessions_per_user=int(os.getenv("MAX_SESSIONS_PER_USER", "5")),
