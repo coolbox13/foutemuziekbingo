@@ -461,7 +461,7 @@ async def spotify_callback(
         )
 
         # Create secure session (replaces IP-based sessions)
-        session_token = create_secure_session(
+        session_token = await create_secure_session(
             user_id=auth_response.user.id,
             spotify_token_info=token_info,
             user_data=auth_response.user.dict(),
