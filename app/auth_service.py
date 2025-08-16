@@ -524,7 +524,7 @@ async def get_current_user(
         from app.secure_session import get_session_from_request
         from app.config import get_config
 
-        config = get_config(); session_data = get_session_from_request(request, config.secret_key)
+        config = get_config(); session_data = await get_session_from_request(request, config.secret_key)
         if session_data and session_data.get("user"):
             user_dict = session_data["user"]
             # If only user_id is present, fetch full user from DB
@@ -565,7 +565,7 @@ async def get_current_user_optional(request: Request) -> Optional[User]:
         from app.secure_session import get_session_from_request
         from app.config import get_config
 
-        config = get_config(); session_data = get_session_from_request(request, config.secret_key)
+        config = get_config(); session_data = await get_session_from_request(request, config.secret_key)
         if session_data and session_data.get("user"):
             user_dict = session_data["user"]
             if isinstance(user_dict, dict) and user_dict.get("id"):

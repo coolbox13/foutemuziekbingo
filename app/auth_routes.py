@@ -944,7 +944,7 @@ async def logout(
     config = get_config()
     
     # Get session from secure cookie
-    session_data = get_session_from_request(request, config.secret_key)
+    session_data = await get_session_from_request(request, config.secret_key)
     session_token = None
 
     if session_data:
