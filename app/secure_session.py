@@ -144,6 +144,7 @@ async def create_secure_session(
         httponly=True,  # Prevent JavaScript access
         secure=secure_cookie,  # HTTPS only in production; allow HTTP in development
         samesite="lax",  # CSRF protection
+        path="/",  # Available to all routes
     )
 
     # Expose CSRF token in a separate cookie (readable by JS)
@@ -152,6 +153,7 @@ async def create_secure_session(
         value=csrf_token,
         max_age=config.session_lifetime_hours * 3600,
         httponly=False,
+        path="/",  # Available to all routes
         secure=secure_cookie,
         samesite="lax",
     )

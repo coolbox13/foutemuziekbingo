@@ -1,8 +1,9 @@
-from fastapi import APIRouter, Request, HTTPException
+from fastapi import APIRouter, Request, HTTPException, Depends
 from fastapi.templating import Jinja2Templates
 from fastapi.responses import HTMLResponse
 from app.card_status import summarize_card_statuses
 from app.state import game_state
+from app.auth_service import get_current_user, User
 import logging
 
 router = APIRouter()
@@ -28,7 +29,7 @@ def get_dashboard_data():
 
 
 @router.get("/", response_class=HTMLResponse)
-async def dashboard(request: Request):
+async def dashboard(request: Request, current_user: User = Depends(get_current_user)):
     """Render the main dashboard."""
     try:
         logger.info("Dashboard route accessed")
@@ -48,7 +49,7 @@ async def dashboard(request: Request):
 
 
 @router.get("/api/dashboard_data")
-async def api_dashboard_data():
+async def api_dashboard_data(current_user: User = Depends(get_current_user)):
     """Get current dashboard data via API."""
     try:
         dashboard_data = get_dashboard_data()
@@ -58,7 +59,7 @@ async def api_dashboard_data():
 
 
 @router.get("/api/dashboard_stats")
-async def api_dashboard_stats():
+async def api_dashboard_stats(current_user: User = Depends(get_current_user)):
     """Get current game statistics."""
     try:
         state = game_state.get_state()

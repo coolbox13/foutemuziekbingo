@@ -34,18 +34,21 @@ async def get_current_session(request: Request = None):
         from app.secure_session import get_session_from_request
         from app.config import get_config
 
-        config = get_config(); session_data = await get_session_from_request(request, config.secret_key)
+        config = get_config()
+        session_data = await get_session_from_request(request, config.secret_key)
         if session_data:
-            logger.debug("[SESSION-GET] Using secure session")
+            logger.info(f"[SESSION-GET] ✅ Secure session found for user: {session_data.get('user', {}).get('id', 'unknown')}")
             return session_data
+        else:
+            logger.warning("[SESSION-GET] ❌ Secure session cookie exists but no session data returned")
     except Exception as e:
-        logger.warning(f"[SESSION-GET] Error getting secure session: {e}")
+        logger.error(f"[SESSION-GET] ❌ Error getting secure session: {e}", exc_info=True)
 
     # Try to get user from JWT token
     try:
         user = await get_current_user_optional(request)
         if user and user.spotify_access_token:
-            logger.debug("[SESSION-GET] Using JWT token session")
+            logger.info(f"[SESSION-GET] ✅ JWT token session found for user: {user.id}")
             return {
                 "token_info": {
                     "access_token": user.spotify_access_token,
