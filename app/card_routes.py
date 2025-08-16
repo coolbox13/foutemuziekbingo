@@ -1,7 +1,9 @@
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Request, Depends
 from fastapi.responses import StreamingResponse
 from app.state import game_state
 from app.pdf_generator import generate_pdf
+from app.auth_service import get_current_user
+from app.models import User
 import random
 from io import BytesIO
 import logging
@@ -40,14 +42,23 @@ def check_bingo_status(card, played_tracks):
 
 
 @router.post("/api/generate_cards")
-async def api_generate_cards(request: Request):
-    """Generate new bingo cards."""
+async def api_generate_cards(request: Request, current_user: User = Depends(get_current_user)):
+    """Generate new bingo cards - requires authentication."""
     try:
+        logger.info(
+            f"[CARD-AUTH-001] User {current_user.id} generating cards",
+            extra={"user_id": current_user.id, "spotify_id": current_user.spotify_id}
+        )
+        
         data = await request.json()
         num_cards = int(data.get("num_cards"))
         state = game_state.get_state()
 
         if len(state.get("unplayed_tracks", [])) < 25:
+            logger.warning(
+                f"[CARD-AUTH-002] Insufficient tracks for user {current_user.id}",
+                extra={"user_id": current_user.id, "track_count": len(state.get("unplayed_tracks", []))}
+            )
             raise HTTPException(status_code=400, detail="Not enough unplayed tracks")
 
         def create_cards(state):
@@ -63,37 +74,74 @@ async def api_generate_cards(request: Request):
                     "tracks": random.sample(state["unplayed_tracks"], 25),
                     "bingo_status": "Not checked",
                     "matches": [],
+                    "created_by": current_user.id,  # Track who created the card
                 }
             return state["cards"]
 
         new_cards = game_state.update_state(create_cards)
+        
+        logger.info(
+            f"[CARD-AUTH-003] Cards generated successfully",
+            extra={"user_id": current_user.id, "num_cards": num_cards, "card_ids": list(new_cards.keys())}
+        )
+        
         return {"message": f"Generated {num_cards} cards", "cards": new_cards}
 
     except ValueError as e:
-        logger.error(f"Invalid number of cards requested: {e}")
+        logger.error(
+            f"[CARD-AUTH-ERROR] Invalid number of cards requested by user {current_user.id}: {e}",
+            extra={"user_id": current_user.id, "error": str(e)}
+        )
         raise HTTPException(status_code=400, detail="Invalid number of cards")
     except Exception as e:
-        logger.error(f"Error generating cards: {e}")
+        logger.error(
+            f"[CARD-AUTH-ERROR] Error generating cards for user {current_user.id}: {e}",
+            extra={"user_id": current_user.id, "error": str(e)}
+        )
         raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/api/get_cards")
-async def api_get_cards():
-    """Get all current bingo cards."""
+async def api_get_cards(current_user: User = Depends(get_current_user)):
+    """Get all current bingo cards - requires authentication."""
     try:
+        logger.info(
+            f"[CARD-AUTH-004] User {current_user.id} retrieving cards",
+            extra={"user_id": current_user.id}
+        )
+        
         state = game_state.get_state()
-        return {"cards": state.get("cards", {})}
+        cards = state.get("cards", {})
+        
+        logger.info(
+            f"[CARD-AUTH-005] Cards retrieved successfully",
+            extra={"user_id": current_user.id, "card_count": len(cards)}
+        )
+        
+        return {"cards": cards}
     except Exception as e:
-        logger.error(f"Error getting cards: {e}")
+        logger.error(
+            f"[CARD-AUTH-ERROR] Error getting cards for user {current_user.id}: {e}",
+            extra={"user_id": current_user.id, "error": str(e)}
+        )
         raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/api/check_card/{card_id}")
-async def api_check_card(card_id: str):
-    """Check a specific card for matches and bingo."""
+async def api_check_card(card_id: str, current_user: User = Depends(get_current_user)):
+    """Check a specific card for matches and bingo - requires authentication."""
     try:
+        logger.info(
+            f"[CARD-AUTH-006] User {current_user.id} checking card {card_id}",
+            extra={"user_id": current_user.id, "card_id": card_id}
+        )
+        
         state = game_state.get_state()
         if card_id not in state["cards"]:
+            logger.warning(
+                f"[CARD-AUTH-007] Invalid card ID {card_id} for user {current_user.id}",
+                extra={"user_id": current_user.id, "card_id": card_id}
+            )
             raise HTTPException(status_code=404, detail="Invalid card ID")
 
         def update_card_status(state):
@@ -118,26 +166,54 @@ async def api_check_card(card_id: str):
             }
 
         result = game_state.update_state(update_card_status)
+        
+        logger.info(
+            f"[CARD-AUTH-008] Card checked successfully",
+            extra={
+                "user_id": current_user.id, 
+                "card_id": card_id, 
+                "has_bingo": result.get("has_bingo", False),
+                "match_count": len(result.get("matches", []))
+            }
+        )
+        
         return result
 
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error checking card {card_id}: {e}")
+        logger.error(
+            f"[CARD-AUTH-ERROR] Error checking card {card_id} for user {current_user.id}: {e}",
+            extra={"user_id": current_user.id, "card_id": card_id, "error": str(e)}
+        )
         raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/api/download_cards_pdf")
-async def api_download_cards_pdf():
-    """Generate and download PDF version of all cards."""
+async def api_download_cards_pdf(current_user: User = Depends(get_current_user)):
+    """Generate and download PDF version of all cards - requires authentication."""
     try:
+        logger.info(
+            f"[CARD-AUTH-009] User {current_user.id} downloading cards PDF",
+            extra={"user_id": current_user.id}
+        )
+        
         state = game_state.get_state()
         cards = state.get("cards", {})
 
         if not cards:
+            logger.warning(
+                f"[CARD-AUTH-010] No cards available for PDF download for user {current_user.id}",
+                extra={"user_id": current_user.id}
+            )
             raise HTTPException(status_code=404, detail="No cards available")
 
         pdf_data = generate_pdf(cards)
+        
+        logger.info(
+            f"[CARD-AUTH-011] PDF generated successfully",
+            extra={"user_id": current_user.id, "pdf_size": len(pdf_data)}
+        )
 
         return StreamingResponse(
             BytesIO(pdf_data),
@@ -148,5 +224,8 @@ async def api_download_cards_pdf():
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error generating PDF: {e}")
+        logger.error(
+            f"[CARD-AUTH-ERROR] Error generating PDF for user {current_user.id}: {e}",
+            extra={"user_id": current_user.id, "error": str(e)}
+        )
         raise HTTPException(status_code=500, detail=str(e))
