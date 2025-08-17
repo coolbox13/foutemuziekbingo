@@ -183,7 +183,20 @@ async def get_session_from_request(
     Returns:
         Session data if valid, None otherwise
     """
+    import logging
+    logger = logging.getLogger("music_bingo")
+    
+    # Debug cookie retrieval
     cookie_value = request.cookies.get(SESSION_COOKIE_NAME)
+    all_cookies = list(request.cookies.keys())
+    
+    logger.info(f"[SESSION-COOKIE-DEBUG] Looking for cookie: {SESSION_COOKIE_NAME}")
+    logger.info(f"[SESSION-COOKIE-DEBUG] Available cookies: {all_cookies}")
+    logger.info(f"[SESSION-COOKIE-DEBUG] Session cookie found: {bool(cookie_value)}")
+    
+    if cookie_value:
+        logger.info(f"[SESSION-COOKIE-DEBUG] Cookie value length: {len(cookie_value)}")
+    
     return await get_session_from_cookie_value(cookie_value, secret_key)
 
 
