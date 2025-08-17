@@ -563,7 +563,7 @@ async def spotify_callback(
                     lucide.createIcons();
                     setTimeout(() => {{
                         window.location.href = '/dashboard';
-                    }}, 2000);
+                    }}, 500);
                 </script>
             </body>
             </html>

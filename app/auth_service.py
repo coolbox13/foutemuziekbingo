@@ -519,12 +519,18 @@ async def get_current_user(
 ) -> User:
     """Get current user using secure session cookie (preferred) or Authorization header for non-browser clients."""
     auth_service_local = AuthService()
+    
+    logger.info(f"[AUTH-GET-USER] Authentication attempt from {request.url.path}")
+    
     # Prefer secure session cookie
     try:
         from app.secure_session import get_session_from_request
         from app.config import get_config
 
-        config = get_config(); session_data = await get_session_from_request(request, config.secret_key)
+        config = get_config()
+        session_data = await get_session_from_request(request, config.secret_key)
+        logger.info(f"[AUTH-GET-USER] Session data retrieved: {bool(session_data)}")
+        
         if session_data and session_data.get("user"):
             user_dict = session_data["user"]
             # If only user_id is present, fetch full user from DB
@@ -536,7 +542,10 @@ async def get_current_user(
                     return user
         # Fallback to Bearer for non-browser clients
         if credentials and credentials.credentials:
+            logger.info("[AUTH-GET-USER] Trying Bearer token authentication")
             return await auth_service_local.get_current_user(credentials.credentials)
+        
+        logger.error("[AUTH-GET-USER] ❌ Authentication failed - no session data and no Bearer token")
         raise AuthenticationError("Not authenticated")
     except AuthenticationError as e:
         raise HTTPException(
