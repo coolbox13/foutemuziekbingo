@@ -85,7 +85,7 @@ async def connect(sid, environ):
             try:
                 from app.config import get_config
 
-                config = get_config(); session_data = get_session_from_cookie_value(raw_cookie, config.secret_key)
+                config = get_config(); session_data = await get_session_from_cookie_value(raw_cookie, config.secret_key)
                 if (
                     session_data
                     and session_data.get("user")

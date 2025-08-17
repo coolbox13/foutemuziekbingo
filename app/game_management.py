@@ -62,7 +62,7 @@ async def save_game(request: Request, current_user: User = Depends(get_current_u
             extra={
                 "user_id": current_user.id, 
                 "game_name": game_name, 
-                "filename": filename,
+                "game_filename": filename,
                 "state_size": len(str(current_state))
             }
         )
@@ -85,7 +85,7 @@ async def load_game(filename: str, current_user: User = Depends(get_current_user
     try:
         logger.info(
             f"[GAME-LOAD-AUTH-001] User {current_user.id} loading game {filename}",
-            extra={"user_id": current_user.id, "filename": filename}
+            extra={"user_id": current_user.id, "game_filename": filename}
         )
         
         filepath = os.path.join(SAVED_GAMES_DIR, filename)
@@ -93,7 +93,7 @@ async def load_game(filename: str, current_user: User = Depends(get_current_user
         if not os.path.exists(filepath):
             logger.warning(
                 f"[GAME-LOAD-AUTH-002] Game file not found for user {current_user.id}: {filename}",
-                extra={"user_id": current_user.id, "filename": filename}
+                extra={"user_id": current_user.id, "game_filename": filename}
             )
             raise HTTPException(status_code=404, detail="Saved game not found")
 
@@ -116,7 +116,7 @@ async def load_game(filename: str, current_user: User = Depends(get_current_user
             f"[GAME-LOAD-AUTH-003] Game loaded successfully",
             extra={
                 "user_id": current_user.id, 
-                "filename": filename,
+                "game_filename": filename,
                 "original_saver": save_data.get("saved_by", "unknown"),
                 "game_name": save_data.get("name", "unknown")
             }
@@ -137,7 +137,7 @@ async def load_game(filename: str, current_user: User = Depends(get_current_user
     except Exception as e:
         logger.error(
             f"[GAME-LOAD-AUTH-ERROR] Error loading game {filename} for user {current_user.id}: {e}",
-            extra={"user_id": current_user.id, "filename": filename, "error": str(e)}
+            extra={"user_id": current_user.id, "game_filename": filename, "error": str(e)}
         )
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -162,7 +162,7 @@ async def list_saved_games(current_user: User = Depends(get_current_user)):
                         save_data = json.load(f)
                         saved_games.append(
                             {
-                                "filename": filename,
+                                "game_filename": filename,
                                 "name": save_data["name"],
                                 "description": save_data["description"],
                                 "timestamp": save_data["timestamp"],
@@ -172,7 +172,7 @@ async def list_saved_games(current_user: User = Depends(get_current_user)):
                 except Exception as file_error:
                     logger.warning(
                         f"[GAME-LIST-AUTH-WARN] Skipping corrupted save file {filename}: {file_error}",
-                        extra={"user_id": current_user.id, "filename": filename, "error": str(file_error)}
+                        extra={"user_id": current_user.id, "game_filename": filename, "error": str(file_error)}
                     )
                     continue
 

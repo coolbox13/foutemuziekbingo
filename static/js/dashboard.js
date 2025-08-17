@@ -698,58 +698,22 @@ function setupKeyboardShortcuts() {
 
 // Token refresh functionality
 async function refreshToken() {
-    const refreshToken = localStorage.getItem('refresh_token');
-    if (!refreshToken) {
-        // No refresh token stored; rely on secure session cookie if present
-        return null;
-    }
-
-    try {
-        const response = await fetch('/auth/refresh', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                refresh_token: refreshToken
-            })
-        });
-
-        if (!response.ok) {
-            return null;
-        }
-
-        const data = await response.json();
-        if (data.success && data.access_token) {
-            localStorage.setItem('access_token', data.access_token);
-            console.log('Token refreshed successfully');
-            return data.access_token;
-        } else {
-            return null;
-        }
-    } catch (error) {
-        console.error('Token refresh failed:', error);
-        return null;
-    }
+    // Session-only authentication - no JWT refresh needed
+    // Sessions are automatically maintained by secure cookies
+    // If session expires, user will be redirected to login
+    return null;
 }
 
 // Utility Functions
 async function fetchJSON(url, options = {}) {
-    async function makeRequest(useRefreshedToken = false) {
+    async function makeRequest() {
         const headers = {
             'Content-Type': 'application/json',
             ...options.headers
         };
 
-        // Attach Bearer token if available so API works even without session cookie
-        try {
-            const accessToken = localStorage.getItem('access_token');
-            if (accessToken) {
-                headers['Authorization'] = `Bearer ${accessToken}`;
-            }
-        } catch (_) {
-            // ignore storage errors
-        }
+        // Session-only authentication - no Bearer token needed
+        // Sessions are handled automatically via secure cookies
         
         // Add CSRF header for mutating requests, if cookie present
         const method = (options.method || 'GET').toUpperCase();
@@ -765,21 +729,9 @@ async function fetchJSON(url, options = {}) {
         });
 
         if (!response.ok) {
-            // If unauthorized and we haven't tried refreshing yet, try token refresh
-            if ((response.status === 401 || response.status === 403) && !useRefreshedToken) {
-                try {
-                    const newToken = await refreshToken();
-                    if (newToken) {
-                        return makeRequest(true); // Retry with refreshed token
-                    }
-                } catch (refreshError) {
-                    console.error('Token refresh failed:', refreshError);
-                }
-            }
-            
-            // If still unauthorized after refresh, or other error
+            // Session-only authentication - no retry logic needed
             if (response.status === 401 || response.status === 403) {
-                showError('Session not authenticated. Please <a href="/auth/login/page" class="underline text-blue-300">log in</a>.');
+                showError('Session expired or not authenticated. Please <a href="/auth/login/page" class="underline text-blue-300">log in</a>.');
                 throw new Error('Unauthorized');
             }
             

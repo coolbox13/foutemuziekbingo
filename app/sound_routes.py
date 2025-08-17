@@ -93,12 +93,12 @@ async def serve_sound(filename: str, request: Request, current_user: Optional[Us
         if current_user:
             logger.info(
                 f"[SOUND-AUTH-003] Authenticated user {current_user.id} requesting sound: {filename}",
-                extra={"user_id": current_user.id, "filename": filename, "access_type": "authenticated"}
+                extra={"user_id": current_user.id, "sound_filename": filename, "access_type": "authenticated"}
             )
         else:
             logger.info(
                 f"[SOUND-PUBLIC-002] Anonymous user requesting sound: {filename}",
-                extra={"client_ip": request.client.host, "filename": filename, "access_type": "anonymous"}
+                extra={"client_ip": request.client.host, "sound_filename": filename, "access_type": "anonymous"}
             )
         
         if not os.path.exists(SOUNDS_DIR):
@@ -112,7 +112,7 @@ async def serve_sound(filename: str, request: Request, current_user: Optional[Us
                 f"[SOUND-SERVE-404] Sound file not found: {filename}",
                 extra={
                     "user_id": current_user.id if current_user else "anonymous",
-                    "filename": filename,
+                    "sound_filename": filename,
                     "file_path": file_path,
                     "access_type": "authenticated" if current_user else "anonymous"
                 }
@@ -125,7 +125,7 @@ async def serve_sound(filename: str, request: Request, current_user: Optional[Us
             f"[SOUND-SERVE-004] Serving sound file successfully",
             extra={
                 "user_id": current_user.id if current_user else "anonymous",
-                "filename": filename,
+                "sound_filename": filename,
                 "mime_type": mime_type,
                 "access_type": "authenticated" if current_user else "anonymous"
             }
@@ -144,7 +144,7 @@ async def serve_sound(filename: str, request: Request, current_user: Optional[Us
             f"[SOUND-SERVE-ERROR] Error serving sound file {filename}",
             extra={
                 "user_id": current_user.id if current_user else "anonymous",
-                "filename": filename,
+                "sound_filename": filename,
                 "error": str(e),
                 "access_type": "authenticated" if current_user else "anonymous"
             }

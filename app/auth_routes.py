@@ -47,6 +47,7 @@ from app.secure_session import (
     get_session_from_request,
     invalidate_session,
     generate_csrf_token,
+    SESSION_COOKIE_NAME,
 )
 
 router = APIRouter()
@@ -551,7 +552,7 @@ async def logout(
 
     # Invalidate secure session
     if session_token:
-        invalidate_session(session_token, response)
+        await invalidate_session(session_token, response)
 
     logger.info(
         f"[AUTH-LOGOUT] User logged out",
@@ -562,6 +563,24 @@ async def logout(
     )
 
     return APIResponse(success=True, message="Logged out successfully")
+
+
+@router.get("/debug/session")
+async def debug_session_info(request: Request, current_user=Depends(get_current_user_optional)):
+    """Debug endpoint to check session authentication status"""
+    from app.config import get_config
+    
+    config = get_config()
+    session_data = await get_session_from_request(request, config.secret_key)
+    
+    return {
+        "authenticated": current_user is not None,
+        "user_id": current_user.id if current_user else None,
+        "session_data_exists": session_data is not None,
+        "session_keys": list(session_data.keys()) if session_data else [],
+        "cookies": list(request.cookies.keys()),
+        "has_session_cookie": SESSION_COOKIE_NAME in request.cookies
+    }
 
 
 @router.get(
