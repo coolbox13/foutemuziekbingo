@@ -513,7 +513,7 @@ async def spotify_callback(
             )
             raise
 
-        return HTMLResponse(
+        html_response = HTMLResponse(
             content=f"""
             <!DOCTYPE html>
             <html lang="en">
@@ -570,6 +570,14 @@ async def spotify_callback(
             """,
             status_code=200,
         )
+        
+        # CRITICAL FIX: Copy cookies from response dependency to HTMLResponse
+        # The cookies were set on the 'response' parameter but lost when HTMLResponse is returned
+        for cookie_name, cookie_value in response.headers.items():
+            if cookie_name.lower().startswith('set-cookie'):
+                html_response.headers[cookie_name] = cookie_value
+        
+        return html_response
 
     except Exception as e:
         logger.error(
