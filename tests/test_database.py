@@ -5,6 +5,11 @@ Tests Supabase connection and database operations
 """
 import asyncio
 import os
+
+# Load test environment first
+from test_utils import load_test_environment
+load_test_environment()
+
 from app.database import SupabaseService
 
 

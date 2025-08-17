@@ -1141,19 +1141,35 @@ async function getOrCreateActiveGame(allowCreate = true) {
         const waiting = await fetchJSON('/game/api/games?status=waiting').catch(() => []);
         if (Array.isArray(waiting) && waiting.length > 0) {
             // Validate that the game has playlist data before using it
-            for (const game of waiting) {
+            // EMERGENCY CIRCUIT BREAKER: Only check first 3 games to prevent API storm
+            const MAX_VALIDATION_ATTEMPTS = 3;
+            const gamesToCheck = waiting.slice(0, MAX_VALIDATION_ATTEMPTS);
+            
+            console.log(`Emergency circuit breaker: Checking ${gamesToCheck.length} of ${waiting.length} waiting games`);
+            
+            for (let i = 0; i < gamesToCheck.length; i++) {
+                const game = gamesToCheck[i];
                 try {
+                    // Add delay between attempts to prevent rate limiting
+                    if (i > 0) {
+                        await new Promise(resolve => setTimeout(resolve, 100));
+                    }
+                    
                     // Check if the game has playlist data by trying to get its details
                     const gameDetails = await fetchJSON(`/game/api/games/${game.id}`);
                     if (gameDetails && gameDetails.playlist_id) {
+                        console.log(`Found valid game: ${game.id}`);
                         return gameDetails;
                     }
                 } catch (e) {
-                    console.warn(`Game ${game.id} is invalid, skipping...`);
+                    console.warn(`Game ${game.id} is invalid (${i+1}/${gamesToCheck.length}), skipping...`);
                     continue;
                 }
             }
-        }
+            
+            if (waiting.length > MAX_VALIDATION_ATTEMPTS) {
+                console.warn(`EMERGENCY: Skipped validation of ${waiting.length - MAX_VALIDATION_ATTEMPTS} games to prevent API storm`);
+            }        }
 
         if (!allowCreate) return null;
 

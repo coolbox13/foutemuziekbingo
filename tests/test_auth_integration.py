@@ -7,7 +7,7 @@ for the Musical Bingo application after the JWT removal refactoring.
 
 Test Coverage:
 - Complete Spotify OAuth flow
-- Session creation and validation  
+- Session creation and validation
 - Session-based route protection
 - Session expiration and cleanup
 - Error scenarios and edge cases

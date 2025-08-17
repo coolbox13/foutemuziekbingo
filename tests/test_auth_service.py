@@ -4,8 +4,12 @@ Test script for auth_service.py
 Tests authentication, JWT tokens, and user management
 """
 import asyncio
-import os
 from datetime import datetime, timedelta
+
+# Load test environment first
+from test_utils import load_test_environment
+load_test_environment()
+
 from app.auth_service import auth_service
 from app.models import SpotifyUserProfile, AuthRequest
 
@@ -90,6 +94,7 @@ async def test_user_session_management():
             "created_at": datetime.now().isoformat(),
         }
         print("✅ Session data creation: PASS")
+        print(f"  Session contains user_id: {session_data.get('user_id') == user_id}")
 
         # Test token refresh simulation
         new_tokens = auth_service.create_tokens(user_id)

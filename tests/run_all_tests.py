@@ -8,6 +8,10 @@ import sys
 import os
 import subprocess
 
+# Load test environment first
+from test_utils import load_test_environment, ensure_environment
+load_test_environment()
+
 # Add parent directory to path so we can import app modules
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -48,27 +52,8 @@ async def run_individual_test(test_module, test_name):
 async def check_environment():
     """Check if environment is properly configured"""
     print("Checking environment configuration...")
+    return ensure_environment()
 
-    required_env_vars = [
-        "SUPABASE_URL",
-        "SUPABASE_SERVICE_KEY",
-        "SPOTIFY_CLIENT_ID",
-        "SPOTIFY_CLIENT_SECRET",
-        "JWT_SECRET",
-    ]
-
-    missing_vars = []
-    for var in required_env_vars:
-        if not os.getenv(var):
-            missing_vars.append(var)
-
-    if missing_vars:
-        print(f"⚠️  Missing environment variables: {', '.join(missing_vars)}")
-        print("   Some tests may be limited or fail")
-        return False
-    else:
-        print("✅ All required environment variables are set")
-        return True
 
 
 def check_dependencies():
@@ -106,7 +91,7 @@ async def run_all_tests():
     print("=" * 80)
 
     # Environment checks
-    env_ok = await check_environment()
+    await check_environment()
     deps_ok = check_dependencies()
 
     if not deps_ok:
@@ -141,7 +126,7 @@ async def run_all_tests():
         status = "✅ PASS" if passed else "❌ FAIL"
         print(f"{status} {test_name}")
 
-    print(f"\nOverall Results:")
+    print("\nOverall Results:")
     print(f"  Total Tests: {total_tests}")
     print(f"  Passed: {passed_tests}")
     print(f"  Failed: {failed_tests}")

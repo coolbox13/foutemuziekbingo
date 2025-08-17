@@ -652,24 +652,75 @@ class GameStateService:
                 player_game_ids = [pg["game_id"] for pg in player_games_data]
                 joined_games = []
 
-                for game_id in player_game_ids:
+                # EMERGENCY FIX: Use bulk query with EXISTS check to avoid orphaned records
+                if player_game_ids:
                     try:
-                        game_data = await database.get_record("games", game_id)
-                        if game_data and (
-                            not status_filter
-                            or game_data["status"] == status_filter.value
-                        ):
-                            joined_games.append(game_data)
-                    except Exception as game_error:
-                        logger.warning(
-                            f"[GAME-SINGLE-WARN] Failed to get game data",
-                            extra={
-                                "user_id": user_id,
-                                "game_id": game_id,
-                                "error": str(game_error),
-                            },
+                        # Query all games in one go to avoid N+1 queries and handle missing games
+                        bulk_query_filters = {"id": {"in": player_game_ids}}
+                        if status_filter:
+                            bulk_query_filters["status"] = status_filter.value
+                        
+                        joined_games = await database.query_records(
+                            "games", 
+                            filters=bulk_query_filters
                         )
-                        continue
+                        
+                        # EMERGENCY CLEANUP: Log and clean up orphaned game_players records
+                        found_game_ids = {game["id"] for game in joined_games}
+                        orphaned_ids = set(player_game_ids) - found_game_ids
+                        
+                        if orphaned_ids:
+                            logger.warning(
+                                f"[GAME-CLEANUP-EMERGENCY] Found {len(orphaned_ids)} orphaned game_players records",
+                                extra={
+                                    "user_id": user_id,
+                                    "orphaned_count": len(orphaned_ids),
+                                    "total_player_games": len(player_game_ids)
+                                }
+                            )
+                            
+                            # Clean up orphaned records to prevent future issues
+                            for orphaned_id in orphaned_ids:
+                                try:
+                                    await database.delete_record("game_players", 
+                                        filters={"game_id": orphaned_id, "user_id": user_id})
+                                    logger.info(f"[GAME-CLEANUP] Removed orphaned game_players record: {orphaned_id}")
+                                except Exception as cleanup_error:
+                                    logger.warning(f"[GAME-CLEANUP-WARN] Failed to clean up orphaned record {orphaned_id}: {cleanup_error}")
+                                    
+                    except Exception as bulk_error:
+                        logger.warning(
+                            f"[GAME-BULK-WARN] Bulk query failed, falling back to individual queries",
+                            extra={"user_id": user_id, "error": str(bulk_error)}
+                        )
+                        # Fallback to individual queries with better error handling
+                        joined_games = []
+                        for game_id in player_game_ids:
+                            try:
+                                game_data = await database.get_record("games", game_id)
+                                if game_data and (
+                                    not status_filter
+                                    or game_data["status"] == status_filter.value
+                                ):
+                                    joined_games.append(game_data)
+                            except Exception as game_error:
+                                logger.warning(
+                                    f"[GAME-SINGLE-WARN] Game {game_id} not found, cleaning up orphaned record",
+                                    extra={
+                                        "user_id": user_id,
+                                        "game_id": game_id,
+                                        "error": str(game_error),
+                                    },
+                                )
+                                # Clean up the orphaned record
+                                try:
+                                    await database.delete_record("game_players", 
+                                        filters={"game_id": game_id, "user_id": user_id})
+                                except Exception:
+                                    pass  # Ignore cleanup errors in fallback
+                                continue
+                else:
+                    joined_games = []
 
             except Exception as player_error:
                 logger.warning(

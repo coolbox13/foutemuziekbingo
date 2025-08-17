@@ -739,6 +739,18 @@ def create_default_rate_limiter() -> AsyncRateLimiter:
         warning_threshold=0.5
     ))
 
+    # EMERGENCY RATE LIMIT RELIEF: Very permissive for game validation endpoints
+    limiter.add_rule("emergency_game_validation", RateLimitRule(
+        requests=300,  # EMERGENCY: 300 requests per minute (was ~60)
+        window_seconds=60,
+        algorithm=RateLimitAlgorithm.TOKEN_BUCKET,
+        scope=RateLimitScope.USER,
+        paths={"/game/api/games", "/card/api/", "/playback/api/", "/dashboard/api/"},
+        burst_requests=50,  # EMERGENCY: Large burst capacity
+        block_duration_seconds=10,  # EMERGENCY: Short block duration
+        warning_threshold=0.95  # EMERGENCY: Only warn at 95%
+    ))
+
     return limiter
 
 

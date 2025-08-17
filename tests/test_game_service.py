@@ -5,6 +5,11 @@ Tests game creation, management, and state operations
 """
 import asyncio
 from datetime import datetime
+
+# Load test environment first
+from test_utils import load_test_environment
+load_test_environment()
+
 from app.models import GameCreate, GameStatus, User
 from app.game_service import game_service
 
@@ -122,7 +127,7 @@ async def test_player_management():
             if "id" in player and "display_name" in player:
                 print(f"  Player: {player['display_name']} ({player['id']})")
             else:
-                print(f"❌ Player data structure: FAIL - Missing required fields")
+                print("❌ Player data structure: FAIL - Missing required fields")
                 return
 
         print("✅ Player data structure: PASS")
