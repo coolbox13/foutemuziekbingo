@@ -62,9 +62,6 @@ logger = logging.getLogger("music_bingo")
 security = HTTPBearer()
 templates = Jinja2Templates(directory="templates")
 
-# Legacy session storage for backwards compatibility during migration
-# TODO: Remove after full migration to secure sessions
-sessions = {}
 
 
 @router.get(
@@ -957,10 +954,6 @@ async def logout(
     if session_token:
         invalidate_session(session_token, response)
 
-    # Clear legacy session for backwards compatibility
-    client_ip = request.client.host
-    if client_ip in sessions:
-        del sessions[client_ip]
 
     # In a full JWT implementation, we'd add the token to a blacklist
     # For now, we just rely on token expiration and session invalidation
