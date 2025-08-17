@@ -30,7 +30,6 @@ Routes:
 - POST /api/playlists/{playlist_id}/sync: Sync specific playlist
 - GET /api/playlists/{playlist_id}/tracks: Get playlist tracks
 - GET /api/playlists/suitable-for-games: Get game-suitable playlists
-- POST /api/add_playlist: Add a Spotify playlist to user collection
 
 Error Handling:
 - Standard HTTP status codes (200, 404, 500)

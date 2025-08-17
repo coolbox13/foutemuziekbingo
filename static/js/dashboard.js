@@ -167,8 +167,11 @@ document.addEventListener('DOMContentLoaded', () => {
             loadCards(),
             updateGameStats(),
             updateDashboardData()
-        ]).then(() => {
+        ]).then(async () => {
             console.log('Initial data load complete');
+            
+            // Check if user has any valid games to prevent broken state
+            await validateDashboardState();
         }).catch(error => {
             console.error('Error loading initial data:', error);
         });
@@ -178,6 +181,49 @@ document.addEventListener('DOMContentLoaded', () => {
         updateConnectionStatus('Socket.io not available');
     }
 });
+
+// Dashboard State Validation
+async function validateDashboardState() {
+    try {
+        // Check if user has any playlists
+        const playlists = await fetchJSON('/playlist/api/playlists').catch(() => []);
+        const hasPlaylists = Array.isArray(playlists) && playlists.length > 0;
+        
+        // Check if user has any valid games
+        const activeGame = await getOrCreateActiveGame(false);
+        const hasValidGame = activeGame && activeGame.playlist_id;
+        
+        if (!hasPlaylists || !hasValidGame) {
+            showSetupGuide();
+        }
+    } catch (error) {
+        console.warn('Dashboard state validation failed:', error);
+        showSetupGuide();
+    }
+}
+
+function showSetupGuide() {
+    // Show helpful setup message instead of broken dashboard
+    const cardsContainer = document.getElementById('cardsContainer');
+    if (cardsContainer) {
+        cardsContainer.innerHTML = `
+            <div class="text-center py-12">
+                <i data-lucide="music" class="h-16 w-16 mx-auto mb-4 text-gray-400"></i>
+                <h3 class="text-xl font-semibold text-white mb-4">Welcome to Music Bingo!</h3>
+                <p class="text-gray-100 mb-6 max-w-md mx-auto">
+                    To get started, you'll need to add some playlists and create your first game.
+                </p>
+                <button onclick="toggleSetupModal(true)" class="px-6 py-3 bg-yellow-400 text-bingo-primary font-medium rounded-lg hover:bg-yellow-300 transition-colors">
+                    Get Started
+                </button>
+            </div>
+        `;
+        // Re-initialize lucide icons
+        if (window.lucide) {
+            lucide.createIcons();
+        }
+    }
+}
 
 // Card Management Functions
 function showCardModal(cardId) {
@@ -391,23 +437,44 @@ async function loadPlayedTracks() {
             return;
         }
 
-        const data = await fetchJSON(`/playback/api/games/${activeGameId}/played-tracks`);
+        // Try to get played tracks, but handle 404 gracefully
+        let data;
+        try {
+            data = await fetchJSON(`/playback/api/games/${activeGameId}/played-tracks`);
+        } catch (error) {
+            if (error.message.includes('404')) {
+                // Game doesn't exist or doesn't have playlist data
+                console.warn(`Game ${activeGameId} not found or no playlist data. Resetting active game.`);
+                activeGameId = null;
+                const listElem = document.getElementById('playedTracksList');
+                if (listElem) {
+                    listElem.innerHTML = '<li class="text-gray-500 text-center py-4">No active game found. Please create a new game.</li>';
+                }
+                return;
+            }
+            throw error; // Re-throw other errors
+        }
         const listElem = document.getElementById('playedTracksList');
         listElem.innerHTML = '';
         
-        // Reverse the array to show newest tracks first
-        const reversedTracks = [...data.played_tracks].reverse();
-        
-        reversedTracks.forEach((t, index) => {
-            const li = document.createElement('li');
-            li.className = 'py-1 px-2 hover:bg-gray-50 rounded';
-            li.innerHTML = `
-                <span class="text-gray-500">#${data.played_tracks.length - index}.</span>
-                <span class="font-medium">${t.artist}</span> - 
-                <span>${t.name}</span>
-            `;
-            listElem.appendChild(li);
-        });
+        if (data.played_tracks && data.played_tracks.length > 0) {
+            // Reverse the array to show newest tracks first
+            const reversedTracks = [...data.played_tracks].reverse();
+            
+            reversedTracks.forEach((t, index) => {
+                const li = document.createElement('li');
+                li.className = 'py-1 px-2 hover:bg-gray-50 rounded';
+                li.innerHTML = `
+                    <span class="text-gray-500">#${data.played_tracks.length - index}.</span>
+                    <span class="font-medium">${t.artist}</span> - 
+                    <span>${t.name}</span>
+                `;
+                listElem.appendChild(li);
+            });
+        } else {
+            // Show message when no tracks have been played
+            listElem.innerHTML = '<li class="text-gray-500 text-center py-4">No tracks played yet</li>';
+        }
     } catch (error) {
         console.error('Error loading played tracks:', error);
     }
@@ -577,9 +644,9 @@ function initializeEventListeners() {
         btnLogout.addEventListener('click', async () => {
             try {
                 await fetchJSON('/auth/logout', { method: 'POST' });
-                window.location.href = '/';
+                window.location.href = '/auth/login/page';
             } catch (e) {
-                window.location.href = '/';
+                window.location.href = '/auth/login/page';
             }
         });
     }
@@ -1070,10 +1137,22 @@ async function getOrCreateActiveGame(allowCreate = true) {
             return inProgress[0];
         }
 
-        // Try to find a waiting game
+        // Try to find a waiting game with playlist data
         const waiting = await fetchJSON('/game/api/games?status=waiting').catch(() => []);
         if (Array.isArray(waiting) && waiting.length > 0) {
-            return waiting[0];
+            // Validate that the game has playlist data before using it
+            for (const game of waiting) {
+                try {
+                    // Check if the game has playlist data by trying to get its details
+                    const gameDetails = await fetchJSON(`/game/api/games/${game.id}`);
+                    if (gameDetails && gameDetails.playlist_id) {
+                        return gameDetails;
+                    }
+                } catch (e) {
+                    console.warn(`Game ${game.id} is invalid, skipping...`);
+                    continue;
+                }
+            }
         }
 
         if (!allowCreate) return null;

@@ -296,17 +296,26 @@ def create_app() -> FastAPI:
 
     @app.get("/", response_class=HTMLResponse)
     async def root(request: Request):
-        """Root endpoint - redirect to dashboard if authenticated."""
+        """Root endpoint - show login page for unauthenticated users, proper home for authenticated."""
         try:
             from app.secure_session import get_session_from_request
             
             session_data = await get_session_from_request(request, config.secret_key)
             if session_data and session_data.get("user"):
-                return RedirectResponse(url="/dashboard", status_code=302)
+                # Show proper authenticated home page (not redirect loop)
+                return templates.TemplateResponse("homepage.html", {
+                    "request": request, 
+                    "authenticated": True,
+                    "user": session_data.get("user")
+                })
         except Exception as e:
             logger.debug(f"Session check failed in root route: {e}")
         
-        return templates.TemplateResponse("homepage.html", {"request": request})
+        # Show login/welcome page for unauthenticated users
+        return templates.TemplateResponse("homepage.html", {
+            "request": request, 
+            "authenticated": False
+        })
 
     # =============================================
     # HEALTH AND MONITORING ENDPOINTS

@@ -414,6 +414,39 @@ class CardGenerationRequest(BaseModel):
         return v
 
 
+class AddPlaylistRequest(BaseModel):
+    """Validation for adding playlists to the user's collection."""
+    model_config = ConfigDict(str_strip_whitespace=True)
+    
+    playlist_id: str = Field(
+        ..., 
+        min_length=1, 
+        max_length=50,
+        description="Spotify playlist ID to add"
+    )
+    is_default: bool = Field(
+        default=False,
+        description="Whether to set this playlist as the default for new games"
+    )
+    
+    @field_validator('playlist_id')
+    @classmethod
+    def validate_playlist_id(cls, v: str) -> str:
+        """Validate playlist ID format."""
+        if not v:
+            raise ValueError("Playlist ID cannot be empty")
+        
+        # Spotify playlist IDs are 22 character base62 strings
+        if SPOTIFY_ID_PATTERN.match(v):
+            return v
+            
+        # Allow alphanumeric for custom playlists
+        if ALPHANUMERIC_PATTERN.match(v) and 3 <= len(v) <= 50:
+            return v
+            
+        raise ValueError("Invalid playlist ID format. Must be a valid Spotify playlist ID")
+
+
 # =============================================
 # UTILITY FUNCTIONS FOR VALIDATION
 # =============================================

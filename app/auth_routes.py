@@ -583,6 +583,34 @@ async def debug_session_info(request: Request, current_user=Depends(get_current_
     }
 
 
+@router.get("/debug/test-endpoints")
+async def debug_test_endpoints(current_user=Depends(get_current_user_optional)):
+    """Debug endpoint to test if key endpoints are accessible"""
+    
+    results = {}
+    
+    # Test game service
+    try:
+        from app.game_service import game_service
+        if current_user:
+            games = await game_service.get_user_games(current_user.id)
+            results["user_games"] = {
+                "accessible": True,
+                "count": len(games),
+                "game_ids": [g.id for g in games[:3]]  # First 3 game IDs
+            }
+        else:
+            results["user_games"] = {"accessible": False, "reason": "not_authenticated"}
+    except Exception as e:
+        results["user_games"] = {"accessible": False, "error": str(e)}
+    
+    return {
+        "authenticated": current_user is not None,
+        "user_id": current_user.id if current_user else None,
+        "tests": results
+    }
+
+
 @router.get(
     "/status",
     summary="Check Authentication Status",
