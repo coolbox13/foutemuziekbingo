@@ -40,7 +40,10 @@
       "Bash(ls:*)",
       "Bash(# Remove unused imports and fix whitespace\nsed -i '''' ''s/[[:space:]]*$//'' /Users/hermanhello/Documents/FouteMuziekBingo/app/game_state_manager.py)",
       "Bash(curl:*)",
-      "Bash(pkill:*)"
+      "Bash(pkill:*)",
+      "mcp__desktop-commander__list_directory",
+      "mcp__desktop-commander__read_multiple_files",
+      "mcp__desktop-commander__start_process"
     ],
     "deny": []
   }

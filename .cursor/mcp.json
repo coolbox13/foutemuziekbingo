@@ -10,6 +10,13 @@
           "--project-ref",
           "cgxgqoyzxokunbcpnajb"
         ]
+      },
+      "grep": {
+        "url": "https://mcp.grep.app"
+      },
+      "streamable-mcp-server": {
+        "type": "streamable-http",
+        "url": "http://127.0.0.1:12306/mcp"
       }
     }
   }
