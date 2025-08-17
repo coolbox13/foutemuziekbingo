@@ -2,7 +2,7 @@
 User and Database Models for Foute Muziek Bingo
 Migrated from PWA project TypeScript interfaces to Python Pydantic models
 """
-from typing import Optional, List, Dict, Any, Union
+from typing import Optional, List, Dict, Any
 from datetime import datetime
 from pydantic import BaseModel, EmailStr, Field, field_validator
 from enum import Enum
@@ -173,66 +173,6 @@ class UserPublic(BaseModel):
     subscription_type: SubscriptionType
     created_at: datetime
     last_login_at: Optional[datetime]
-
-
-# =============================================
-# JWT MODELS
-# =============================================
-
-
-class JWTTokens(BaseModel):
-    """JWT token pair"""
-
-    access_token: str = Field(..., description="JWT access token")
-    refresh_token: str = Field(..., description="JWT refresh token")
-    token_type: str = Field(default="bearer", description="Token type")
-    expires_in: int = Field(default=900, description="Expires in seconds (15 minutes)")
-
-
-class JWTPayload(BaseModel):
-    """JWT token payload"""
-
-    user_id: str = Field(..., description="User ID")
-    spotify_id: str = Field(..., description="Spotify user ID")
-    exp: int = Field(..., description="Expiration timestamp")
-    iat: int = Field(..., description="Issued at timestamp")
-    type: str = Field(default="access", description="Token type (access/refresh)")
-
-
-# =============================================
-# AUTHENTICATION MODELS
-# =============================================
-
-
-class AuthRequest(BaseModel):
-    """Authentication request from frontend"""
-
-    spotify_user: SpotifyUserProfile = Field(..., description="Spotify user profile")
-    access_token: str = Field(..., description="Spotify access token")
-    refresh_token: Optional[str] = Field(None, description="Spotify refresh token")
-
-
-class AuthResponse(BaseModel):
-    """Authentication response to frontend"""
-
-    success: bool = Field(..., description="Authentication success")
-    user: UserPublic = Field(..., description="User information")
-    tokens: JWTTokens = Field(..., description="JWT tokens")
-    message: Optional[str] = Field(None, description="Optional message")
-
-
-class TokenRefreshRequest(BaseModel):
-    """Token refresh request"""
-
-    refresh_token: str = Field(..., description="JWT refresh token")
-
-
-class TokenRefreshResponse(BaseModel):
-    """Token refresh response"""
-
-    success: bool = Field(..., description="Refresh success")
-    access_token: str = Field(..., description="New access token")
-    expires_in: int = Field(default=900, description="Expires in seconds")
 
 
 # =============================================
@@ -469,37 +409,40 @@ class BingoEvent(GameEvent):
 
 class GameStateType(str, Enum):
     """Game state storage types for hybrid architecture"""
-    
+
     EPHEMERAL = "ephemeral"  # Redis - TTL managed, real-time data
     PERSISTENT = "persistent"  # Database - permanent storage
 
 
 class RedisGameState(BaseModel):
     """Redis-stored ephemeral game state"""
-    
+
     game_id: str = Field(..., description="Game ID")
     played_tracks: List[Track] = Field(default_factory=list, description="Tracks already played")
-    unplayed_tracks: List[Track] = Field(default_factory=list, description="Tracks not yet played") 
+    unplayed_tracks: List[Track] = Field(default_factory=list, description="Tracks not yet played")
     current_track: Optional[Track] = Field(None, description="Currently playing track")
     current_track_index: int = Field(default=0, description="Current track index")
     active_players: List[str] = Field(default_factory=list, description="Active player IDs")
-    websocket_sessions: Dict[str, str] = Field(default_factory=dict, description="Player ID to session ID mapping")
-    bingo_validations: Dict[str, List[str]] = Field(default_factory=dict, description="Player bingo validations cache")
+    websocket_sessions: Dict[str, str] = Field(
+        default_factory=dict, description="Player ID to session ID mapping")
+    bingo_validations: Dict[str, List[str]] = Field(
+        default_factory=dict, description="Player bingo validations cache")
     game_started_at: Optional[datetime] = Field(None, description="Game start time")
-    last_activity: datetime = Field(default_factory=datetime.now, description="Last activity timestamp")
+    last_activity: datetime = Field(default_factory=datetime.now,
+                                    description="Last activity timestamp")
     settings: GameSettings = Field(default_factory=GameSettings, description="Game settings cache")
-    
+
     # TTL and state management
     ttl_seconds: int = Field(default=7200, description="Redis TTL in seconds (2 hours default)")
     state_version: int = Field(default=1, description="State version for conflict resolution")
-    
+
     class Config:
         from_attributes = True
 
 
 class PersistentGameState(BaseModel):
     """Database-stored persistent game state"""
-    
+
     id: str = Field(..., description="State record ID (UUID)")
     game_id: str = Field(..., description="Game ID")
     state_data: Dict[str, Any] = Field(..., description="Serialized game state")
@@ -509,14 +452,14 @@ class PersistentGameState(BaseModel):
     description: Optional[str] = Field(None, description="State description")
     is_checkpoint: bool = Field(default=False, description="Is this a checkpoint save")
     is_final: bool = Field(default=False, description="Is this the final game state")
-    
+
     class Config:
         from_attributes = True
 
 
 class StateSnapshot(BaseModel):
     """Complete state snapshot combining ephemeral and persistent data"""
-    
+
     game_id: str = Field(..., description="Game ID")
     ephemeral_state: Optional[RedisGameState] = Field(None, description="Current Redis state")
     persistent_state: Optional[PersistentGameState] = Field(None, description="Latest DB state")
@@ -528,7 +471,7 @@ class StateSnapshot(BaseModel):
 
 class StateOperation(BaseModel):
     """State operation model for tracking changes"""
-    
+
     operation_type: str = Field(..., description="Type of operation (create, update, delete)")
     game_id: str = Field(..., description="Game ID")
     user_id: Optional[str] = Field(None, description="User performing operation")
@@ -540,11 +483,12 @@ class StateOperation(BaseModel):
 
 class StateMigration(BaseModel):
     """State migration tracking model"""
-    
+
     migration_id: str = Field(..., description="Migration ID")
     source_type: str = Field(..., description="Source storage type (file, redis, db)")
     target_type: str = Field(..., description="Target storage type")
-    games_migrated: List[str] = Field(default_factory=list, description="Successfully migrated game IDs")
+    games_migrated: List[str] = Field(
+        default_factory=list, description="Successfully migrated game IDs")
     games_failed: List[str] = Field(default_factory=list, description="Failed migration game IDs")
     started_at: datetime = Field(default_factory=datetime.now, description="Migration start time")
     completed_at: Optional[datetime] = Field(None, description="Migration completion time")
@@ -560,22 +504,22 @@ class StateMigration(BaseModel):
 
 class StateManagerInterface(BaseModel):
     """Interface definition for state managers"""
-    
+
     class Config:
         arbitrary_types_allowed = True
-        
+
     async def get_game_state(self, game_id: str) -> Optional[Dict[str, Any]]:
         """Get complete game state"""
         raise NotImplementedError
-        
+
     async def update_game_state(self, game_id: str, state_data: Dict[str, Any]) -> bool:
         """Update game state"""
         raise NotImplementedError
-        
+
     async def delete_game_state(self, game_id: str) -> bool:
         """Delete game state"""
         raise NotImplementedError
-        
+
     async def health_check(self) -> bool:
         """Check state manager health"""
         raise NotImplementedError
@@ -588,42 +532,42 @@ class StateManagerInterface(BaseModel):
 
 class RedisKeySchema:
     """Redis key naming conventions and schemas"""
-    
+
     # Game state keys
     GAME_STATE = "game:state:{game_id}"
     GAME_TRACKS_PLAYED = "game:tracks:played:{game_id}"
     GAME_TRACKS_UNPLAYED = "game:tracks:unplayed:{game_id}"
     GAME_CURRENT_TRACK = "game:track:current:{game_id}"
-    
+
     # Player state keys
     GAME_PLAYERS = "game:players:{game_id}"
     PLAYER_WEBSOCKET = "player:ws:{player_id}"
     PLAYER_BINGO_CACHE = "player:bingo:{player_id}:{game_id}"
-    
+
     # Session management
     WEBSOCKET_SESSION = "ws:session:{session_id}"
     GAME_WEBSOCKET_MAPPING = "game:ws:mapping:{game_id}"
-    
+
     # Game metadata
     GAME_SETTINGS = "game:settings:{game_id}"
     GAME_ACTIVITY = "game:activity:{game_id}"
     GAME_STATS = "game:stats:{game_id}"
-    
+
     # Cross-cutting concerns
     ACTIVE_GAMES = "games:active"
     GAME_LOCKS = "lock:game:{game_id}"
-    
+
     @classmethod
     def get_key(cls, key_pattern: str, **kwargs) -> str:
         """Generate Redis key from pattern and parameters"""
         return key_pattern.format(**kwargs)
-    
+
     @classmethod
     def get_ttl(cls, key_type: str) -> int:
         """Get appropriate TTL for key type"""
         ttl_map = {
             "game_state": 7200,      # 2 hours
-            "player_state": 3600,    # 1 hour  
+            "player_state": 3600,    # 1 hour
             "websocket": 1800,       # 30 minutes
             "cache": 900,            # 15 minutes
             "lock": 300,             # 5 minutes

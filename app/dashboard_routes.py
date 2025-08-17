@@ -3,7 +3,8 @@ from fastapi.templating import Jinja2Templates
 from fastapi.responses import HTMLResponse
 from app.card_status import summarize_card_statuses
 from app.state import game_state
-from app.auth_service import get_current_user, User
+from app.auth_service import get_current_user
+from app.models import User
 import logging
 
 router = APIRouter()

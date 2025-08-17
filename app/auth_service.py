@@ -1,26 +1,29 @@
-import os
-import jwt
+"""
+Authentication Service Module - Session-Only Implementation
+
+This module provides simplified authentication using Redis-backed secure sessions only.
+JWT functionality has been removed for cleaner, simpler authentication architecture.
+
+Key Features:
+- Session-only authentication (no JWT tokens)
+- User management with Supabase integration  
+- Spotify OAuth profile handling
+- Session-based route protection
+
+Security Features:
+- Secure Redis-backed sessions
+- Authentication error handling
+- User profile management
+"""
+
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from typing import Optional
-from fastapi import HTTPException, status, Request, Depends
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from app.models import (
-    User,
-    UserPublic,
-    SpotifyUserProfile,
-    SpotifyTokens,
-    JWTTokens,
-    JWTPayload,
-    AuthRequest,
-    AuthResponse,
-    TokenRefreshRequest,
-    TokenRefreshResponse,
-)
+from fastapi import HTTPException, Request
+from app.models import User, UserPublic, SpotifyUserProfile, SpotifyTokens
 from app.database import database
 
 logger = logging.getLogger("music_bingo")
-security = HTTPBearer(auto_error=False)
 
 
 class AuthenticationError(Exception):
@@ -32,181 +35,8 @@ class AuthenticationError(Exception):
         super().__init__(message)
 
 
-class JWTService:
-    """JWT token management service"""
-
-    def __init__(self):
-        self.jwt_secret = os.getenv("JWT_SECRET")
-        self.jwt_refresh_secret = os.getenv("JWT_REFRESH_SECRET")
-        self.jwt_expires_in = os.getenv("JWT_EXPIRES_IN", "15m")
-        self.jwt_refresh_expires_in = os.getenv("JWT_REFRESH_EXPIRES_IN", "7d")
-
-        # Generate fallback secrets if not configured (for development only)
-        if not self.jwt_secret:
-            if os.getenv("APP_ENV", "development") == "production":
-                raise RuntimeError("JWT_SECRET must be set in production")
-            import secrets
-
-            self.jwt_secret = secrets.token_hex(32)
-            logger.warning(
-                "[JWT-INIT-001] JWT_SECRET not configured, using generated secret. Set JWT_SECRET in environment for production!"
-            )
-
-        if not self.jwt_refresh_secret:
-            if os.getenv("APP_ENV", "development") == "production":
-                raise RuntimeError("JWT_REFRESH_SECRET must be set in production")
-            import secrets
-
-            self.jwt_refresh_secret = secrets.token_hex(32)
-            logger.warning(
-                "[JWT-INIT-002] JWT_REFRESH_SECRET not configured, using generated secret. Set JWT_REFRESH_SECRET in environment for production!"
-            )
-
-        # Validate JWT secret strength
-        if len(self.jwt_secret) < 32:
-            logger.warning("JWT secret is shorter than recommended 32 characters")
-
-    def _parse_duration(self, duration: str) -> timedelta:
-        """Parse duration string like '15m', '7d', '1h' to timedelta"""
-        if duration.endswith("m"):
-            return timedelta(minutes=int(duration[:-1]))
-        elif duration.endswith("h"):
-            return timedelta(hours=int(duration[:-1]))
-        elif duration.endswith("d"):
-            return timedelta(days=int(duration[:-1]))
-        elif duration.endswith("s"):
-            return timedelta(seconds=int(duration[:-1]))
-        else:
-            # Default to minutes if no unit specified
-            return timedelta(minutes=int(duration))
-
-    def generate_tokens(self, user_id: str, spotify_id: str) -> JWTTokens:
-        """Generate JWT access and refresh tokens for user"""
-        now = datetime.now(timezone.utc)
-        access_expires = now + self._parse_duration(self.jwt_expires_in)
-        refresh_expires = now + self._parse_duration(self.jwt_refresh_expires_in)
-
-        # Access token payload
-        access_payload = {
-            "user_id": user_id,
-            "spotify_id": spotify_id,
-            "type": "access",
-            "iat": int(now.timestamp()),
-            "exp": int(access_expires.timestamp()),
-        }
-
-        # Refresh token payload
-        refresh_payload = {
-            "user_id": user_id,
-            "spotify_id": spotify_id,
-            "type": "refresh",
-            "iat": int(now.timestamp()),
-            "exp": int(refresh_expires.timestamp()),
-        }
-
-        access_token = jwt.encode(access_payload, self.jwt_secret, algorithm="HS256")
-        refresh_token = jwt.encode(
-            refresh_payload, self.jwt_refresh_secret, algorithm="HS256"
-        )
-
-        logger.info(
-            "[AUTH-JWT-001] Generated tokens for user",
-            extra={
-                "user_id": user_id,
-                "spotify_id": spotify_id,
-                "access_expires": access_expires.isoformat(),
-                "refresh_expires": refresh_expires.isoformat(),
-            },
-        )
-
-        return JWTTokens(
-            access_token=access_token,
-            refresh_token=refresh_token,
-            expires_in=int(self._parse_duration(self.jwt_expires_in).total_seconds()),
-        )
-
-    def create_tokens(self, user_id: str, spotify_id: str = "test") -> dict:
-        """Create tokens for testing - legacy alias for generate_tokens"""
-        tokens = self.generate_tokens(user_id, spotify_id)
-        return {
-            "access_token": tokens.access_token,
-            "refresh_token": tokens.refresh_token,
-            "expires_in": tokens.expires_in,
-        }
-
-    def verify_access_token(self, token: str) -> JWTPayload:
-        """Verify and decode JWT access token"""
-        try:
-            payload = jwt.decode(token, self.jwt_secret, algorithms=["HS256"])
-
-            # Validate token type
-            if payload.get("type") != "access":
-                raise AuthenticationError("Invalid token type")
-
-            return JWTPayload(**payload)
-
-        except jwt.ExpiredSignatureError:
-            logger.warning("[AUTH-JWT-002] Access token expired")
-            raise AuthenticationError("Token expired", status.HTTP_401_UNAUTHORIZED)
-        except jwt.InvalidTokenError as e:
-            logger.warning("[AUTH-JWT-003] Invalid access token: %s", str(e))
-            raise AuthenticationError("Invalid token", status.HTTP_401_UNAUTHORIZED)
-
-    def verify_refresh_token(self, token: str) -> JWTPayload:
-        """Verify and decode JWT refresh token"""
-        try:
-            payload = jwt.decode(token, self.jwt_refresh_secret, algorithms=["HS256"])
-
-            # Validate token type
-            if payload.get("type") != "refresh":
-                raise AuthenticationError("Invalid token type")
-
-            return JWTPayload(**payload)
-
-        except jwt.ExpiredSignatureError:
-            logger.warning("[AUTH-JWT-004] Refresh token expired")
-            raise AuthenticationError(
-                "Refresh token expired", status.HTTP_401_UNAUTHORIZED
-            )
-        except jwt.InvalidTokenError as e:
-            logger.warning("[AUTH-JWT-005] Invalid refresh token: %s", str(e))
-            raise AuthenticationError(
-                "Invalid refresh token", status.HTTP_401_UNAUTHORIZED
-            )
-
-    def refresh_access_token(self, refresh_token: str) -> str:
-        """Generate new access token from refresh token"""
-        payload = self.verify_refresh_token(refresh_token)
-
-        now = datetime.now(timezone.utc)
-        access_expires = now + self._parse_duration(self.jwt_expires_in)
-
-        new_payload = {
-            "user_id": payload.user_id,
-            "spotify_id": payload.spotify_id,
-            "type": "access",
-            "iat": int(now.timestamp()),
-            "exp": int(access_expires.timestamp()),
-        }
-
-        new_token = jwt.encode(new_payload, self.jwt_secret, algorithm="HS256")
-
-        logger.info(
-            "[AUTH-JWT-006] Refreshed access token",
-            extra={
-                "user_id": payload.user_id,
-                "new_expires": access_expires.isoformat(),
-            },
-        )
-
-        return new_token
-
-
 class UserService:
     """User management service with Supabase integration"""
-
-    def __init__(self):
-        self.jwt_service = JWTService()
 
     async def create_or_update_user(
         self, spotify_profile: SpotifyUserProfile, spotify_tokens: SpotifyTokens
@@ -397,48 +227,31 @@ class UserService:
 
 
 class AuthService:
-    """Main authentication service"""
+    """Main authentication service - session-only implementation"""
 
     def __init__(self):
-        self.jwt_service = JWTService()
         self.user_service = UserService()
 
     async def authenticate_spotify_user(
-        self, auth_request: AuthRequest
-    ) -> AuthResponse:
-        """Authenticate user with Spotify OAuth data"""
+        self, spotify_profile: SpotifyUserProfile, spotify_tokens: SpotifyTokens
+    ) -> User:
+        """Authenticate user with Spotify OAuth data and return User object"""
         request_id = f"auth-{int(datetime.now().timestamp())}"
 
         logger.info(
             "[AUTH-001] Starting Spotify authentication",
             extra={
                 "request_id": request_id,
-                "spotify_id": auth_request.spotify_user.id,
-                "display_name": auth_request.spotify_user.display_name,
+                "spotify_id": spotify_profile.id,
+                "display_name": spotify_profile.display_name,
             },
         )
 
         try:
-            # Create Spotify tokens object
-            # Spotify tokens typically expire in 1 hour
-            expires_at = datetime.now(timezone.utc) + timedelta(hours=1)
-            spotify_tokens = SpotifyTokens(
-                access_token=auth_request.access_token,
-                refresh_token=auth_request.refresh_token,
-                expires_at=expires_at,
-                scope="playlist-read-private user-read-playback-state user-modify-playback-state",
-            )
-
             # Create or update user
             user = await self.user_service.create_or_update_user(
-                auth_request.spotify_user, spotify_tokens
+                spotify_profile, spotify_tokens
             )
-
-            # Generate JWT tokens
-            jwt_tokens = self.jwt_service.generate_tokens(user.id, user.spotify_id)
-
-            # Convert to public user model
-            public_user = self.user_service.user_to_public(user)
 
             logger.info(
                 "[AUTH-002] Authentication successful",
@@ -449,12 +262,7 @@ class AuthService:
                 },
             )
 
-            return AuthResponse(
-                success=True,
-                user=public_user,
-                tokens=jwt_tokens,
-                message="Authentication successful",
-            )
+            return user
 
         except Exception as e:
             logger.error(
@@ -462,67 +270,19 @@ class AuthService:
                 extra={
                     "request_id": request_id,
                     "error": str(e),
-                    "spotify_id": auth_request.spotify_user.id,
+                    "spotify_id": spotify_profile.id,
                 },
             )
 
             raise AuthenticationError(f"Authentication failed: {str(e)}")
 
-    async def refresh_token(
-        self, refresh_request: TokenRefreshRequest
-    ) -> TokenRefreshResponse:
-        """Refresh JWT access token"""
-        try:
-            new_access_token = self.jwt_service.refresh_access_token(
-                refresh_request.refresh_token
-            )
 
-            return TokenRefreshResponse(
-                success=True,
-                access_token=new_access_token,
-                expires_in=int(
-                    self.jwt_service._parse_duration(
-                        self.jwt_service.jwt_expires_in
-                    ).total_seconds()
-                ),
-            )
+# Simplified session-only dependency for FastAPI routes
+async def get_current_user(request: Request) -> User:
+    """Get current user from session cookie only."""
 
-        except AuthenticationError:
-            raise
-        except Exception as e:
-            logger.error("[AUTH-ERROR] Token refresh failed", extra={"error": str(e)})
-            raise AuthenticationError(f"Token refresh failed: {str(e)}")
-
-    async def get_current_user(self, token: str) -> User:
-        """Get current user from JWT token"""
-        try:
-            payload = self.jwt_service.verify_access_token(token)
-            user = await self.user_service.get_user_by_id(payload.user_id)
-
-            if not user:
-                raise AuthenticationError("User not found")
-
-            return user
-
-        except AuthenticationError:
-            raise
-        except Exception as e:
-            logger.error(
-                "[AUTH-ERROR] Failed to get current user", extra={"error": str(e)}
-            )
-            raise AuthenticationError("Failed to get current user")
-
-
-# Dependency for FastAPI routes (supports secure session cookie; Bearer for non-browser clients)
-async def get_current_user(
-    request: Request, credentials: HTTPAuthorizationCredentials = Depends(security)
-) -> User:
-    """Get current user using secure session cookie (preferred) or Authorization header for non-browser clients."""
-    auth_service_local = AuthService()
-    
     logger.info(f"[AUTH-GET-USER] Authentication attempt from {request.url.path}")
-    
-    # Prefer secure session cookie
+
     try:
         from app.secure_session import get_session_from_request
         from app.config import get_config
@@ -530,58 +290,38 @@ async def get_current_user(
         config = get_config()
         session_data = await get_session_from_request(request, config.secret_key)
         logger.info(f"[AUTH-GET-USER] Session data retrieved: {bool(session_data)}")
-        
+
         if session_data and session_data.get("user"):
             user_dict = session_data["user"]
             # If only user_id is present, fetch full user from DB
             if isinstance(user_dict, dict) and user_dict.get("id"):
-                user = await auth_service_local.user_service.get_user_by_id(
-                    user_dict["id"]
-                )
+                user_service = UserService()
+                user = await user_service.get_user_by_id(user_dict["id"])
                 if user:
                     return user
-        # Fallback to Bearer for non-browser clients
-        if credentials and credentials.credentials:
-            logger.info("[AUTH-GET-USER] Trying Bearer token authentication")
-            return await auth_service_local.get_current_user(credentials.credentials)
-        
-        logger.error("[AUTH-GET-USER] ❌ Authentication failed - no session data and no Bearer token")
+
+        logger.error("[AUTH-GET-USER] Authentication failed - no valid session")
         raise AuthenticationError("Not authenticated")
+
     except AuthenticationError as e:
         raise HTTPException(
             status_code=e.status_code,
             detail=e.message,
-            headers={"WWW-Authenticate": "Bearer"},
         )
-    except Exception:
+    except Exception as e:
+        logger.error(f"[AUTH-GET-USER] Unexpected error: {e}")
         raise HTTPException(
             status_code=401,
             detail="Not authenticated",
-            headers={"WWW-Authenticate": "Bearer"},
         )
 
 
 # Optional dependency (returns None if not authenticated)
 async def get_current_user_optional(request: Request) -> Optional[User]:
-    """Optional authentication - returns None if no valid token"""
+    """Optional authentication - returns None if no valid session"""
     try:
-        auth_header = request.headers.get("Authorization")
-        if auth_header and auth_header.startswith("Bearer "):
-            token = auth_header.split(" ")[1]
-            auth_service_local = AuthService()
-            return await auth_service_local.get_current_user(token)
-        # Fallback to secure session
-        from app.secure_session import get_session_from_request
-        from app.config import get_config
-
-        config = get_config(); session_data = await get_session_from_request(request, config.secret_key)
-        if session_data and session_data.get("user"):
-            user_dict = session_data["user"]
-            if isinstance(user_dict, dict) and user_dict.get("id"):
-                user = await AuthService().user_service.get_user_by_id(user_dict["id"])
-                return user
-        return None
-    except Exception:
+        return await get_current_user(request)
+    except HTTPException:
         return None
 
 

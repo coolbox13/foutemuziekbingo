@@ -1,30 +1,26 @@
 """
-Authentication Routes Module
+Authentication Routes Module - Session-Only Implementation
 
 This module handles all authentication-related endpoints for the Musical Bingo application.
-It provides Spotify OAuth integration, secure session management, and JWT token handling.
+It provides Spotify OAuth integration and secure session management.
 
 Key Features:
 - Spotify OAuth 2.0 authentication flow
 - CSRF protection with state parameters
 - Secure session management with Redis/Dragonfly
-- JWT token generation and refresh
-- Beautiful HTML responses for web flow
+- Standard OAuth redirect pattern
 - Comprehensive error handling and logging
 
 Security Features:
 - CSRF protection on OAuth flow
 - Secure session cookies with encryption
-- JWT token validation and refresh
 - Session invalidation on logout
-- IP-based legacy compatibility (deprecated)
+- Standard OAuth redirect responses
 
 Routes:
 - GET /login/page: Display login page
 - GET /login: Initiate Spotify OAuth flow  
 - GET /spotify/callback: Handle OAuth callback
-- POST /authenticate: API authentication endpoint
-- POST /refresh: Refresh JWT tokens
 - GET /me: Get current user information
 - POST /logout: Logout and clear session
 - GET /status: Check authentication status
@@ -34,18 +30,14 @@ from fastapi import APIRouter, Request, HTTPException, Depends, Response
 from typing import Optional
 from fastapi.responses import RedirectResponse, HTMLResponse
 from fastapi.templating import Jinja2Templates
-from fastapi.security import HTTPBearer
 from spotipy.oauth2 import SpotifyOAuth
 from spotipy import Spotify
 from spotipy.exceptions import SpotifyException
 import logging
 from app.config import get_config
 from app.models import (
-    AuthRequest,
-    AuthResponse,
-    TokenRefreshRequest,
-    TokenRefreshResponse,
     SpotifyUserProfile,
+    SpotifyTokens,
     UserPublic,
     APIResponse,
 )
@@ -59,9 +51,7 @@ from app.secure_session import (
 
 router = APIRouter()
 logger = logging.getLogger("music_bingo")
-security = HTTPBearer()
 templates = Jinja2Templates(directory="templates")
-
 
 
 @router.get(
@@ -79,20 +69,20 @@ templates = Jinja2Templates(directory="templates")
 async def login_page(request: Request) -> HTMLResponse:
     """
     Display the login page with beautiful UI.
-    
+
     This endpoint renders the authentication page where users can initiate
     the Spotify OAuth flow. The page includes:
     - Beautiful responsive design using Tailwind CSS
     - Spotify branding and call-to-action
     - Error handling for authentication failures
     - Mobile-friendly interface
-    
+
     Args:
         request: FastAPI request object containing client information
-        
+
     Returns:
         HTMLResponse: Rendered login page template
-        
+
     Example:
         GET /auth/login/page
         Returns: Beautiful HTML login page
@@ -120,39 +110,39 @@ async def login_page(request: Request) -> HTMLResponse:
 async def spotify_login() -> RedirectResponse:
     """
     Initiate Spotify OAuth flow with CSRF protection.
-    
+
     This endpoint starts the OAuth 2.0 authorization code flow with Spotify.
     It generates a secure CSRF state parameter and redirects the user to
     Spotify's authorization server.
-    
+
     Security Features:
     - CSRF state parameter generation for request validation
     - Comprehensive scope requests for required permissions
     - Always shows Spotify dialog for better UX
     - Secure redirect URI validation
-    
+
     OAuth Scopes Requested:
     - playlist-read-private: Access user's private playlists
     - user-read-playback-state: Read current playback state
     - user-modify-playback-state: Control playback
     - user-read-private: Access user profile data
     - user-read-email: Access user email address
-    
+
     Returns:
         RedirectResponse: 302 redirect to Spotify OAuth authorization URL
-        
+
     Raises:
         HTTPException: If OAuth configuration is invalid
-        
+
     Example:
         GET /auth/login
         Returns: 302 redirect to https://accounts.spotify.com/authorize?...
-        
+
     Security Note:
         The state parameter is logged (first 8 characters only) for audit purposes
     """
     config = get_config()
-    
+
     # Generate CSRF state parameter
     csrf_state = generate_csrf_token()
 
@@ -181,87 +171,67 @@ async def spotify_login() -> RedirectResponse:
 @router.get(
     "/spotify/callback",
     summary="Handle Spotify OAuth Callback",
-    description="Processes OAuth callback and creates user session",
+    description="Processes OAuth callback with standard redirect pattern",
     tags=["Authentication", "OAuth"],
     responses={
-        200: {
-            "description": "Authentication successful - HTML success page",
-            "content": {"text/html": {"example": "<!DOCTYPE html>..."}}
-        },
-        400: {
-            "description": "OAuth error or missing authorization code",
-            "content": {"text/html": {"example": "<!DOCTYPE html>..."}}
-        },
-        500: {
-            "description": "Authentication processing failed",
-            "content": {"text/html": {"example": "<!DOCTYPE html>..."}}
+        302: {
+            "description": "Redirect to dashboard on success or login on error",
+            "headers": {
+                "Location": {
+                    "description": "Dashboard URL on success, login URL on error",
+                    "schema": {"type": "string"}
+                }
+            }
         }
     }
 )
 async def spotify_callback(
-    request: Request,
-    response: Response,
     code: Optional[str] = None,
     error: Optional[str] = None,
     state: Optional[str] = None,
-) -> HTMLResponse:
+) -> RedirectResponse:
     """
-    Handle Spotify OAuth callback and create user session.
-    
+    Handle Spotify OAuth callback with standard redirect pattern.
+
     This endpoint processes the OAuth 2.0 authorization code callback from Spotify.
     It exchanges the authorization code for access tokens, retrieves user profile
     information, and creates a secure session for the user.
-    
+
     Processing Steps:
     1. Validate CSRF state parameter
     2. Exchange authorization code for access tokens
     3. Retrieve user profile from Spotify API
     4. Create or update user in our database
-    5. Generate JWT tokens for API access
-    6. Create secure session with encrypted cookies
-    7. Return beautiful success page with auto-redirect
-    
+    5. Create secure session with encrypted cookies
+    6. Redirect to dashboard on success
+
     Args:
-        request: FastAPI request object
-        response: FastAPI response object for setting cookies
         code: OAuth authorization code from Spotify (query parameter)
         error: OAuth error from Spotify if authorization failed (query parameter)
         state: CSRF state parameter for validation (query parameter)
-        
+
     Returns:
-        HTMLResponse: Beautiful HTML page with authentication result
-        - Success: Welcome page with auto-redirect to dashboard
-        - Error: Error page with retry option
-        
-    Raises:
-        HTTPException: Not raised directly, errors handled with HTML responses
-        
+        RedirectResponse: Redirect to dashboard on success, login on error
+
     Security Features:
     - CSRF state parameter validation
     - Secure session creation with encryption
     - Token exchange error handling
     - Comprehensive audit logging
-    - XSS protection in HTML responses
-    
+
     Example:
         GET /auth/spotify/callback?code=AQA...&state=xyz123
-        Returns: HTML success page with auto-redirect
-        
+        Returns: 302 redirect to /dashboard
+
     Error Handling:
-        - OAuth errors: Returns user-friendly error page
-        - Missing code: Returns error page with retry option
+        - OAuth errors: Redirects to login with error parameter
+        - Missing code: Redirects to login with error parameter
         - Invalid state: Security error with detailed logging
-        - Token exchange failure: Returns generic error page
-        - User profile failure: Returns error page
-        
-    Session Data Stored:
-        - User ID and profile information
-        - Spotify access and refresh tokens
-        - Session expiration time
-        - CSRF tokens for subsequent requests
+        - Token exchange failure: Redirects to login with error parameter
+        - User profile failure: Redirects to login with error parameter
     """
     config = get_config()
-    callback_id = f"callback-{int(request.scope.get('time', 0))}"
+    callback_id = f"callback-{int(__import__('time').time())}"
 
     logger.info(
         "[AUTH-CALLBACK-001] Processing Spotify callback",
@@ -273,70 +243,14 @@ async def spotify_callback(
             "[AUTH-CALLBACK-ERROR] Spotify OAuth error",
             extra={"callback_id": callback_id, "error": error},
         )
-        return HTMLResponse(
-            content=f"""
-            <!DOCTYPE html>
-            <html lang="en">
-            <head>
-                <meta charset="UTF-8">
-                <meta name="viewport" content="width=device-width, initial-scale=1.0">
-                <title>Authentication Error - Music Bingo</title>
-                <script src="https://cdn.tailwindcss.com"></script>
-                <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
-            </head>
-            <body class="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4">
-                <div class="max-w-md w-full text-center space-y-4">
-                    <i data-lucide="alert-triangle" class="h-16 w-16 text-red-500 mx-auto"></i>
-                    <h1 class="text-2xl font-bold text-gray-900">Authentication Error</h1>
-                    <p class="text-gray-600">Spotify authentication failed: {error}</p>
-                    <a href="/auth/login/page" class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-red-600 hover:bg-red-700">
-                        Try Again
-                    </a>
-                    <div>
-                        <a href="/" class="text-sm text-gray-500 hover:text-gray-700">← Back to home</a>
-                    </div>
-                </div>
-                <script>lucide.createIcons();</script>
-            </body>
-            </html>
-            """,
-            status_code=400,
-        )
+        return RedirectResponse(f"/auth/login/page?error={error}", status_code=302)
 
     if not code:
         logger.error(
             "[AUTH-CALLBACK-ERROR] No authorization code received",
             extra={"callback_id": callback_id},
         )
-        return HTMLResponse(
-            content="""
-            <!DOCTYPE html>
-            <html lang="en">
-            <head>
-                <meta charset="UTF-8">
-                <meta name="viewport" content="width=device-width, initial-scale=1.0">
-                <title>Authentication Error - Music Bingo</title>
-                <script src="https://cdn.tailwindcss.com"></script>
-                <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
-            </head>
-            <body class="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4">
-                <div class="max-w-md w-full text-center space-y-4">
-                    <i data-lucide="alert-triangle" class="h-16 w-16 text-red-500 mx-auto"></i>
-                    <h1 class="text-2xl font-bold text-gray-900">Authentication Error</h1>
-                    <p class="text-gray-600">No authorization code received from Spotify.</p>
-                    <a href="/auth/login/page" class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-red-600 hover:bg-red-700">
-                        Try Again
-                    </a>
-                    <div>
-                        <a href="/" class="text-sm text-gray-500 hover:text-gray-700">← Back to home</a>
-                    </div>
-                </div>
-                <script>lucide.createIcons();</script>
-            </body>
-            </html>
-            """,
-            status_code=400,
-        )
+        return RedirectResponse("/auth/login/page?error=no_code", status_code=302)
 
     try:
         # Validate CSRF state parameter
@@ -345,7 +259,7 @@ async def spotify_callback(
                 "[AUTH-CALLBACK-CSRF] Missing state parameter",
                 extra={"callback_id": callback_id},
             )
-            raise Exception("Missing security state parameter")
+            return RedirectResponse("/auth/login/page?error=csrf_error", status_code=302)
 
         # Exchange code for tokens with proper error handling
         sp_oauth = SpotifyOAuth(
@@ -376,10 +290,10 @@ async def spotify_callback(
                     "status_code": getattr(e, "http_status", "unknown"),
                 },
             )
-            raise Exception("Spotify authentication failed")
+            return RedirectResponse("/auth/login/page?error=spotify_error", status_code=302)
 
         if not token_info:
-            raise Exception("Failed to get token from Spotify")
+            return RedirectResponse("/auth/login/page?error=token_error", status_code=302)
 
         logger.info(
             "[AUTH-CALLBACK-003] Got tokens from Spotify",
@@ -420,11 +334,14 @@ async def spotify_callback(
             explicit_content=spotify_user.get("explicit_content"),
         )
 
-        # Create auth request
-        auth_request = AuthRequest(
-            spotify_user=spotify_profile,
+        # Create Spotify tokens object
+        from datetime import datetime, timezone, timedelta
+        expires_at = datetime.now(timezone.utc) + timedelta(hours=1)
+        spotify_tokens = SpotifyTokens(
             access_token=token_info["access_token"],
             refresh_token=token_info.get("refresh_token"),
+            expires_at=expires_at,
+            scope="playlist-read-private user-read-playback-state user-modify-playback-state",
         )
 
         # Authenticate user through our service
@@ -433,370 +350,49 @@ async def spotify_callback(
             extra={"callback_id": callback_id, "spotify_id": spotify_profile.id},
         )
 
-        auth_response = await auth_service.authenticate_spotify_user(auth_request)
-
-        if not auth_response.success:
-            raise Exception("Authentication failed")
+        user = await auth_service.authenticate_spotify_user(spotify_profile, spotify_tokens)
 
         logger.info(
             "[AUTH-CALLBACK-006] Authentication successful",
             extra={
                 "callback_id": callback_id,
-                "user_id": auth_response.user.id,
-                "spotify_id": auth_response.user.spotify_id,
+                "user_id": user.id,
+                "spotify_id": user.spotify_id,
             },
         )
 
-        logger.info(
-            f"[DEBUG-001] Starting HTML response generation",
-            extra={
-                "callback_id": callback_id,
-                "access_token_length": len(auth_response.tokens.access_token),
-                "user_display_name": auth_response.user.display_name,
-                "user_dict_keys": list(auth_response.user.dict().keys()),
-            },
-        )
+        # Create secure session and set cookie in the redirect response
+        redirect_response = RedirectResponse("/dashboard", status_code=302)
 
-        # Create secure session (replaces IP-based sessions)
         session_token = await create_secure_session(
-            user_id=auth_response.user.id,
+            user_id=user.id,
             spotify_token_info=token_info,
-            user_data=auth_response.user.dict(),
-            response=response,
+            user_data=user.dict(),
+            response=redirect_response,
             secret_key=config.secret_key,
         )
 
-        # Do not use IP-based legacy session anymore (security)
-
         logger.info(
-            f"[AUTH-CALLBACK-007] Secure session created",
+            "[AUTH-CALLBACK-007] Secure session created and redirect prepared",
             extra={
                 "callback_id": callback_id,
                 "session_token": session_token[:8] + "...",
-                "user_id": auth_response.user.id,
+                "user_id": user.id,
             },
         )
 
-        # Return success page with tokens (in production, use secure cookies or redirect)
-        logger.info(
-            f"[DEBUG-003] About to generate HTML response",
-            extra={
-                "callback_id": callback_id,
-                "user_display_name": str(auth_response.user.display_name),
-                "access_token_preview": auth_response.tokens.access_token[:20] + "...",
-                "user_dict_type": type(auth_response.user.dict()),
-            },
-        )
-
-        try:
-            # Use Pydantic's built-in JSON serialization which handles datetime objects
-            user_json = auth_response.user.json()
-            logger.info(
-                f"[DEBUG-004] User JSON serialized successfully",
-                extra={
-                    "callback_id": callback_id,
-                    "user_json_length": len(user_json),
-                    "user_json_preview": user_json[:100] + "..."
-                    if len(user_json) > 100
-                    else user_json,
-                },
-            )
-        except Exception as json_error:
-            logger.error(
-                f"[DEBUG-004-ERROR] User JSON serialization failed",
-                extra={
-                    "callback_id": callback_id,
-                    "error": str(json_error),
-                    "error_type": type(json_error).__name__,
-                    "user_dict_sample": str(auth_response.user.dict())[:200],
-                },
-            )
-            raise
-
-        html_response = HTMLResponse(
-            content=f"""
-            <!DOCTYPE html>
-            <html lang="en">
-            <head>
-                <meta charset="UTF-8">
-                <meta name="viewport" content="width=device-width, initial-scale=1.0">
-                <title>Authentication Successful - Music Bingo</title>
-                <script src="https://cdn.tailwindcss.com"></script>
-                <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
-                <script>
-                    tailwind.config = {{
-                        theme: {{
-                            extend: {{
-                                colors: {{
-                                    'bingo-primary': '#8b5cf6',
-                                    'spotify-green': '#1db954',
-                                }}
-                            }}
-                        }}
-                    }}
-                </script>
-            </head>
-            <body class="min-h-screen flex items-center justify-center bg-gradient-to-br from-bingo-primary to-purple-600 py-12 px-4">
-                <div class="max-w-md w-full text-center space-y-6 bg-white rounded-lg shadow-xl p-8">
-                    <div class="flex justify-center">
-                        <div class="bg-spotify-green rounded-full p-3">
-                            <i data-lucide="check" class="h-8 w-8 text-white"></i>
-                        </div>
-                    </div>
-                    <h1 class="text-2xl font-bold text-gray-900">Welcome, {auth_response.user.display_name or 'User'}!</h1>
-                    <p class="text-gray-600">Authentication successful. Redirecting to dashboard...</p>
-                    <div class="bg-gray-100 rounded-lg p-4">
-                        <div class="flex items-center justify-center space-x-2">
-                            <div class="animate-spin rounded-full h-4 w-4 border-b-2 border-bingo-primary"></div>
-                            <span class="text-sm text-gray-600">Loading your dashboard...</span>
-                        </div>
-                    </div>
-                    <p class="text-sm text-gray-500">
-                        If not redirected, <a href="/dashboard" class="text-bingo-primary hover:underline">click here</a>.
-                    </p>
-                </div>
-                <script>
-                    // Store non-sensitive user data for frontend use (no tokens stored)
-                    localStorage.setItem('user', `{user_json}`);
-                    
-                    // Initialize icons and redirect
-                    lucide.createIcons();
-                    setTimeout(() => {{
-                        window.location.href = '/dashboard';
-                    }}, 500);
-                </script>
-            </body>
-            </html>
-            """,
-            status_code=200,
-        )
-        
-        # CRITICAL FIX: Copy cookies from response dependency to HTMLResponse
-        # The cookies were set on the 'response' parameter but lost when HTMLResponse is returned
-        for cookie_name, cookie_value in response.headers.items():
-            if cookie_name.lower().startswith('set-cookie'):
-                html_response.headers[cookie_name] = cookie_value
-        
-        return html_response
+        return redirect_response
 
     except Exception as e:
         logger.error(
-            f"[AUTH-CALLBACK-ERROR] Authentication failed",
+            "[AUTH-CALLBACK-ERROR] Authentication failed",
             extra={"callback_id": callback_id, "error": str(e)},
         )
-
-        return HTMLResponse(
-            content=f"""
-            <!DOCTYPE html>
-            <html lang="en">
-            <head>
-                <meta charset="UTF-8">
-                <meta name="viewport" content="width=device-width, initial-scale=1.0">
-                <title>Authentication Failed - Music Bingo</title>
-                <script src="https://cdn.tailwindcss.com"></script>
-                <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
-            </head>
-            <body class="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4">
-                <div class="max-w-md w-full text-center space-y-4">
-                    <i data-lucide="x-circle" class="h-16 w-16 text-red-500 mx-auto"></i>
-                    <h1 class="text-2xl font-bold text-gray-900">Authentication Failed</h1>
-                    <p class="text-gray-600">An error occurred during authentication. Please try again.</p>
-                    <a href="/auth/login/page" class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-red-600 hover:bg-red-700">
-                        Try Again
-                    </a>
-                    <div>
-                        <a href="/" class="text-sm text-gray-500 hover:text-gray-700">← Back to home</a>
-                    </div>
-                </div>
-                <script>lucide.createIcons();</script>
-            </body>
-            </html>
-            """,
-            status_code=500,
-        )
-
-
-@router.post(
-    "/authenticate", 
-    response_model=AuthResponse,
-    summary="Authenticate User via API",
-    description="Authenticate user with Spotify OAuth data via API endpoint",
-    tags=["Authentication", "API"],
-    responses={
-        200: {
-            "description": "Authentication successful",
-            "model": AuthResponse
-        },
-        401: {
-            "description": "Authentication failed",
-            "content": {
-                "application/json": {
-                    "example": {"detail": "Authentication failed. Please try again."}
-                }
-            }
-        }
-    }
-)
-async def authenticate(auth_request: AuthRequest) -> AuthResponse:
-    """
-    Authenticate user with Spotify OAuth data (API endpoint).
-    
-    This endpoint provides programmatic authentication for applications that
-    handle the OAuth flow themselves. It processes the Spotify user profile
-    and token information to create or update a user account.
-    
-    Use Cases:
-    - Mobile applications with custom OAuth handling
-    - Server-to-server authentication
-    - Custom frontend implementations
-    - API-only authentication flows
-    
-    Args:
-        auth_request: Authentication request containing:
-            - spotify_user: Complete Spotify user profile
-            - access_token: Spotify access token
-            - refresh_token: Spotify refresh token (optional)
-            
-    Returns:
-        AuthResponse: Authentication result containing:
-            - success: Authentication status
-            - user: User profile information
-            - tokens: JWT access and refresh tokens
-            - message: Optional status message
-            
-    Raises:
-        HTTPException: 401 if authentication fails
-        
-    Example:
-        POST /auth/authenticate
-        {
-            "spotify_user": {
-                "id": "spotify_user_id",
-                "display_name": "User Name",
-                "email": "user@example.com"
-            },
-            "access_token": "spotify_access_token",
-            "refresh_token": "spotify_refresh_token"
-        }
-        
-        Response:
-        {
-            "success": true,
-            "user": {...},
-            "tokens": {
-                "access_token": "jwt_token",
-                "refresh_token": "jwt_refresh_token",
-                "token_type": "bearer",
-                "expires_in": 900
-            }
-        }
-        
-    Security Notes:
-        - Validates Spotify token with Spotify API
-        - Creates secure JWT tokens for API access
-        - Stores user data in encrypted database
-        - Generates audit logs for authentication events
-    """
-    try:
-        return await auth_service.authenticate_spotify_user(auth_request)
-    except Exception as e:
-        logger.error(
-            f"[AUTH-API-ERROR] Authentication failed",
-            extra={"error": str(e), "spotify_id": auth_request.spotify_user.id},
-        )
-        raise HTTPException(
-            status_code=401, detail="Authentication failed. Please try again."
-        )
-
-
-@router.post(
-    "/refresh", 
-    response_model=TokenRefreshResponse,
-    summary="Refresh JWT Access Token",
-    description="Refresh expired JWT access token using refresh token",
-    tags=["Authentication", "JWT"],
-    responses={
-        200: {
-            "description": "Token refresh successful",
-            "model": TokenRefreshResponse
-        },
-        401: {
-            "description": "Token refresh failed",
-            "content": {
-                "application/json": {
-                    "example": {"detail": "Authentication failed. Please try again."}
-                }
-            }
-        }
-    }
-)
-async def refresh_token(refresh_request: TokenRefreshRequest) -> TokenRefreshResponse:
-    """
-    Refresh JWT access token using refresh token.
-    
-    This endpoint allows clients to obtain a new access token when the current
-    one expires. It validates the refresh token and issues a new access token
-    with the same permissions and user context.
-    
-    Token Lifecycle:
-    - Access tokens expire in 15 minutes for security
-    - Refresh tokens expire in 7 days  
-    - Refresh tokens are single-use (rotation for security)
-    - New refresh token provided with each refresh
-    
-    Args:
-        refresh_request: Token refresh request containing:
-            - refresh_token: Valid JWT refresh token
-            
-    Returns:
-        TokenRefreshResponse: New token information containing:
-            - success: Refresh operation status
-            - access_token: New JWT access token
-            - expires_in: Token expiration time in seconds
-            
-    Raises:
-        HTTPException: 401 if refresh token is invalid or expired
-        
-    Example:
-        POST /auth/refresh
-        {
-            "refresh_token": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9..."
-        }
-        
-        Response:
-        {
-            "success": true,
-            "access_token": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9...",
-            "expires_in": 900
-        }
-        
-    Security Features:
-        - Validates refresh token signature and expiration
-        - Checks token against blacklist (if implemented)
-        - Generates new access token with same permissions
-        - Rotates refresh token for enhanced security
-        - Logs refresh events for audit trail
-        
-    Error Conditions:
-        - Invalid refresh token format
-        - Expired refresh token
-        - Revoked or blacklisted token
-        - User account disabled or deleted
-        - Token signature validation failure
-    """
-    try:
-        return await auth_service.refresh_token(refresh_request)
-    except Exception as e:
-        logger.error(
-            f"[AUTH-REFRESH-ERROR] Token refresh failed", extra={"error": str(e)}
-        )
-        raise HTTPException(
-            status_code=401, detail="Authentication failed. Please try again."
-        )
+        return RedirectResponse("/auth/login/page?error=auth_failed", status_code=302)
 
 
 @router.get(
-    "/me", 
+    "/me",
     response_model=UserPublic,
     summary="Get Current User Information",
     description="Retrieve authenticated user profile information",
@@ -816,21 +412,20 @@ async def refresh_token(refresh_request: TokenRefreshRequest) -> TokenRefreshRes
         }
     }
 )
-async def get_current_user_info(current_user: UserPublic = Depends(get_current_user)) -> UserPublic:
+async def get_current_user_info(current_user=Depends(get_current_user)) -> UserPublic:
     """
     Get current authenticated user information.
-    
+
     This endpoint returns the profile information for the currently authenticated
-    user. It requires a valid JWT access token in the Authorization header.
-    
+    user. It requires a valid session cookie.
+
     Authentication Required:
-        - Valid JWT access token in Authorization header
-        - Format: "Bearer <jwt_access_token>"
-        - Token must not be expired or revoked
-    
+        - Valid session cookie with user authentication data
+        - Session must not be expired or revoked
+
     Args:
-        current_user: Injected authenticated user from JWT token
-        
+        current_user: Injected authenticated user from session
+
     Returns:
         UserPublic: Public user profile information containing:
             - id: Internal user ID
@@ -841,11 +436,10 @@ async def get_current_user_info(current_user: UserPublic = Depends(get_current_u
             - subscription_type: User subscription level
             - created_at: Account creation timestamp
             - last_login_at: Last login timestamp
-            
+
     Example:
         GET /auth/me
-        Authorization: Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9...
-        
+
         Response:
         {
             "id": "user_uuid",
@@ -857,20 +451,22 @@ async def get_current_user_info(current_user: UserPublic = Depends(get_current_u
             "created_at": "2023-12-01T10:00:00Z",
             "last_login_at": "2023-12-01T15:30:00Z"
         }
-        
+
     Security Notes:
         - Only returns public profile information
         - Sensitive data (tokens, passwords) are excluded
-        - Validates token signature and expiration
+        - Validates session and user existence
         - Updates last_login_at timestamp
-        
+
     Use Cases:
         - Display user profile in dashboard
         - Customize UI based on user preferences
         - Check user subscription status
         - Verify authentication status
     """
-    return current_user
+    from app.auth_service import UserService
+    user_service = UserService()
+    return user_service.user_to_public(current_user)
 
 
 @router.post(
@@ -892,62 +488,57 @@ async def logout(
 ) -> APIResponse:
     """
     Logout user and clear session and cookies.
-    
+
     This endpoint logs out the current user by:
     - Invalidating secure session tokens
     - Clearing session cookies
-    - Removing legacy session data
     - Logging logout event for audit
-    
+
     The logout is performed even if no valid authentication is present,
     ensuring complete cleanup of any residual session data.
-    
+
     Session Cleanup:
     - Secure Redis session invalidation
     - Session cookie removal with secure flags
-    - Legacy IP-based session cleanup (deprecated)
     - Client-side storage recommendations
-    
+
     Args:
         request: FastAPI request object for accessing cookies and IP
         response: FastAPI response object for clearing cookies
         current_user: Optional authenticated user (may be None)
-        
+
     Returns:
         APIResponse: Logout result containing:
             - success: Always True
             - message: Confirmation message
-            
+
     Example:
         POST /auth/logout
-        
+
         Response:
         {
             "success": true,
             "message": "Logged out successfully"
         }
-        
+
     Security Features:
         - Secure session token invalidation
         - Cookie clearing with secure flags
         - Audit logging with user and session info
         - Graceful handling of invalid sessions
-        
+
     Client-Side Actions:
         After logout, clients should:
         - Clear localStorage/sessionStorage
         - Remove cached user data
         - Redirect to login page
-        - Clear any API tokens from memory
-        
+
     Notes:
         - Logout succeeds even without valid authentication
-        - JWT tokens continue to work until expiration (by design)
-        - For immediate token revocation, implement token blacklisting
         - Session invalidation prevents reuse of session cookies
     """
     config = get_config()
-    
+
     # Get session from secure cookie
     session_data = await get_session_from_request(request, config.secret_key)
     session_token = None
@@ -962,10 +553,6 @@ async def logout(
     if session_token:
         invalidate_session(session_token, response)
 
-
-    # In a full JWT implementation, we'd add the token to a blacklist
-    # For now, we just rely on token expiration and session invalidation
-
     logger.info(
         f"[AUTH-LOGOUT] User logged out",
         extra={
@@ -979,7 +566,7 @@ async def logout(
 
 @router.get(
     "/status",
-    summary="Check Authentication Status", 
+    summary="Check Authentication Status",
     description="Check if user is currently authenticated",
     tags=["Authentication", "Status"],
     responses={
@@ -998,7 +585,7 @@ async def logout(
                             }
                         },
                         "not_authenticated": {
-                            "summary": "User is not authenticated", 
+                            "summary": "User is not authenticated",
                             "value": {
                                 "success": False,
                                 "message": "Not authenticated"
@@ -1013,33 +600,31 @@ async def logout(
 async def auth_status(current_user: UserPublic = Depends(get_current_user_optional)) -> APIResponse:
     """
     Check authentication status.
-    
+
     This endpoint allows clients to verify if the current request is authenticated
     without requiring authentication. It's useful for:
     - Conditional UI rendering based on auth status
     - Checking session validity before API calls
     - Implementing auto-login flows
     - Dashboard initialization
-    
+
     Authentication Check:
-    - Validates JWT token if present in Authorization header
-    - Checks secure session cookie if JWT not provided
+    - Validates session cookie if present
     - Returns user information if authenticated
     - Returns status without error if not authenticated
-    
+
     Args:
         current_user: Optional authenticated user (injected dependency)
-        
+
     Returns:
         APIResponse: Authentication status containing:
             - success: True if authenticated, False otherwise
             - message: Status description
             - data: User information if authenticated (optional)
-            
+
     Example - Authenticated:
         GET /auth/status
-        Authorization: Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9...
-        
+
         Response:
         {
             "success": true,
@@ -1053,23 +638,23 @@ async def auth_status(current_user: UserPublic = Depends(get_current_user_option
                 }
             }
         }
-        
+
     Example - Not Authenticated:
         GET /auth/status
-        
+
         Response:
         {
             "success": false,
             "message": "Not authenticated"
         }
-        
+
     Use Cases:
         - Frontend authentication state management
         - Conditional navigation menu rendering
         - Auto-redirect to login if needed
         - Session validation before long operations
         - Multi-tab authentication synchronization
-        
+
     Security Notes:
         - Does not require authentication (safe for public use)
         - Only returns public user information
