@@ -6,8 +6,18 @@ the frontend validation loops that caused API storms.
 """
 import pytest
 import asyncio
+import sys
+from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 from datetime import datetime, timezone
+
+# Add parent directory to path so we can import app modules
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
+# Load test environment first
+from test_utils import load_test_environment
+load_test_environment()
+
 from app.models import (
     GameValidationResult, 
     GameValidationStatus,

@@ -43,7 +43,9 @@
       "Bash(pkill:*)",
       "mcp__desktop-commander__list_directory",
       "mcp__desktop-commander__read_multiple_files",
-      "mcp__desktop-commander__start_process"
+      "mcp__desktop-commander__start_process",
+      "Bash(source:*)",
+      "Bash(conda activate:*)"
     ],
     "deny": []
   }
