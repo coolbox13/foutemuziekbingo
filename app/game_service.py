@@ -622,7 +622,12 @@ class GameStateService:
     async def get_user_games(
         self, user_id: str, status_filter: Optional[GameStatus] = None
     ) -> List[GamePublic]:
-        """Get games for a specific user with error recovery"""
+        """
+        Get games for a specific user with improved error recovery
+        
+        CRIT-002 FIX: Simplified version that relies on CASCADE DELETE constraints
+        to ensure no orphaned records exist. Emergency cleanup logic removed.
+        """
         try:
             # Build query filters
             filters = {}
@@ -649,78 +654,45 @@ class GameStateService:
                     "game_players", filters={"user_id": user_id}
                 )
 
-                player_game_ids = [pg["game_id"] for pg in player_games_data]
                 joined_games = []
-
-                # EMERGENCY FIX: Use bulk query with EXISTS check to avoid orphaned records
-                if player_game_ids:
-                    try:
-                        # Query all games in one go to avoid N+1 queries and handle missing games
-                        bulk_query_filters = {"id": {"in": player_game_ids}}
-                        if status_filter:
-                            bulk_query_filters["status"] = status_filter.value
-                        
-                        joined_games = await database.query_records(
-                            "games", 
-                            filters=bulk_query_filters
+                if player_games_data:
+                    player_game_ids = [pg["game_id"] for pg in player_games_data]
+                    
+                    # Query all games in bulk - with CASCADE DELETE constraints,
+                    # all referenced games should exist
+                    bulk_query_filters = {"id": {"in": player_game_ids}}
+                    if status_filter:
+                        bulk_query_filters["status"] = status_filter.value
+                    
+                    joined_games = await database.query_records(
+                        "games", 
+                        filters=bulk_query_filters,
+                        order_by={"column": "created_at", "ascending": False}
+                    )
+                    
+                    # CRIT-002 INTEGRITY CHECK: Verify CASCADE DELETE is working
+                    found_game_ids = {game["id"] for game in joined_games}
+                    missing_game_ids = set(player_game_ids) - found_game_ids
+                    
+                    if missing_game_ids:
+                        # This should not happen with proper CASCADE DELETE constraints
+                        logger.error(
+                            f"[GAME-INTEGRITY-ERROR] Found game_players records referencing non-existent games",
+                            extra={
+                                "user_id": user_id,
+                                "missing_game_count": len(missing_game_ids),
+                                "missing_game_ids": list(missing_game_ids)[:5],  # Log first 5 for debugging
+                                "total_player_games": len(player_game_ids)
+                            }
                         )
                         
-                        # EMERGENCY CLEANUP: Log and clean up orphaned game_players records
-                        found_game_ids = {game["id"] for game in joined_games}
-                        orphaned_ids = set(player_game_ids) - found_game_ids
-                        
-                        if orphaned_ids:
-                            logger.warning(
-                                f"[GAME-CLEANUP-EMERGENCY] Found {len(orphaned_ids)} orphaned game_players records",
-                                extra={
-                                    "user_id": user_id,
-                                    "orphaned_count": len(orphaned_ids),
-                                    "total_player_games": len(player_game_ids)
-                                }
-                            )
-                            
-                            # Clean up orphaned records to prevent future issues
-                            for orphaned_id in orphaned_ids:
-                                try:
-                                    await database.delete_record("game_players", 
-                                        filters={"game_id": orphaned_id, "user_id": user_id})
-                                    logger.info(f"[GAME-CLEANUP] Removed orphaned game_players record: {orphaned_id}")
-                                except Exception as cleanup_error:
-                                    logger.warning(f"[GAME-CLEANUP-WARN] Failed to clean up orphaned record {orphaned_id}: {cleanup_error}")
-                                    
-                    except Exception as bulk_error:
-                        logger.warning(
-                            f"[GAME-BULK-WARN] Bulk query failed, falling back to individual queries",
-                            extra={"user_id": user_id, "error": str(bulk_error)}
+                        # Instead of cleaning up, we raise an error for investigation
+                        # This indicates the CASCADE DELETE migration hasn't been applied
+                        raise DatabaseError(
+                            f"Database integrity violation: {len(missing_game_ids)} game_players records "
+                            f"reference non-existent games. This indicates missing CASCADE DELETE constraints. "
+                            f"Please run the CRIT-002 migration to fix database schema."
                         )
-                        # Fallback to individual queries with better error handling
-                        joined_games = []
-                        for game_id in player_game_ids:
-                            try:
-                                game_data = await database.get_record("games", game_id)
-                                if game_data and (
-                                    not status_filter
-                                    or game_data["status"] == status_filter.value
-                                ):
-                                    joined_games.append(game_data)
-                            except Exception as game_error:
-                                logger.warning(
-                                    f"[GAME-SINGLE-WARN] Game {game_id} not found, cleaning up orphaned record",
-                                    extra={
-                                        "user_id": user_id,
-                                        "game_id": game_id,
-                                        "error": str(game_error),
-                                    },
-                                )
-                                # Clean up the orphaned record
-                                try:
-                                    await database.delete_record("game_players", 
-                                        filters={"game_id": game_id, "user_id": user_id})
-                                except Exception:
-                                    pass  # Ignore cleanup errors in fallback
-                                continue
-                else:
-                    joined_games = []
 
             except Exception as player_error:
                 logger.warning(
@@ -766,44 +738,45 @@ class GameStateService:
                             room_code=game_data.get("room_code"),
                             max_players=game_data["max_players"],
                             current_players=len(players),
-                            # Default to False if missing
                             is_private=game_data.get("is_private", False),
                             created_at=datetime.fromisoformat(game_data["created_at"]),
-                            started_at=datetime.fromisoformat(game_data["started_at"])
-                            if game_data.get("started_at")
-                            else None,
+                            started_at=(
+                                datetime.fromisoformat(game_data["started_at"])
+                                if game_data.get("started_at")
+                                else None
+                            ),
                         )
                         public_games.append(public_game)
-                    except Exception as model_error:
+
+                    except Exception as conversion_error:
                         logger.warning(
-                            f"[GAME-MODEL-WARN] Failed to create GamePublic model: {str(model_error)}",
+                            f"[GAME-CONVERT-WARN] Failed to convert game data",
                             extra={
                                 "user_id": user_id,
                                 "game_id": game_data["id"],
-                                "error": str(model_error),
-                                "error_type": type(model_error).__name__,
-                                "game_data_keys": list(game_data.keys())
-                                if game_data
-                                else [],
+                                "error": str(conversion_error),
                             },
                         )
                         continue
 
-            return sorted(public_games, key=lambda g: g.created_at, reverse=True)
+            logger.debug(
+                f"[GAME-SERVICE] Retrieved {len(public_games)} games for user",
+                extra={"user_id": user_id, "status_filter": status_filter},
+            )
+
+            return public_games
 
         except Exception as e:
-            logger.warning(
-                f"[GAME-USER-WARN] Unexpected error getting user games, returning empty list",
+            logger.error(
+                f"[GAME-SERVICE-ERROR] Failed to get user games",
                 extra={
                     "user_id": user_id,
-                    "status_filter": status_filter.value if status_filter else None,
                     "error": str(e),
                     "error_type": type(e).__name__,
                 },
             )
             # Return empty list rather than failing completely
             return []
-
 
 
     async def validate_game(self, game_id: str, user_id: str, include_track_count: bool = True) -> "GameValidationResult":

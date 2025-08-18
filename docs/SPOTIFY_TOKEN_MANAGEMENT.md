@@ -291,7 +291,7 @@ Comprehensive test coverage including:
 ### Database Migration
 Run the migration to create the notifications table:
 ```sql
--- Execute migrations/add_notifications_table.sql
+-- Execute supabase/migrations/20250818_add_notifications_table.sql
 ```
 
 ### Service Integration
