@@ -10,12 +10,11 @@ Tests cover:
 """
 
 import pytest
-import asyncio
 import json
 import os
 import tempfile
 from datetime import datetime
-from unittest.mock import patch, MagicMock, AsyncMock
+from unittest.mock import patch, AsyncMock
 
 from app.models import (
     RedisGameState,

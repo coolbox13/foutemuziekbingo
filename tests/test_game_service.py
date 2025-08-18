@@ -8,10 +8,9 @@ from datetime import datetime
 
 # Load test environment first
 from test_utils import load_test_environment
-load_test_environment()
-
 from app.models import GameCreate, GameStatus, User
-from app.game_service import game_service
+
+load_test_environment()
 
 
 async def test_game_creation():

@@ -7,10 +7,10 @@ import asyncio
 
 # Load test environment first
 from test_utils import load_test_environment
-load_test_environment()
-
-from app.redis_session_store import get_redis_session_store, RedisConnectionError
+from app.redis_session_store import get_redis_session_store
 from app.secure_session import get_session_store
+
+load_test_environment()
 
 
 class TestRedisSessionStore:
@@ -135,6 +135,6 @@ if __name__ == "__main__":
         await test_instance.test_hybrid_session_selection()
         print("✓ Hybrid session selection test passed")
 
-        print("\nAll Redis session tests passed\!")
+        print("\nAll Redis session tests passed!")
 
     asyncio.run(run_tests())

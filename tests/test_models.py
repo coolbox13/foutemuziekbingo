@@ -3,18 +3,18 @@
 Test script for models.py
 Tests Pydantic models, validation, and data structures
 """
+import sys
+from pathlib import Path
+
+# Add parent directory to path so we can import app modules
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
 import pytest
-from typing import Optional
 from datetime import datetime
 from app.models import (
     UserBase,
-    User,
-    UserCreate,
-    UserUpdate,
     Game,
     GameCreate,
-    GameUpdate,
-    GameStatus,
     SpotifyUserProfile,
     SpotifyTokens,
     Playlist,
@@ -88,6 +88,7 @@ class TestGameModels:
             host_id="user-123",
             name="Test Game",
             room_code="123456",
+            playlist_id="test-playlist-123",
             created_at=datetime.now(),
             updated_at=datetime.now(),
         )
@@ -101,6 +102,7 @@ class TestGameModels:
                 host_id="user-123",
                 name="Test Game",
                 room_code="12345",  # Too short
+                playlist_id="test-playlist-123",
                 created_at=datetime.now(),
                 updated_at=datetime.now(),
             )
@@ -113,6 +115,7 @@ class TestGameModels:
                 host_id="user-123",
                 name="Test Game",
                 room_code="abc123",  # Contains letters
+                playlist_id="test-playlist-123",
                 created_at=datetime.now(),
                 updated_at=datetime.now(),
             )
@@ -124,6 +127,7 @@ class TestGameModels:
             host_id="user-123",
             name="Test Game",
             room_code=None,
+            playlist_id="test-playlist-123",
             created_at=datetime.now(),
             updated_at=datetime.now(),
         )
@@ -182,7 +186,7 @@ class TestPlaylistModels:
         assert track.album == "Test Album"
         assert track.duration_ms == 180000
         assert track.preview_url == "https://example.com/preview.mp3"
-        assert track.played == False  # Default value
+        assert track.played is False  # Default value
 
     def test_playlist_valid(self):
         """Test valid Playlist creation"""
@@ -200,7 +204,7 @@ class TestPlaylistModels:
         assert playlist.name == "Test Playlist"
         assert playlist.description == "A test playlist"
         assert playlist.owner_id == "user123"
-        assert playlist.is_public == True
+        assert playlist.is_public is True
         assert playlist.track_count == 10
 
 
@@ -227,7 +231,7 @@ class TestBingoModels:
         assert card.game_id == "game123"
         assert len(card.tracks) == 25
         assert len(card.matched_positions) == 0  # Default empty list
-        assert card.is_winner == False  # Default value
+        assert card.is_winner is False  # Default value
 
 
 def run_tests():
@@ -237,6 +241,7 @@ def run_tests():
     # Test UserBase
     try:
         user = UserBase(spotify_id="testuser123", display_name="Test User")
+        assert user.spotify_id == "testuser123"
         print("✅ UserBase creation: PASS")
     except Exception as e:
         print(f"❌ UserBase creation: FAIL - {e}")
@@ -257,9 +262,11 @@ def run_tests():
             host_id="user-123",
             name="Test Game",
             room_code="123456",
+            playlist_id="test-playlist-123",
             created_at=datetime.now(),
             updated_at=datetime.now(),
         )
+        assert game.name == "Test Game"
         print("✅ Game creation: PASS")
     except Exception as e:
         print(f"❌ Game creation: FAIL - {e}")
@@ -271,6 +278,7 @@ def run_tests():
             host_id="user-123",
             name="Test Game",
             room_code="12345",  # Should fail
+            playlist_id="test-playlist-123",
             created_at=datetime.now(),
             updated_at=datetime.now(),
         )
@@ -281,6 +289,11 @@ def run_tests():
         print(f"❌ Room code validation: FAIL - {e}")
 
     print("Model tests completed!")
+
+
+async def run_model_tests():
+    """Async wrapper for model tests"""
+    run_tests()
 
 
 if __name__ == "__main__":

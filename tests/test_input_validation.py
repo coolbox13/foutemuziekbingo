@@ -5,7 +5,7 @@ Tests for comprehensive input validation models.
 import pytest
 from pydantic import ValidationError
 from app.validation_models import (
-    GameIdParam, PlaylistIdParam, TrackIdParam, CardIdParam,
+    GameIdParam, PlaylistIdParam, TrackIdParam,
     RoomCodeParam, FilenameParam, PaginationQuery, GameFilterQuery,
     DeviceSelectionRequest, GameActionRequest, MarkTrackRequest,
     CardGenerationRequest, validate_uuid, sanitize_string, validate_spotify_id

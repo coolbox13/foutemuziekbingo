@@ -5,6 +5,11 @@ Tests Supabase connection and database operations
 """
 import asyncio
 import os
+import sys
+from pathlib import Path
+
+# Add parent directory to path so we can import app modules
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
 # Load test environment first
 from test_utils import load_test_environment
@@ -56,13 +61,16 @@ async def test_query_execution():
         await db_service.initialize()
 
         # Test a simple query (list tables or similar)
-        async def simple_query():
+        async def simple_query(connection):
             # This would be a real query in production
             return {"status": "success", "tables": ["users", "games", "playlists"]}
 
         result = await db_service.execute_query(simple_query)
         print("✅ Query execution: PASS")
-        print(f"  Result status: {result.get('status')}")
+        if hasattr(result, 'get'):
+            print(f"  Result status: {result.get('status')}")
+        else:
+            print(f"  Result: {result}")
 
     except Exception as e:
         print(f"❌ Query execution: FAIL - {e}")

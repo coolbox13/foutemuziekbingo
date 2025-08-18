@@ -21,15 +21,11 @@ Test Coverage:
 import pytest
 import asyncio
 import json
-from typing import Dict, Any, List
-from unittest.mock import patch, MagicMock, AsyncMock
+from typing import Dict, Any
+from unittest.mock import patch, AsyncMock
 import uuid
 
-import socketio
-from httpx import AsyncClient
-
 # Import WebSocket components
-from app.socket_handler import sio
 from app.redis_pubsub import RedisPubSubManager
 from app.fastapi_app import create_app
 from app.config import get_config
@@ -76,6 +72,7 @@ class TestSocketIOConnection:
     async def test_socket_connection(self):
         """Test basic Socket.IO connection."""
         app = create_app()
+        assert app is not None  # Use app
 
         # Mock Socket.IO server
         with patch('app.socket_handler.sio') as mock_sio:
@@ -257,6 +254,7 @@ class TestRedisPubSubIntegration:
     async def test_message_consumption(self):
         """Test consuming and processing Redis pub/sub messages."""
         manager = RedisPubSubManager()
+        assert manager is not None  # Use manager
 
         # Mock message processing
         processed_messages = []
@@ -660,7 +658,7 @@ if __name__ == "__main__":
         print(f"Success Rate: {(passed_tests/total_tests)*100:.1f}%")
 
         if passed_tests == total_tests:
-            print("\n🎉 All WebSocket integration tests passed\!")
+            print("\n🎉 All WebSocket integration tests passed!")
             return True
         else:
             print(f"\n⚠️ {total_tests - passed_tests} test(s) failed")

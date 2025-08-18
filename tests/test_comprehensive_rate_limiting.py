@@ -20,14 +20,11 @@ Test Coverage:
 import pytest
 import asyncio
 import time
-import json
-from typing import Dict, Any, List
-from unittest.mock import patch, MagicMock, AsyncMock
+from typing import Dict
+from unittest.mock import patch, AsyncMock, MagicMock
 from datetime import datetime, timezone, timedelta
 
 import redis.asyncio as redis
-from fastapi import FastAPI, Request, Response
-from fastapi.testclient import TestClient
 from httpx import AsyncClient
 
 # Import rate limiting components
@@ -37,7 +34,6 @@ from app.rate_limiter import (
     create_default_rate_limiter
 )
 from app.fastapi_app import create_app
-from app.config import get_config
 
 
 class MockRequest:
@@ -257,7 +253,7 @@ class TestRateLimitAbuseScenarios:
                 RateLimitStatus(remaining=1, limit=3, reset_at=datetime.now(timezone.utc)),
                 RateLimitStatus(remaining=0, limit=3, reset_at=datetime.now(timezone.utc)),
                 RateLimitStatus(remaining=0, limit=3, reset_at=datetime.now(timezone.utc),
-                               retry_after=10, blocked_until=datetime.now(timezone.utc) + timedelta(seconds=10)),
+                                retry_after=10, blocked_until=datetime.now(timezone.utc) + timedelta(seconds=10)),
             ]
             mock_backend.increment_counter.side_effect = responses
             limiter.backend = mock_backend
@@ -780,7 +776,7 @@ if __name__ == "__main__":
         print(f"Success Rate: {(passed_tests/total_tests)*100:.1f}%")
 
         if passed_tests == total_tests:
-            print("\n🎉 All comprehensive rate limiting tests passed\!")
+            print("\n🎉 All comprehensive rate limiting tests passed!")
             return True
         else:
             print(f"\n⚠️ {total_tests - passed_tests} test(s) failed")

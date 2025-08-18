@@ -135,7 +135,6 @@ class TestCSRFProtection:
 
 if __name__ == "__main__":
     # Simple test runner for development
-    import asyncio
 
     def run_tests():
         test_instance = TestCSRFProtection()

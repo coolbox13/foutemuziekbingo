@@ -20,24 +20,20 @@ Test Coverage:
 
 import pytest
 import asyncio
-import json
 import time
 from typing import Dict, Any, List, Optional
-from unittest.mock import patch, MagicMock, AsyncMock
-from datetime import datetime, timezone, timedelta
+from unittest.mock import patch, AsyncMock
 
 import redis.asyncio as redis
 
 # Load test environment first
 from test_utils import load_test_environment
-load_test_environment()
-
-# Import cache components
 from app.cache_manager import (
-    CacheManager, CacheType, CacheEntry, CacheStats,
+    CacheManager, CacheType,
     CacheConnectionError
 )
-from app.config import get_config
+
+load_test_environment()
 
 
 class MockRedisClient:
@@ -820,7 +816,7 @@ if __name__ == "__main__":
         print(f"Success Rate: {(passed_tests/total_tests)*100:.1f}%")
 
         if passed_tests == total_tests:
-            print("\n🎉 All cache integration tests passed\!")
+            print("\n🎉 All cache integration tests passed!")
             return True
         else:
             print(f"\n⚠️ {total_tests - passed_tests} test(s) failed")
