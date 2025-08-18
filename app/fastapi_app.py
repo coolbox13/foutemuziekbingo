@@ -461,14 +461,16 @@ def create_app() -> FastAPI:
                 f"sessions_total {session_stats.get('total_sessions_created', 0)}",
             ])
             
-            # Rate limiting metrics
+            # Enhanced Rate limiting metrics from analytics
+            rate_prometheus_metrics = rate_limiter.get_prometheus_metrics()
+            metrics_lines.extend(rate_prometheus_metrics)
+            
+            # Additional security metrics
+            abuse_patterns = rate_limiter.get_abuse_patterns()
             metrics_lines.extend([
-                f"# HELP rate_limit_requests_checked_total Total requests checked by rate limiter",
-                f"# TYPE rate_limit_requests_checked_total counter",
-                f"rate_limit_requests_checked_total {rate_limiter_stats.get('requests_checked', 0)}",
-                f"# HELP rate_limit_requests_blocked_total Total requests blocked by rate limiter", 
-                f"# TYPE rate_limit_requests_blocked_total counter",
-                f"rate_limit_requests_blocked_total {rate_limiter_stats.get('requests_blocked', 0)}",
+                f"# HELP rate_limit_abuse_patterns_detected Security abuse patterns detected",
+                f"# TYPE rate_limit_abuse_patterns_detected gauge",
+                f"rate_limit_abuse_patterns_detected {len(abuse_patterns)}",
             ])
             
             
