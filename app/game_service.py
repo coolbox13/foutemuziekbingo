@@ -805,5 +805,458 @@ class GameStateService:
             return []
 
 
+
+    async def validate_game(self, game_id: str, user_id: str, include_track_count: bool = True) -> "GameValidationResult":
+        """
+        Validate a single game for existence, accessibility, and readiness.
+        
+        Args:
+            game_id: Game ID to validate
+            user_id: User ID requesting validation (for access checks)
+            include_track_count: Whether to include playlist track count
+            
+        Returns:
+            GameValidationResult with comprehensive validation status
+        """
+        from app.models import GameValidationResult, GameValidationStatus
+        
+        logger.debug(f"[GAME-VALIDATE-001] Validating game {game_id} for user {user_id}")
+        
+        try:
+            # Check if game exists in database
+            game_data = await database.get_record("games", game_id)
+            if not game_data:
+                return GameValidationResult(
+                    game_id=game_id,
+                    status=GameValidationStatus.NOT_FOUND,
+                    exists=False,
+                    has_playlist=False,
+                    track_count=0,
+                    can_generate_cards=False,
+                    error_message="Game not found in database"
+                )
+            
+            # Check user access to game
+            user_has_access = (
+                game_data["host_id"] == user_id or 
+                not game_data.get("is_private", False)
+            )
+            
+            if game_data.get("is_private", False) and game_data["host_id"] != user_id:
+                # Check if user is a player
+                players = await database.query_records(
+                    "game_players", 
+                    filters={"game_id": game_id, "user_id": user_id}
+                )
+                user_has_access = len(players) > 0
+            
+            # Get playlist data if game exists
+            playlist_id = game_data.get("playlist_id")
+            has_playlist = False
+            track_count = 0
+            
+            if playlist_id:
+                playlist_data = await database.get_record("playlists", playlist_id)
+                if playlist_data:
+                    has_playlist = True
+                    if include_track_count:
+                        # Count tracks in playlist
+                        tracks = await database.query_records(
+                            "playlist_tracks",
+                            filters={"playlist_id": playlist_id}
+                        )
+                        track_count = len(tracks)
+                    else:
+                        # Use stored total_tracks if available
+                        track_count = playlist_data.get("total_tracks", 0)
+            
+            # Determine validation status
+            if not user_has_access:
+                status = GameValidationStatus.INVALID
+                error_message = "Access denied to private game"
+            elif not has_playlist:
+                status = GameValidationStatus.NO_PLAYLIST
+                error_message = "Game has no valid playlist"
+            elif track_count < 25:  # Minimum for 5x5 bingo card
+                status = GameValidationStatus.INSUFFICIENT_TRACKS
+                error_message = f"Playlist has only {track_count} tracks (minimum 25 required)"
+            else:
+                status = GameValidationStatus.VALID
+                error_message = None
+            
+            # Get last activity timestamp
+            last_activity = None
+            if game_data.get("updated_at"):
+                last_activity = datetime.fromisoformat(game_data["updated_at"])
+            elif game_data.get("created_at"):
+                last_activity = datetime.fromisoformat(game_data["created_at"])
+            
+            return GameValidationResult(
+                game_id=game_id,
+                status=status,
+                exists=True,
+                has_playlist=has_playlist,
+                track_count=track_count,
+                can_generate_cards=track_count >= 25,
+                error_message=error_message,
+                last_activity=last_activity
+            )
+            
+        except Exception as e:
+            logger.error(
+                f"[GAME-VALIDATE-ERROR] Error validating game {game_id}",
+                extra={"game_id": game_id, "user_id": user_id, "error": str(e)}
+            )
+            return GameValidationResult(
+                game_id=game_id,
+                status=GameValidationStatus.INVALID,
+                exists=False,
+                has_playlist=False,
+                track_count=0,
+                can_generate_cards=False,
+                error_message=f"Validation error: {str(e)}"
+            )
+
+    async def validate_games_bulk(
+        self, 
+        game_ids: List[str], 
+        user_id: str, 
+        include_track_count: bool = True,
+        filter_status: Optional["GameStatus"] = None
+    ) -> "BulkGameValidationResponse":
+        """
+        Validate multiple games in a single efficient operation.
+        
+        Args:
+            game_ids: List of game IDs to validate (max 100)
+            user_id: User ID requesting validation
+            include_track_count: Whether to include playlist track counts
+            filter_status: Optional status filter for games
+            
+        Returns:
+            BulkGameValidationResponse with all validation results
+        """
+        from app.models import BulkGameValidationResponse, GameValidationStatus
+        import time
+        
+        start_time = time.time()
+        
+        logger.info(
+            f"[GAME-BULK-VALIDATE-001] Starting bulk validation",
+            extra={
+                "user_id": user_id,
+                "game_count": len(game_ids),
+                "include_track_count": include_track_count,
+                "filter_status": filter_status.value if filter_status else None
+            }
+        )
+        
+        # Limit to prevent abuse
+        if len(game_ids) > 100:
+            game_ids = game_ids[:100]
+            logger.warning(
+                f"[GAME-BULK-VALIDATE-WARN] Truncated game list to 100 items",
+                extra={"user_id": user_id, "original_count": len(game_ids)}
+            )
+        
+        validation_results = []
+        summary = {
+            "valid": 0,
+            "invalid": 0,
+            "not_found": 0,
+            "no_playlist": 0,
+            "insufficient_tracks": 0
+        }
+        
+        try:
+            # Efficient bulk database queries
+            # 1. Get all games in one query
+            games_query = """
+                SELECT id, host_id, playlist_id, is_private, status, created_at, updated_at
+                FROM games 
+                WHERE id = ANY($1)
+            """
+            if filter_status:
+                games_query += " AND status = $2"
+                games_data = await database.execute_query(
+                    games_query, 
+                    [game_ids, filter_status.value]
+                )
+            else:
+                games_data = await database.execute_query(games_query, [game_ids])
+            
+            # Create lookup for existing games
+            games_lookup = {game["id"]: game for game in games_data}
+            
+            # 2. Get user's game participation in one query
+            player_games_query = """
+                SELECT DISTINCT game_id 
+                FROM game_players 
+                WHERE user_id = $1 AND game_id = ANY($2)
+            """
+            player_games_data = await database.execute_query(
+                player_games_query, 
+                [user_id, game_ids]
+            )
+            user_game_ids = {row["game_id"] for row in player_games_data}
+            
+            # 3. Get playlist data for games that have playlists
+            playlist_ids = [
+                game["playlist_id"] for game in games_data 
+                if game.get("playlist_id")
+            ]
+            
+            playlists_lookup = {}
+            track_counts_lookup = {}
+            
+            if playlist_ids:
+                # Get playlist existence
+                playlists_query = "SELECT id, total_tracks FROM playlists WHERE id = ANY($1)"
+                playlists_data = await database.execute_query(playlists_query, [playlist_ids])
+                playlists_lookup = {p["id"]: p for p in playlists_data}
+                
+                # Get actual track counts if requested
+                if include_track_count:
+                    track_counts_query = """
+                        SELECT playlist_id, COUNT(*) as track_count
+                        FROM playlist_tracks 
+                        WHERE playlist_id = ANY($1)
+                        GROUP BY playlist_id
+                    """
+                    track_counts_data = await database.execute_query(
+                        track_counts_query, 
+                        [playlist_ids]
+                    )
+                    track_counts_lookup = {
+                        row["playlist_id"]: row["track_count"] 
+                        for row in track_counts_data
+                    }
+            
+            # 4. Process each game ID
+            for game_id in game_ids:
+                try:
+                    result = await self._validate_single_game_from_bulk_data(
+                        game_id=game_id,
+                        user_id=user_id,
+                        games_lookup=games_lookup,
+                        user_game_ids=user_game_ids,
+                        playlists_lookup=playlists_lookup,
+                        track_counts_lookup=track_counts_lookup,
+                        include_track_count=include_track_count
+                    )
+                    
+                    validation_results.append(result)
+                    summary[result.status.value] += 1
+                    
+                except Exception as e:
+                    logger.error(
+                        f"[GAME-BULK-VALIDATE-ERROR] Error validating game {game_id}",
+                        extra={"game_id": game_id, "user_id": user_id, "error": str(e)}
+                    )
+                    # Add error result
+                    from app.models import GameValidationResult, GameValidationStatus
+                    error_result = GameValidationResult(
+                        game_id=game_id,
+                        status=GameValidationStatus.INVALID,
+                        exists=False,
+                        has_playlist=False,
+                        track_count=0,
+                        can_generate_cards=False,
+                        error_message=f"Validation error: {str(e)}"
+                    )
+                    validation_results.append(error_result)
+                    summary["invalid"] += 1
+            
+            processing_time_ms = (time.time() - start_time) * 1000
+            
+            logger.info(
+                f"[GAME-BULK-VALIDATE-002] Bulk validation completed",
+                extra={
+                    "user_id": user_id,
+                    "total_requested": len(game_ids),
+                    "total_processed": len(validation_results),
+                    "processing_time_ms": processing_time_ms,
+                    "summary": summary
+                }
+            )
+            
+            return BulkGameValidationResponse(
+                success=True,
+                total_requested=len(game_ids),
+                total_processed=len(validation_results),
+                validation_results=validation_results,
+                summary=summary,
+                timestamp=datetime.now(timezone.utc),
+                processing_time_ms=processing_time_ms
+            )
+            
+        except Exception as e:
+            logger.error(
+                f"[GAME-BULK-VALIDATE-ERROR] Bulk validation failed",
+                extra={
+                    "user_id": user_id,
+                    "game_count": len(game_ids),
+                    "error": str(e)
+                }
+            )
+            
+            processing_time_ms = (time.time() - start_time) * 1000
+            
+            return BulkGameValidationResponse(
+                success=False,
+                total_requested=len(game_ids),
+                total_processed=len(validation_results),
+                validation_results=validation_results,
+                summary=summary,
+                timestamp=datetime.now(timezone.utc),
+                processing_time_ms=processing_time_ms
+            )
+
+    async def _validate_single_game_from_bulk_data(
+        self,
+        game_id: str,
+        user_id: str,
+        games_lookup: Dict[str, Dict],
+        user_game_ids: set,
+        playlists_lookup: Dict[str, Dict],
+        track_counts_lookup: Dict[str, int],
+        include_track_count: bool
+    ) -> "GameValidationResult":
+        """
+        Helper method to validate a single game using pre-fetched bulk data.
+        
+        This method is optimized for bulk operations and avoids individual database queries.
+        """
+        from app.models import GameValidationResult, GameValidationStatus
+        
+        # Check if game exists
+        game_data = games_lookup.get(game_id)
+        if not game_data:
+            return GameValidationResult(
+                game_id=game_id,
+                status=GameValidationStatus.NOT_FOUND,
+                exists=False,
+                has_playlist=False,
+                track_count=0,
+                can_generate_cards=False,
+                error_message="Game not found in database"
+            )
+        
+        # Check user access
+        user_has_access = (
+            game_data["host_id"] == user_id or 
+            not game_data.get("is_private", False) or
+            game_id in user_game_ids
+        )
+        
+        if not user_has_access:
+            return GameValidationResult(
+                game_id=game_id,
+                status=GameValidationStatus.INVALID,
+                exists=True,
+                has_playlist=False,
+                track_count=0,
+                can_generate_cards=False,
+                error_message="Access denied to private game"
+            )
+        
+        # Check playlist
+        playlist_id = game_data.get("playlist_id")
+        has_playlist = False
+        track_count = 0
+        
+        if playlist_id and playlist_id in playlists_lookup:
+            has_playlist = True
+            if include_track_count and playlist_id in track_counts_lookup:
+                track_count = track_counts_lookup[playlist_id]
+            else:
+                # Use stored total_tracks as fallback
+                track_count = playlists_lookup[playlist_id].get("total_tracks", 0)
+        
+        # Determine status
+        if not has_playlist:
+            status = GameValidationStatus.NO_PLAYLIST
+            error_message = "Game has no valid playlist"
+        elif track_count < 25:
+            status = GameValidationStatus.INSUFFICIENT_TRACKS
+            error_message = f"Playlist has only {track_count} tracks (minimum 25 required)"
+        else:
+            status = GameValidationStatus.VALID
+            error_message = None
+        
+        # Get last activity
+        last_activity = None
+        if game_data.get("updated_at"):
+            last_activity = datetime.fromisoformat(game_data["updated_at"])
+        elif game_data.get("created_at"):
+            last_activity = datetime.fromisoformat(game_data["created_at"])
+        
+        return GameValidationResult(
+            game_id=game_id,
+            status=status,
+            exists=True,
+            has_playlist=has_playlist,
+            track_count=track_count,
+            can_generate_cards=track_count >= 25,
+            error_message=error_message,
+            last_activity=last_activity
+        )
+
+    async def check_game_existence(self, game_id: str, user_id: str) -> "GameExistenceCheck":
+        """
+        Quick game existence check without full validation.
+        
+        Args:
+            game_id: Game ID to check
+            user_id: User ID for access validation
+            
+        Returns:
+            GameExistenceCheck with basic existence and access info
+        """
+        from app.models import GameExistenceCheck
+        
+        try:
+            game_data = await database.get_record("games", game_id)
+            if not game_data:
+                return GameExistenceCheck(
+                    game_id=game_id,
+                    exists=False,
+                    accessible=False,
+                    status=None
+                )
+            
+            # Check accessibility
+            accessible = (
+                game_data["host_id"] == user_id or 
+                not game_data.get("is_private", False)
+            )
+            
+            if game_data.get("is_private", False) and game_data["host_id"] != user_id:
+                # Quick check if user is a player
+                players = await database.query_records(
+                    "game_players",
+                    filters={"game_id": game_id, "user_id": user_id}
+                )
+                accessible = len(players) > 0
+            
+            return GameExistenceCheck(
+                game_id=game_id,
+                exists=True,
+                accessible=accessible,
+                status=GameStatus(game_data["status"]) if game_data.get("status") else None
+            )
+            
+        except Exception as e:
+            logger.error(
+                f"[GAME-EXISTENCE-ERROR] Error checking game existence",
+                extra={"game_id": game_id, "user_id": user_id, "error": str(e)}
+            )
+            return GameExistenceCheck(
+                game_id=game_id,
+                exists=False,
+                accessible=False,
+                status=None
+            )
+
 # Global game service instance
 game_service = GameStateService()

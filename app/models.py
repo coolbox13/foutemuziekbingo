@@ -574,3 +574,60 @@ class RedisKeySchema:
             "activity": 86400,       # 24 hours
         }
         return ttl_map.get(key_type, 3600)  # Default 1 hour
+
+
+# =============================================
+# GAME VALIDATION MODELS
+# =============================================
+
+class GameValidationStatus(str, Enum):
+    """Game validation status enumeration"""
+    
+    VALID = "valid"
+    INVALID = "invalid"
+    NOT_FOUND = "not_found"
+    NO_PLAYLIST = "no_playlist"
+    INSUFFICIENT_TRACKS = "insufficient_tracks"
+
+
+class GameValidationResult(BaseModel):
+    """Individual game validation result"""
+    
+    game_id: str = Field(..., description="Game ID")
+    status: GameValidationStatus = Field(..., description="Validation status")
+    exists: bool = Field(..., description="Whether game exists in database")
+    has_playlist: bool = Field(default=False, description="Whether game has playlist data")
+    track_count: int = Field(default=0, description="Number of tracks in playlist")
+    can_generate_cards: bool = Field(default=False, description="Whether game has enough tracks for bingo cards")
+    error_message: Optional[str] = Field(None, description="Error message if validation failed")
+    last_activity: Optional[datetime] = Field(None, description="Last activity timestamp")
+
+
+class BulkGameValidationRequest(BaseModel):
+    """Request model for bulk game validation"""
+    
+    game_ids: List[str] = Field(..., description="List of game IDs to validate", max_items=100)
+    include_track_count: bool = Field(default=True, description="Whether to include track count in response")
+    filter_status: Optional[GameStatus] = Field(None, description="Optional status filter")
+
+
+class BulkGameValidationResponse(BaseModel):
+    """Response model for bulk game validation"""
+    
+    success: bool = Field(..., description="Request success status")
+    total_requested: int = Field(..., description="Total number of games requested for validation")
+    total_processed: int = Field(..., description="Total number of games processed")
+    validation_results: List[GameValidationResult] = Field(..., description="Individual game validation results")
+    summary: Dict[str, int] = Field(..., description="Summary of validation results by status")
+    timestamp: datetime = Field(default_factory=datetime.now, description="Validation timestamp")
+    processing_time_ms: Optional[float] = Field(None, description="Processing time in milliseconds")
+
+
+class GameExistenceCheck(BaseModel):
+    """Simple game existence check response"""
+    
+    game_id: str = Field(..., description="Game ID")
+    exists: bool = Field(..., description="Whether game exists")
+    accessible: bool = Field(default=False, description="Whether user can access the game")
+    status: Optional[GameStatus] = Field(None, description="Game status if exists")
+

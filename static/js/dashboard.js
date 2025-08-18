@@ -182,16 +182,257 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 });
 
-// Dashboard State Validation
+
+// ==========================================
+// BULK VALIDATION FUNCTIONS (CRIT-001 FIX)
+// ==========================================
+
+// ==========================================
+// NEW BULK VALIDATION FUNCTIONS
+// ==========================================
+
+/**
+ * Validate multiple games using the new bulk validation API
+ * This replaces the individual validation loops that caused API storms
+ */
+async function validateGamesBatch(gameIds, options = {}) {
+    if (!gameIds || gameIds.length === 0) {
+        return { success: true, validation_results: [], summary: {} };
+    }
+    
+    console.log(`[VALIDATION] Starting bulk validation for ${gameIds.length} games`);
+    
+    try {
+        const response = await fetchJSON('/game/api/games/validate-batch', {
+            method: 'POST',
+            body: JSON.stringify({
+                game_ids: gameIds,
+                include_track_count: options.include_track_count ?? true,
+                filter_status: options.filter_status || null
+            })
+        });
+        
+        console.log(`[VALIDATION] Bulk validation completed:`, {
+            total_requested: response.total_requested,
+            total_processed: response.total_processed,
+            processing_time_ms: response.processing_time_ms,
+            summary: response.summary
+        });
+        
+        return response;
+    } catch (error) {
+        console.error('[VALIDATION] Bulk validation failed:', error);
+        // Return empty success response as fallback
+        return { 
+            success: false, 
+            validation_results: [], 
+            summary: { invalid: gameIds.length },
+            error: error.message 
+        };
+    }
+}
+
+/**
+ * Quick game existence check using the new existence API
+ */
+async function checkGameExists(gameId) {
+    try {
+        const result = await fetchJSON(`/game/api/games/${gameId}/exists`);
+        return result;
+    } catch (error) {
+        console.error(`[VALIDATION] Game existence check failed for ${gameId}:`, error);
+        return { game_id: gameId, exists: false, accessible: false, status: null };
+    }
+}
+
+/**
+ * Find the first valid game from a list using bulk validation
+ * This replaces the circuit breaker loop in getOrCreateActiveGame
+ */
+async function findValidGameFromList(games, options = {}) {
+    if (!games || games.length === 0) {
+        return null;
+    }
+    
+    console.log(`[VALIDATION] Finding valid game from ${games.length} candidates`);
+    
+    // Extract game IDs
+    const gameIds = games.map(game => game.id || game);
+    
+    // Use bulk validation to check all games efficiently
+    const validation = await validateGamesBatch(gameIds, {
+        include_track_count: true,
+        filter_status: options.filter_status
+    });
+    
+    if (!validation.success || !validation.validation_results) {
+        console.warn('[VALIDATION] Bulk validation failed, falling back to first game');
+        return games[0];
+    }
+    
+    // Find the first valid game
+    for (const result of validation.validation_results) {
+        if (result.status === 'valid' && result.can_generate_cards) {
+            // Find the original game object
+            const validGame = games.find(game => (game.id || game) === result.game_id);
+            if (validGame) {
+                console.log(`[VALIDATION] Found valid game: ${result.game_id}`);
+                return validGame;
+            }
+        }
+    }
+    
+    // If no valid games found, log the summary and return null
+    console.warn('[VALIDATION] No valid games found:', validation.summary);
+    return null;
+}
+
+// ==========================================
+// UPDATED GAME MANAGEMENT FUNCTIONS
+// ==========================================
+
+/**
+ * Updated getOrCreateActiveGame function without circuit breaker
+ * Uses new bulk validation API for efficient game validation
+ */
+async function getOrCreateActiveGame(allowCreate = true) {
+    try {
+        // If we already have a game, verify it exists and is accessible
+        if (activeGameId) {
+            try {
+                const existing = await fetchJSON(`/game/api/games/${activeGameId}`);
+                return existing;
+            } catch (_) {
+                // Reset invalid game id and fall through to discovery/creation
+                activeGameId = null;
+            }
+        }
+
+        // Try to find an in-progress game
+        const inProgress = await fetchJSON('/game/api/games?status=in_progress').catch(() => []);
+        if (Array.isArray(inProgress) && inProgress.length > 0) {
+            // Use bulk validation to find the best in-progress game
+            const validGame = await findValidGameFromList(inProgress, { filter_status: 'in_progress' });
+            if (validGame) {
+                return validGame;
+            }
+        }
+
+        // Try to find a waiting game with playlist data
+        const waiting = await fetchJSON('/game/api/games?status=waiting').catch(() => []);
+        if (Array.isArray(waiting) && waiting.length > 0) {
+            console.log(`[VALIDATION] Checking ${waiting.length} waiting games using bulk validation`);
+            
+            // Use bulk validation to find valid waiting games
+            const validGame = await findValidGameFromList(waiting, { filter_status: 'waiting' });
+            if (validGame) {
+                console.log(`[VALIDATION] Found valid waiting game: ${validGame.id}`);
+                return validGame;
+            }
+            
+            console.warn(`[VALIDATION] No valid games found among ${waiting.length} waiting games`);
+        }
+
+        if (!allowCreate) return null;
+
+        // Create using selected playlist or a suitable fallback
+        const playlistId = document.getElementById('playlistSelect')?.value || null;
+        const game = await createGameWithAutoPlaylist(playlistId);
+        // Ensure host joins before starting (backend requires at least one player)
+        await joinGame(game.id);
+        await startGame(game.id);
+        return game;
+    } catch (e) {
+        console.error('Failed to get or create active game:', e);
+        return null;
+    }
+}
+
+/**
+ * Updated validateAllCards function using bulk validation
+ * This replaces the individual card validation that created API storms
+ */
+async function validateAllCards() {
+    console.log('[VALIDATION] Validating all cards using bulk API...');
+    try {
+        const state = await fetchJSON('/card/api/get_cards');
+        if (!state.cards) return;
+        
+        const cardIds = Object.keys(state.cards);
+        if (cardIds.length === 0) return;
+        
+        // Instead of individual validation calls, validate all cards efficiently
+        // Note: Card validation is different from game validation, so we still need individual calls
+        // but we can batch them more efficiently and add proper error handling
+        
+        console.log(`[VALIDATION] Validating ${cardIds.length} cards in batches...`);
+        
+        // Process cards in smaller batches to avoid overwhelming the server
+        const BATCH_SIZE = 10;
+        const batches = [];
+        
+        for (let i = 0; i < cardIds.length; i += BATCH_SIZE) {
+            batches.push(cardIds.slice(i, i + BATCH_SIZE));
+        }
+        
+        let successCount = 0;
+        let errorCount = 0;
+        
+        for (const batch of batches) {
+            const batchPromises = batch.map(async (cardId) => {
+                try {
+                    const result = await validateCard(cardId);
+                    successCount++;
+                    return result;
+                } catch (error) {
+                    console.warn(`[VALIDATION] Card ${cardId} validation failed:`, error);
+                    errorCount++;
+                    return null;
+                }
+            });
+            
+            await Promise.allSettled(batchPromises);
+            
+            // Add small delay between batches to prevent overwhelming the server
+            if (batches.length > 1) {
+                await new Promise(resolve => setTimeout(resolve, 50));
+            }
+        }
+        
+        await updateGameStats();
+        console.log(`[VALIDATION] Card validation completed: ${successCount} successful, ${errorCount} failed`);
+        
+    } catch (error) {
+        console.error('[VALIDATION] Error validating cards:', error);
+    }
+}
+
+/**
+ * Improved dashboard state validation with bulk game checking
+ */
 async function validateDashboardState() {
     try {
         // Check if user has any playlists
         const playlists = await fetchJSON('/playlist/api/playlists').catch(() => []);
         const hasPlaylists = Array.isArray(playlists) && playlists.length > 0;
         
-        // Check if user has any valid games
-        const activeGame = await getOrCreateActiveGame(false);
-        const hasValidGame = activeGame && activeGame.playlist_id;
+        // Check if user has any valid games using bulk validation
+        let hasValidGame = false;
+        
+        if (activeGameId) {
+            // Quick check if current active game is valid
+            const existsCheck = await checkGameExists(activeGameId);
+            hasValidGame = existsCheck.exists && existsCheck.accessible;
+        }
+        
+        if (!hasValidGame) {
+            // Check for any valid games in the user's game list
+            const userGames = await fetchJSON('/game/api/games').catch(() => []);
+            if (userGames.length > 0) {
+                const validGame = await findValidGameFromList(userGames.slice(0, 10)); // Limit to 10 most recent
+                hasValidGame = validGame !== null;
+            }
+        }
         
         if (!hasPlaylists || !hasValidGame) {
             showSetupGuide();
@@ -202,6 +443,8 @@ async function validateDashboardState() {
     }
 }
 
+
+// ==========================================
 function showSetupGuide() {
     // Show helpful setup message instead of broken dashboard
     const cardsContainer = document.getElementById('cardsContainer');
@@ -1090,22 +1333,6 @@ function setupDashboardUpdates() {
     }, 15000); // Reduced from 3s to 15s to decrease server load
 }
 
-// game management functions
-
-async function validateAllCards() {
-    console.log('Validating all cards...');
-    try {
-        const state = await fetchJSON('/card/api/get_cards');
-        if (!state.cards) return;
-        
-        const validationPromises = Object.keys(state.cards).map(cardId => validateCard(cardId));
-        await Promise.all(validationPromises);
-        await updateGameStats();
-        console.log('All cards validated');
-    } catch (error) {
-        console.error('Error validating all cards:', error);
-    }
-}
 
 // Clean up on page unload
 window.addEventListener('beforeunload', () => {
@@ -1117,75 +1344,7 @@ window.addEventListener('beforeunload', () => {
     }
 });
 
-// Game helpers
-async function getOrCreateActiveGame(allowCreate = true) {
-    try {
-        // If we already have a game, verify it exists and is accessible
-        if (activeGameId) {
-            try {
-                const existing = await fetchJSON(`/game/api/games/${activeGameId}`);
-                return existing;
-            } catch (_) {
-                // Reset invalid game id and fall through to discovery/creation
-                activeGameId = null;
-            }
-        }
-
-        // Try to find an in-progress game
-        const inProgress = await fetchJSON('/game/api/games?status=in_progress').catch(() => []);
-        if (Array.isArray(inProgress) && inProgress.length > 0) {
-            return inProgress[0];
-        }
-
-        // Try to find a waiting game with playlist data
-        const waiting = await fetchJSON('/game/api/games?status=waiting').catch(() => []);
-        if (Array.isArray(waiting) && waiting.length > 0) {
-            // Validate that the game has playlist data before using it
-            // EMERGENCY CIRCUIT BREAKER: Only check first 3 games to prevent API storm
-            const MAX_VALIDATION_ATTEMPTS = 3;
-            const gamesToCheck = waiting.slice(0, MAX_VALIDATION_ATTEMPTS);
-            
-            console.log(`Emergency circuit breaker: Checking ${gamesToCheck.length} of ${waiting.length} waiting games`);
-            
-            for (let i = 0; i < gamesToCheck.length; i++) {
-                const game = gamesToCheck[i];
-                try {
-                    // Add delay between attempts to prevent rate limiting
-                    if (i > 0) {
-                        await new Promise(resolve => setTimeout(resolve, 100));
-                    }
-                    
-                    // Check if the game has playlist data by trying to get its details
-                    const gameDetails = await fetchJSON(`/game/api/games/${game.id}`);
-                    if (gameDetails && gameDetails.playlist_id) {
-                        console.log(`Found valid game: ${game.id}`);
-                        return gameDetails;
-                    }
-                } catch (e) {
-                    console.warn(`Game ${game.id} is invalid (${i+1}/${gamesToCheck.length}), skipping...`);
-                    continue;
-                }
-            }
-            
-            if (waiting.length > MAX_VALIDATION_ATTEMPTS) {
-                console.warn(`EMERGENCY: Skipped validation of ${waiting.length - MAX_VALIDATION_ATTEMPTS} games to prevent API storm`);
-            }        }
-
-        if (!allowCreate) return null;
-
-        // Create using selected playlist or a suitable fallback
-        const playlistId = document.getElementById('playlistSelect')?.value || null;
-        const game = await createGameWithAutoPlaylist(playlistId);
-        // Ensure host joins before starting (backend requires at least one player)
-        await joinGame(game.id);
-        await startGame(game.id);
-        return game;
-    } catch (e) {
-        console.error('Failed to get or create active game:', e);
-        return null;
-    }
-}
-
+// Game helpers - using the NEW implementation above
 async function createGameWithPlaylist(playlistId) {
     if (!playlistId) throw new Error('No playlist selected');
     const name = `Quick Game ${new Date().toLocaleTimeString()}`;
