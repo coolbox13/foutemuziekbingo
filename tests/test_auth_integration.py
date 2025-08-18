@@ -17,9 +17,13 @@ Test Coverage:
 import pytest
 from fastapi.testclient import TestClient
 import os
+import sys
+from pathlib import Path
 from unittest.mock import Mock, patch, AsyncMock
 from datetime import datetime, timezone, timedelta
 
+# Add parent directory to path so we can import app modules
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
 # Import the main app
 from app.fastapi_app import create_app

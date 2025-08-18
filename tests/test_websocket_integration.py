@@ -21,9 +21,14 @@ Test Coverage:
 import pytest
 import asyncio
 import json
+import sys
+from pathlib import Path
 from typing import Dict, Any
 from unittest.mock import patch, AsyncMock
 import uuid
+
+# Add parent directory to path so we can import app modules
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
 # Import WebSocket components
 from app.redis_pubsub import RedisPubSubManager

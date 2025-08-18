@@ -4,13 +4,18 @@ Tests for Redis/Dragonfly session storage integration.
 
 import pytest
 import asyncio
+import sys
+from pathlib import Path
+
+# Add parent directory to path so we can import app modules
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
 # Load test environment first
 from test_utils import load_test_environment
+load_test_environment()
+
 from app.redis_session_store import get_redis_session_store
 from app.secure_session import get_session_store
-
-load_test_environment()
 
 
 class TestRedisSessionStore:

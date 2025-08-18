@@ -20,12 +20,17 @@ Test Coverage:
 import pytest
 import asyncio
 import time
+import sys
+from pathlib import Path
 from typing import Dict
 from unittest.mock import patch, AsyncMock, MagicMock
 from datetime import datetime, timezone, timedelta
 
 import redis.asyncio as redis
 from httpx import AsyncClient
+
+# Add parent directory to path so we can import app modules
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
 # Import rate limiting components
 from app.rate_limiter import (

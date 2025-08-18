@@ -21,19 +21,24 @@ Test Coverage:
 import pytest
 import asyncio
 import time
+import sys
+from pathlib import Path
 from typing import Dict, Any, List, Optional
 from unittest.mock import patch, AsyncMock
 
 import redis.asyncio as redis
 
+# Add parent directory to path so we can import app modules
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
 # Load test environment first
 from test_utils import load_test_environment
+load_test_environment()
+
 from app.cache_manager import (
     CacheManager, CacheType,
     CacheConnectionError
 )
-
-load_test_environment()
 
 
 class MockRedisClient:

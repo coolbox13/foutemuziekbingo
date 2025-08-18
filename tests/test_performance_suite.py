@@ -23,9 +23,14 @@ import time
 import statistics
 import psutil
 import gc
+import sys
+from pathlib import Path
 from typing import Dict, Any, List
 from unittest.mock import AsyncMock
 from datetime import datetime, timezone
+
+# Add parent directory to path so we can import app modules
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
 # Import components for performance testing
 from app.rate_limiter import (
