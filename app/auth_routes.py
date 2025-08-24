@@ -330,7 +330,7 @@ async def spotify_callback(
             followers=spotify_user.get("followers"),
             images=spotify_user.get("images", []),
             external_urls=spotify_user.get("external_urls"),
-            href=spotify_user.get("hre"),
+            href=spotify_user.get("href"),
             uri=spotify_user.get("uri"),
             explicit_content=spotify_user.get("explicit_content"),
         )
@@ -363,7 +363,7 @@ async def spotify_callback(
         )
 
         # Create secure session and set cookie in the redirect response
-        redirect_response = RedirectResponse("/dashboard", status_code=302)
+        redirect_response = RedirectResponse("/dashboard/", status_code=302)
 
         session_token = await create_secure_session(
             user_id=user.id,
