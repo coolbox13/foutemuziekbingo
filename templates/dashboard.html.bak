@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Foute Muziek Bingo Dashboard</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@latest/dist/tailwind.min.css" rel="stylesheet" />
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/lucide/0.293.0/lucide.min.css" rel="stylesheet" />
+    <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+    <script src="/static/js/sound_player.js"></script>
+    <script src="/static/js/game_management.js"></script>
+    <script src="/static/js/dashboard.js" defer></script>
+    <style>
+        html { font-size: 16px; }
+        body { line-height: 1.6; }
+
+        :root {
+            --bingo-primary: #8b5cf6;
+            --bingo-secondary: #a855f7;
+            --surface: #ffffff;
+            --surface-muted: #f8fafc; /* slate-50 */
+            --border: #e5e7eb; /* gray-200 */
+            --text: #111827; /* gray-900 */
+            --text-muted: #374151; /* gray-700 */
+        }
+        
+        .card-grid {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 4px;
+        }
+        .card-cell {
+            border: 1px solid rgba(255,255,255,0.25);
+            padding: 8px;
+            min-height: 56px;
+            text-align: center;
+            font-size: 1rem;
+        }
+        
+        .gradient-bg {
+            background: var(--surface-muted);
+        }
+        
+        /* Light, high-contrast surface cards */
+        .glass-effect {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+        }
+        /* Ensure text inside cards is dark and readable */
+        .glass-effect .text-white { color: var(--text) !important; }
+        .glass-effect .text-white.text-opacity-75,
+        .glass-effect .text-white.text-opacity-70 { color: var(--text-muted) !important; }
+        /* Preserve white text on status pills */
+        #spotifyStatus .text-white, #websocketStatus .text-white { color: #ffffff !important; }
+        
+        .spotify-connected {
+            background: linear-gradient(135deg, #1DB954 0%, #1ed760 100%);
+        }
+        
+        .spotify-disconnected {
+            background: linear-gradient(135deg, #ef4444 0%, #f87171 100%);
+        }
+        
+        .connection-pulse {
+            animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+        
+        .stat-card {
+            background: var(--surface) !important;
+            border: 1px solid var(--border) !important;
+        }
+        
+        .section-bg {
+            background: var(--surface) !important;
+            border: 1px solid var(--border) !important;
+        }
+        
+        @keyframes pulse {
+            0%, 100% {
+                opacity: 1;
+            }
+            50% {
+                opacity: .5;
+            }
+        }
+
+        /* Always-visible focus for keyboard users */
+        :focus-visible {
+            outline: 3px solid #f59e0b; /* amber-500 */
+            outline-offset: 2px;
+        }
+
+        /* Ensure links are clearly visible */
+        a { text-decoration: underline; text-underline-offset: 2px; }
+    </style>
+</head>
+<body class="min-h-screen gradient-bg">
+    <div class="min-h-screen p-4">
+        <!-- Modern Header with Glass Effect -->
+        <div class="max-w-7xl mx-auto glass-effect rounded-xl shadow-xl mb-6 p-4">
+            <div class="flex justify-between items-center">
+                <div class="flex items-center space-x-6">
+                    <div class="flex items-center space-x-3">
+                        <div class="w-10 h-10 rounded-xl bg-white bg-opacity-20 flex items-center justify-center">
+                            <i data-lucide="music" class="w-6 h-6 text-white"></i>
+                        </div>
+                        <div>
+                            <h1 class="text-2xl font-bold text-white font-display">Music Bingo</h1>
+                            <p class="text-white text-opacity-75 text-sm">Reimagined</p>
+                        </div>
+                    </div>
+                    
+                    <!-- Enhanced Connection Status -->
+                    <div class="flex items-center space-x-3">
+                        <div id="spotifyStatus" class="flex items-center space-x-2 px-3 py-2 rounded-lg spotify-disconnected">
+                            <i data-lucide="music" class="w-4 h-4 text-white"></i>
+                            <span class="text-white text-sm font-medium">Spotify: Checking...</span>
+                        </div>
+                        <div id="websocketStatus" class="flex items-center space-x-2 px-3 py-2 rounded-lg bg-gray-500">
+                            <i data-lucide="wifi" class="w-4 h-4 text-white connection-pulse"></i>
+                            <span id="connectionStatus" class="text-white text-sm font-medium">Connecting...</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="flex items-center gap-3">
+                    <a href="/" class="px-4 py-3 bg-white/20 hover:bg-white/30 text-white rounded-xl transition-all">Home</a>
+                    <button id="btnLogout" class="px-4 py-3 bg-white/20 hover:bg-white/30 text-white rounded-xl transition-all">Logout</button>
+                    <button onclick="toggleSetupModal(true)" class="flex items-center space-x-2 px-6 py-3 bg-white bg-opacity-20 hover:bg-opacity-30 text-white rounded-xl transition-all duration-200 backdrop-blur-sm">
+                        <i data-lucide="settings" class="w-5 h-5"></i>
+                        <span class="font-medium">Game Setup</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Modern Statistics Cards -->
+        <div class="max-w-7xl mx-auto glass-effect rounded-xl shadow-xl mb-6 p-6">
+            <div class="mb-4">
+                <h2 class="text-xl font-bold text-white mb-2">Game Statistics</h2>
+                <p class="text-white text-opacity-70">Live updates from your music bingo session</p>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4">
+                <div class="stat-card backdrop-blur-sm rounded-xl p-4">
+                    <div class="flex items-center space-x-3 mb-2">
+                        <div class="w-8 h-8 rounded-lg bg-blue-500 bg-opacity-20 flex items-center justify-center">
+                            <i data-lucide="list" class="w-4 h-4 text-blue-300"></i>
+                        </div>
+                        <h3 class="text-sm font-semibold text-white text-opacity-90">Total Tracks</h3>
+                    </div>
+                    <p id="totalTracksCount" class="text-2xl font-bold text-white">0</p>
+                </div>
+                <div class="stat-card backdrop-blur-sm rounded-xl p-4">
+                    <div class="flex items-center space-x-3 mb-2">
+                        <div class="w-8 h-8 rounded-lg bg-green-500 bg-opacity-20 flex items-center justify-center">
+                            <i data-lucide="play" class="w-4 h-4 text-green-300"></i>
+                        </div>
+                        <h3 class="text-sm font-semibold text-white text-opacity-90">Played Tracks</h3>
+                    </div>
+                    <p id="playedTracksCount" class="text-2xl font-bold text-white">0</p>
+                </div>
+                <div class="stat-card backdrop-blur-sm rounded-xl p-4">
+                    <div class="flex items-center space-x-3 mb-2">
+                        <div class="w-8 h-8 rounded-lg bg-yellow-500 bg-opacity-20 flex items-center justify-center">
+                            <i data-lucide="clock" class="w-4 h-4 text-yellow-300"></i>
+                        </div>
+                        <h3 class="text-sm font-semibold text-white text-opacity-90">Remaining</h3>
+                    </div>
+                    <p id="remainingTracksCount" class="text-2xl font-bold text-white">0</p>
+                </div>
+                <div class="stat-card backdrop-blur-sm rounded-xl p-4">
+                    <div class="flex items-center space-x-3 mb-2">
+                        <div class="w-8 h-8 rounded-lg bg-purple-500 bg-opacity-20 flex items-center justify-center">
+                            <i data-lucide="grid-3x3" class="w-4 h-4 text-purple-300"></i>
+                        </div>
+                        <h3 class="text-sm font-semibold text-white text-opacity-90">Active Cards</h3>
+                    </div>
+                    <p id="cardsWithMatches" class="text-2xl font-bold text-white">0</p>
+                </div>
+                <div class="stat-card backdrop-blur-sm rounded-xl p-4">
+                    <div class="flex items-center space-x-3 mb-2">
+                        <div class="w-8 h-8 rounded-lg bg-red-500 bg-opacity-20 flex items-center justify-center">
+                            <i data-lucide="trophy" class="w-4 h-4 text-red-300"></i>
+                        </div>
+                        <h3 class="text-sm font-semibold text-white text-opacity-90">Bingos</h3>
+                    </div>
+                    <p id="bingoCount" class="text-2xl font-bold text-white">0</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Main Game Area -->
+        <div class="max-w-7xl mx-auto flex gap-6">
+            <!-- Left Column: Playback Controls and Played Tracks -->
+            <div class="w-1/3 space-y-6">
+                <!-- Sound Effects -->
+                <div class="glass-effect rounded-xl shadow-xl p-6">
+                    <div class="flex items-center space-x-3 mb-4">
+                        <div class="w-8 h-8 rounded-lg bg-white bg-opacity-20 flex items-center justify-center">
+                            <i data-lucide="volume-2" class="w-4 h-4 text-white"></i>
+                        </div>
+                        <h2 class="text-lg font-semibold text-white">Sound Effects</h2>
+                    </div>
+                    <div id="soundButtonsContainer" class="space-y-2">
+                        <!-- Sound buttons will be inserted here -->
+                    </div>
+                </div>
+                
+                <!-- Playback Controls -->
+                <div class="glass-effect rounded-xl shadow-xl p-6">
+                    <div class="flex items-center space-x-3 mb-4">
+                        <div class="w-8 h-8 rounded-lg bg-white bg-opacity-20 flex items-center justify-center">
+                            <i data-lucide="play-circle" class="w-4 h-4 text-white"></i>
+                        </div>
+                        <h2 class="text-lg font-semibold text-white">Playback Controls</h2>
+                    </div>
+                    <div class="flex flex-col space-y-3">
+                        <button id="btnPlay" class="flex items-center justify-center space-x-2 px-4 py-3 bg-green-500 hover:bg-green-600 text-white rounded-xl transition-all duration-200 shadow-lg">
+                            <i data-lucide="play" class="w-4 h-4"></i>
+                            <span>Play Random Track</span>
+                        </button>
+                        <button id="btnPause" class="flex items-center justify-center space-x-2 px-4 py-3 bg-yellow-500 hover:bg-yellow-600 text-white rounded-xl transition-all duration-200 shadow-lg">
+                            <i data-lucide="pause" class="w-4 h-4"></i>
+                            <span>Pause</span>
+                        </button>
+                        <button id="btnNewRound" class="flex items-center justify-center space-x-2 px-4 py-3 bg-red-500 hover:bg-red-600 text-white rounded-xl transition-all duration-200 shadow-lg">
+                            <i data-lucide="refresh-cw" class="w-4 h-4"></i>
+                            <span>New Game</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Played Tracks -->
+                <div class="glass-effect rounded-xl shadow-xl p-6">
+                    <div class="flex items-center space-x-3 mb-4">
+                        <div class="w-8 h-8 rounded-lg bg-white bg-opacity-20 flex items-center justify-center">
+                            <i data-lucide="history" class="w-4 h-4 text-white"></i>
+                        </div>
+                        <h2 class="text-lg font-semibold text-white">Played Tracks</h2>
+                    </div>
+                    <div class="bg-white bg-opacity-10 rounded-lg p-3 max-h-[60vh] overflow-y-auto">
+                        <ul id="playedTracksList" class="text-sm space-y-1"></ul>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Column: Bingo Cards -->
+            <div class="w-2/3 glass-effect rounded-xl shadow-xl p-6">
+                <div class="flex items-center space-x-3 mb-4">
+                    <div class="w-8 h-8 rounded-lg bg-white bg-opacity-20 flex items-center justify-center">
+                        <i data-lucide="grid-3x3" class="w-4 h-4 text-white"></i>
+                    </div>
+                    <h2 class="text-lg font-semibold text-white">Current Bingo Cards</h2>
+                </div>
+                <div class="bg-white bg-opacity-10 rounded-lg p-4">
+                    <div id="cardsContainer" class="max-h-[75vh] overflow-y-auto">
+                        <!-- Cards will be inserted here -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Setup Modal -->
+    <div id="setupModal" class="hidden fixed inset-0 bg-black bg-opacity-50 backdrop-blur-sm flex items-center justify-center z-50">
+        <div class="glass-effect p-6 rounded-2xl w-full max-w-4xl mx-4 max-h-[90vh] overflow-auto">
+            <div class="flex justify-between items-center mb-6">
+                <div class="flex items-center space-x-3">
+                    <div class="w-10 h-10 rounded-xl bg-white bg-opacity-20 flex items-center justify-center">
+                        <i data-lucide="settings" class="w-6 h-6 text-white"></i>
+                    </div>
+                    <div>
+                        <h2 class="text-2xl font-bold text-white">Game Setup</h2>
+                        <p class="text-white text-opacity-70">Configure your music bingo experience</p>
+                    </div>
+                </div>
+                <button onclick="toggleSetupModal(false)" class="w-10 h-10 rounded-xl bg-white bg-opacity-20 hover:bg-opacity-30 flex items-center justify-center text-white transition-all duration-200">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+
+            <!-- Modern Tab Navigation -->
+            <div class="border-b border-white border-opacity-20 mb-6">
+                <div class="flex space-x-1">
+                    <button onclick="switchSetupTab('playlist')" class="setup-tab-btn flex items-center space-x-2 px-6 py-3 rounded-t-xl text-white text-opacity-70 hover:text-opacity-100 hover:bg-white hover:bg-opacity-10 transition-all duration-200" data-tab="playlist">
+                        <i data-lucide="list-music" class="w-4 h-4"></i>
+                        <span class="font-medium">Playlist</span>
+                    </button>
+                    <button onclick="switchSetupTab('devices')" class="setup-tab-btn flex items-center space-x-2 px-6 py-3 rounded-t-xl text-white text-opacity-70 hover:text-opacity-100 hover:bg-white hover:bg-opacity-10 transition-all duration-200" data-tab="devices">
+                        <i data-lucide="speaker" class="w-4 h-4"></i>
+                        <span class="font-medium">Devices</span>
+                    </button>
+                    <button onclick="switchSetupTab('cards')" class="setup-tab-btn flex items-center space-x-2 px-6 py-3 rounded-t-xl text-white text-opacity-70 hover:text-opacity-100 hover:bg-white hover:bg-opacity-10 transition-all duration-200" data-tab="cards">
+                        <i data-lucide="grid-3x3" class="w-4 h-4"></i>
+                        <span class="font-medium">Bingo Cards</span>
+                    </button>
+                    <button onclick="switchSetupTab('management')" class="setup-tab-btn flex items-center space-x-2 px-6 py-3 rounded-t-xl text-white text-opacity-70 hover:text-opacity-100 hover:bg-white hover:bg-opacity-10 transition-all duration-200" data-tab="management">
+                        <i data-lucide="settings" class="w-4 h-4"></i>
+                        <span class="font-medium">Management</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Tab Content -->
+            <div class="setup-tab-content" id="playlistTab">
+                <!-- Playlist Management content -->
+                <div class="space-y-4">
+                    <div class="flex items-end space-x-3">
+                        <div>
+                            <label class="block">Playlist ID/URI</label>
+                            <input id="newPlaylistID" class="border p-1 w-64" type="text" placeholder="spotify:playlist:XXX" />
+                        </div>
+                        <div class="flex items-center space-x-1">
+                            <label>Default?</label>
+                            <input id="newPlaylistDefault" type="checkbox" />
+                        </div>
+                        <button id="btnAddPlaylist" class="px-4 py-2 bg-blue-600 text-white rounded">Add Playlist</button>
+                    </div>
+                    <p id="addPlaylistMsg" class="text-sm text-red-600"></p>
+
+                    <div class="flex items-center space-x-3">
+                        <select id="playlistSelect" class="border p-1 w-64"></select>
+                        <button id="btnLoadPlaylist" class="px-4 py-2 bg-blue-600 text-white rounded">Load Selected Playlist</button>
+                    </div>
+                    <p id="playlistMsg" class="text-sm text-red-600"></p>
+                </div>
+            </div>
+
+            <div class="setup-tab-content hidden" id="devicesTab">
+                <!-- Device Selection content -->
+                <div class="space-y-4">
+                    <div class="flex items-center space-x-3">
+                        <select id="deviceSelect" class="border p-1 w-64"></select>
+                        <button id="btnRefreshDevices" class="px-4 py-2 bg-gray-500 text-white rounded">Refresh Devices</button>
+                        <button id="btnSelectDevice" class="px-4 py-2 bg-blue-600 text-white rounded">Use This Device</button>
+                    </div>
+                    <p id="deviceMsg" class="text-sm text-red-600"></p>
+                </div>
+            </div>
+
+            <div class="setup-tab-content hidden" id="cardsTab">
+                <!-- Bingo Cards generation content -->
+                <div class="space-y-4">
+                    <p>Loaded tracks: <span id="loadedTracks">0</span></p>
+                    <p>Max recommended cards: <span id="maxCards">0</span></p>
+                    <div class="flex items-center space-x-2">
+                        <label># Bingo Cards</label>
+                        <input id="numCardsInput" type="number" value="2" min="1" class="border p-1 w-16"/>
+                        <button id="btnGenerateCards" class="px-4 py-2 bg-green-600 text-white rounded">Generate Cards</button>
+                        <a id="btnDownloadPdf" class="px-4 py-2 bg-blue-600 text-white rounded cursor-pointer">Download PDF</a>
+                    </div>
+                    <p id="cardsMsg" class="text-sm text-red-600"></p>
+                </div>
+            </div>
+
+            <div class="setup-tab-content hidden" id="managementTab">
+                <!-- Game Management content -->
+                <div class="space-y-4">
+                    <div>
+                        <h3 class="text-lg font-semibold mb-2">Save Current Game</h3>
+                        <div class="space-y-2">
+                            <input id="gameSaveName" type="text" class="border p-2 w-full rounded" placeholder="Enter game name...">
+                            <textarea id="gameSaveDescription" class="border p-2 w-full rounded" rows="2" placeholder="Enter game description..."></textarea>
+                            <button id="btnSaveGame" class="px-4 py-2 bg-green-600 text-white rounded">Save Game</button>
+                        </div>
+                    </div>
+                    
+                    <div>
+                        <h3 class="text-lg font-semibold mb-2">Load Saved Game</h3>
+                        <div class="flex items-center space-x-2">
+                            <select id="savedGamesSelect" class="border p-2 flex-grow rounded">
+                                <option value="">Select a saved game...</option>
+                            </select>
+                            <button id="btnLoadGame" class="px-4 py-2 bg-blue-600 text-white rounded">Load Game</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Notification Container -->
+    <div id="notificationContainer" class="fixed top-4 right-4 z-50"></div>
+
+</body>
+</html>
