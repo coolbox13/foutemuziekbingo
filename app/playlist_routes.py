@@ -102,13 +102,13 @@ async def get_user_playlists(
         ]
     """
     try:
-        logger.info("[PLAYLIST-DEBUG-001] Starting get_playlists endpoint")
+        logger.debug("Starting get_playlists endpoint")
         spotify_client = await get_spotify_client(request)
-        logger.info("[PLAYLIST-DEBUG-002] Spotify client obtained")
+        logger.debug("Spotify client obtained")
         playlists = await playlist_service.get_user_playlists(
             current_user, spotify_client
         )
-        logger.info("[PLAYLIST-DEBUG-003] Playlists retrieved from service")
+        logger.debug("Playlists retrieved from service")
 
         logger.info(
             "[PLAYLIST-API-001] Retrieved user playlists",
@@ -572,7 +572,7 @@ async def add_playlist(
             )
             created_playlist.tracks = tracks
             created_playlist.total_tracks = len(tracks)
-            
+
             logger.debug(
                 "[PLAYLIST-ADD-007] Tracks loaded and cached",
                 extra={

@@ -208,7 +208,7 @@ async def get_devices_with_cache(
         _device_cache["last_updated"] = now
 
         logger.info(
-            f"[SPOTIFY-DEVICES] Device cache updated",
+            "[SPOTIFY-DEVICES] Device cache updated",
             extra={
                 "device_count": len(devices),
                 "active_devices": len([d for d in devices if d.get("is_active")]),
@@ -221,7 +221,7 @@ async def get_devices_with_cache(
         # If API fails but we have cached data, return it with a warning
         if _device_cache["devices"]:
             logger.warning(
-                f"[SPOTIFY-DEVICES] API failed, using stale cache",
+                "[SPOTIFY-DEVICES] API failed, using stale cache",
                 extra={
                     "error": e.message,
                     "cache_age_minutes": (
@@ -296,7 +296,7 @@ async def find_active_device_with_fallback(
             return device
         except SpotifyAPIError as e:
             logger.warning(
-                f"[SPOTIFY-DEVICE] Failed to activate device",
+                "[SPOTIFY-DEVICE] Failed to activate device",
                 extra={"device_name": device.get("name"), "error": e.message},
             )
 
@@ -351,7 +351,7 @@ async def play_track_with_fallback(
         )
 
         logger.info(
-            f"[SPOTIFY-PLAYBACK] Track playing successfully",
+            "[SPOTIFY-PLAYBACK] Track playing successfully",
             extra={
                 "track_uri": track_uri,
                 "device": target_device.get("name"),
@@ -383,7 +383,7 @@ async def play_track_with_fallback(
                     )
 
                     logger.info(
-                        f"[SPOTIFY-PLAYBACK] Retry successful with backup device",
+                        "[SPOTIFY-PLAYBACK] Retry successful with backup device",
                         extra={"backup_device": backup_device.get("name")},
                     )
 

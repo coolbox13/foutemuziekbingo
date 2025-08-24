@@ -102,17 +102,17 @@ class UserNotificationService:
     async def notify_token_expiry_warning(self, user_id: str, expires_in_minutes: int) -> bool:
         """
         Notify user that their Spotify token will expire soon.
-        
+
         Args:
             user_id: User to notify
             expires_in_minutes: Minutes until token expires
-            
+
         Returns:
             True if notification sent successfully
         """
         try:
             notification_id = f"token-warn-{user_id}-{int(datetime.now().timestamp())}"
-            
+
             notification = UserNotification(
                 id=notification_id,
                 user_id=user_id,
@@ -120,13 +120,13 @@ class UserNotificationService:
                 priority=NotificationPriority.MEDIUM,
                 title="Spotify Session Expiring Soon",
                 message=f"Your Spotify session will expire in {expires_in_minutes} minutes. "
-                       f"Don't worry - we'll try to refresh it automatically.",
+                       "Don't worry - we'll try to refresh it automatically.",
                 metadata={"expires_in_minutes": expires_in_minutes},
                 expires_at=datetime.now(timezone.utc) + timedelta(hours=1)
             )
-            
+
             return await self._send_notification(notification)
-            
+
         except Exception as e:
             logger.error(
                 "[NOTIFICATION-ERROR-001] Failed to send token expiry warning",
@@ -138,16 +138,16 @@ class UserNotificationService:
     async def notify_token_expired(self, user_id: str) -> bool:
         """
         Notify user that their Spotify token has expired.
-        
+
         Args:
             user_id: User to notify
-            
+
         Returns:
             True if notification sent successfully
         """
         try:
             notification_id = f"token-expired-{user_id}-{int(datetime.now().timestamp())}"
-            
+
             notification = UserNotification(
                 id=notification_id,
                 user_id=user_id,
@@ -157,9 +157,9 @@ class UserNotificationService:
                 message="Your Spotify session has expired. We're attempting to refresh it automatically.",
                 expires_at=datetime.now(timezone.utc) + timedelta(hours=2)
             )
-            
+
             return await self._send_notification(notification)
-            
+
         except Exception as e:
             logger.error(
                 "[NOTIFICATION-ERROR-002] Failed to send token expired notification",
@@ -171,19 +171,19 @@ class UserNotificationService:
     async def notify_reauth_required(self, user_id: str, reason: str = None) -> bool:
         """
         Notify user that they need to re-authenticate with Spotify.
-        
+
         Args:
             user_id: User to notify
             reason: Optional reason why re-authentication is needed
-            
+
         Returns:
             True if notification sent successfully
         """
         try:
             notification_id = f"reauth-{user_id}-{int(datetime.now().timestamp())}"
-            
+
             reason_text = f" Reason: {reason}" if reason else ""
-            
+
             notification = UserNotification(
                 id=notification_id,
                 user_id=user_id,
@@ -196,9 +196,9 @@ class UserNotificationService:
                 metadata={"reason": reason} if reason else {},
                 expires_at=datetime.now(timezone.utc) + timedelta(days=1)
             )
-            
+
             return await self._send_notification(notification)
-            
+
         except Exception as e:
             logger.error(
                 "[NOTIFICATION-ERROR-003] Failed to send reauth required notification",
@@ -210,17 +210,17 @@ class UserNotificationService:
     async def notify_refresh_failed(self, user_id: str, error_message: str) -> bool:
         """
         Notify user that token refresh failed.
-        
+
         Args:
             user_id: User to notify
             error_message: Error message from refresh attempt
-            
+
         Returns:
             True if notification sent successfully
         """
         try:
             notification_id = f"refresh-failed-{user_id}-{int(datetime.now().timestamp())}"
-            
+
             notification = UserNotification(
                 id=notification_id,
                 user_id=user_id,
@@ -233,9 +233,9 @@ class UserNotificationService:
                 metadata={"error_message": error_message},
                 expires_at=datetime.now(timezone.utc) + timedelta(hours=6)
             )
-            
+
             return await self._send_notification(notification)
-            
+
         except Exception as e:
             logger.error(
                 "[NOTIFICATION-ERROR-004] Failed to send refresh failed notification",
@@ -247,16 +247,16 @@ class UserNotificationService:
     async def notify_service_restored(self, user_id: str) -> bool:
         """
         Notify user that Spotify service has been restored.
-        
+
         Args:
             user_id: User to notify
-            
+
         Returns:
             True if notification sent successfully
         """
         try:
             notification_id = f"service-restored-{user_id}-{int(datetime.now().timestamp())}"
-            
+
             notification = UserNotification(
                 id=notification_id,
                 user_id=user_id,
@@ -266,9 +266,9 @@ class UserNotificationService:
                 message="Your Spotify connection has been successfully restored. All music features are now available.",
                 expires_at=datetime.now(timezone.utc) + timedelta(hours=1)
             )
-            
+
             return await self._send_notification(notification)
-            
+
         except Exception as e:
             logger.error(
                 "[NOTIFICATION-ERROR-005] Failed to send service restored notification",
@@ -280,26 +280,26 @@ class UserNotificationService:
     async def _send_notification(self, notification: UserNotification) -> bool:
         """
         Send notification through all available channels.
-        
+
         Args:
             notification: Notification to send
-            
+
         Returns:
             True if sent successfully through at least one channel
         """
         success = False
-        
+
         try:
             # Store notification in database
             db_success = await self._store_notification_in_db(notification)
             if db_success:
                 success = True
-                
+
             # Send via WebSocket if user has active connections
             ws_success = await self._send_websocket_notification(notification)
             if ws_success:
                 success = True
-                
+
             logger.info(
                 "[NOTIFICATION-SEND-001] Notification sent",
                 extra={
@@ -310,9 +310,9 @@ class UserNotificationService:
                     "ws_success": ws_success
                 }
             )
-            
+
             return success
-            
+
         except Exception as e:
             logger.error(
                 "[NOTIFICATION-ERROR-006] Error sending notification",
@@ -343,10 +343,10 @@ class UserNotificationService:
                 "read": notification.read,
                 "dismissed": notification.dismissed
             }
-            
+
             await database.create_record("notifications", notification_data)
             return True
-            
+
         except Exception as e:
             logger.error(
                 "[NOTIFICATION-ERROR-007] Failed to store notification in database",
@@ -363,24 +363,24 @@ class UserNotificationService:
         """Send notification via WebSocket to active user sessions"""
         try:
             user_websockets = self._active_websockets.get(notification.user_id, set())
-            
+
             if not user_websockets:
                 logger.debug(
                     "[NOTIFICATION-WS-001] No active WebSocket connections for user",
                     extra={"user_id": notification.user_id}
                 )
                 return False
-            
+
             # Prepare WebSocket message
             ws_message = {
                 "type": "notification",
                 "data": notification.to_dict()
             }
-            
+
             # Send to all active connections for this user
             sent_count = 0
             failed_connections = []
-            
+
             for websocket in list(user_websockets):  # Convert to list to avoid modification during iteration
                 try:
                     await websocket.send_text(json.dumps(ws_message))
@@ -394,11 +394,11 @@ class UserNotificationService:
                         }
                     )
                     failed_connections.append(websocket)
-            
+
             # Remove failed connections
             for failed_ws in failed_connections:
                 user_websockets.discard(failed_ws)
-            
+
             logger.debug(
                 "[NOTIFICATION-WS-003] WebSocket notification sent",
                 extra={
@@ -408,9 +408,9 @@ class UserNotificationService:
                     "failed_count": len(failed_connections)
                 }
             )
-            
+
             return sent_count > 0
-            
+
         except Exception as e:
             logger.error(
                 "[NOTIFICATION-ERROR-008] Error sending WebSocket notification",
@@ -423,17 +423,17 @@ class UserNotificationService:
             )
             return False
 
-    async def get_user_notifications(self, user_id: str, 
+    async def get_user_notifications(self, user_id: str,
                                    include_read: bool = False,
                                    limit: int = 50) -> List[UserNotification]:
         """
         Get notifications for a user.
-        
+
         Args:
             user_id: User ID to get notifications for
             include_read: Whether to include read notifications
             limit: Maximum number of notifications to return
-            
+
         Returns:
             List of user notifications
         """
@@ -442,7 +442,7 @@ class UserNotificationService:
             filters = {"user_id": user_id}
             if not include_read:
                 filters["read"] = False
-                
+
             # Query database
             notifications_data = await database.query_records(
                 "notifications",
@@ -450,23 +450,23 @@ class UserNotificationService:
                 order_by={"created_at": "DESC"},
                 limit=limit
             )
-            
+
             # Convert to notification objects
             notifications = []
             for data in notifications_data:
                 try:
                     # Parse metadata JSON
                     metadata = json.loads(data.get("metadata", "{}")) if data.get("metadata") else {}
-                    
+
                     # Parse datetime fields
                     created_at = None
                     if data.get("created_at"):
                         created_at = datetime.fromisoformat(data["created_at"].replace('Z', '+00:00'))
-                    
+
                     expires_at = None
                     if data.get("expires_at"):
                         expires_at = datetime.fromisoformat(data["expires_at"].replace('Z', '+00:00'))
-                    
+
                     notification = UserNotification(
                         id=data["id"],
                         user_id=data["user_id"],
@@ -482,9 +482,9 @@ class UserNotificationService:
                         read=data.get("read", False),
                         dismissed=data.get("dismissed", False)
                     )
-                    
+
                     notifications.append(notification)
-                    
+
                 except Exception as e:
                     logger.warning(
                         "[NOTIFICATION-ERROR-009] Failed to parse notification data",
@@ -494,9 +494,9 @@ class UserNotificationService:
                             "error": str(e)
                         }
                     )
-            
+
             return notifications
-            
+
         except Exception as e:
             logger.error(
                 "[NOTIFICATION-ERROR-010] Failed to get user notifications",
@@ -514,14 +514,14 @@ class UserNotificationService:
                 {"read": True},
                 additional_filters={"user_id": user_id}
             )
-            
+
             logger.debug(
                 "[NOTIFICATION-UPDATE-001] Notification marked as read",
                 extra={"notification_id": notification_id, "user_id": user_id}
             )
-            
+
             return True
-            
+
         except Exception as e:
             logger.error(
                 "[NOTIFICATION-ERROR-011] Failed to mark notification as read",
@@ -543,14 +543,14 @@ class UserNotificationService:
                 {"dismissed": True, "read": True},
                 additional_filters={"user_id": user_id}
             )
-            
+
             logger.debug(
                 "[NOTIFICATION-UPDATE-002] Notification dismissed",
                 extra={"notification_id": notification_id, "user_id": user_id}
             )
-            
+
             return True
-            
+
         except Exception as e:
             logger.error(
                 "[NOTIFICATION-ERROR-012] Failed to dismiss notification",
@@ -567,9 +567,9 @@ class UserNotificationService:
         """Register a WebSocket connection for a user"""
         if user_id not in self._active_websockets:
             self._active_websockets[user_id] = set()
-        
+
         self._active_websockets[user_id].add(websocket)
-        
+
         logger.debug(
             "[NOTIFICATION-WS-004] WebSocket registered",
             extra={
@@ -582,11 +582,11 @@ class UserNotificationService:
         """Unregister a WebSocket connection for a user"""
         if user_id in self._active_websockets:
             self._active_websockets[user_id].discard(websocket)
-            
+
             # Clean up empty sets
             if not self._active_websockets[user_id]:
                 del self._active_websockets[user_id]
-            
+
             logger.debug(
                 "[NOTIFICATION-WS-005] WebSocket unregistered",
                 extra={

@@ -12,13 +12,13 @@ Key Changes from Original:
 - Maintained backward compatibility for existing routes
 
 Security and Performance Improvements:
-- Proper OAuth 2.0 refresh flow implementation  
+- Proper OAuth 2.0 refresh flow implementation
 - Proactive token refresh (5 minutes before expiry)
 - Thread-safe concurrent operations
 - Clear user feedback for authentication issues
 - Comprehensive logging and monitoring
 
-Author: Claude Code Assistant  
+Author: Claude Code Assistant
 Date: 2025-01-18
 Issue: CRIT-003 - Spotify token management failure resolution
 """
@@ -55,15 +55,15 @@ logger = logging.getLogger("music_bingo")
 async def get_current_session(request: Request = None):
     """
     Get current session with token manager integration.
-    
+
     This function is kept for backward compatibility but now delegates
     to the SpotifyTokenManager for proper token handling.
-    
+
     Returns:
         dict: Session data or error information
     """
     session_id = f"session-{int(time.time())}"
-    
+
     if not request:
         logger.warning(
             "[SESSION-ERROR-001] No request provided for session retrieval",
@@ -79,10 +79,10 @@ async def get_current_session(request: Request = None):
     try:
         # Get current user from session/JWT
         user = await get_current_user_optional(request)
-        
+
         if not user:
             logger.debug(
-                "[SESSION-DEBUG-001] No authenticated user found",
+                "No authenticated user found in session",
                 extra={"session_id": session_id}
             )
             return {
@@ -90,10 +90,10 @@ async def get_current_session(request: Request = None):
                 "message": "No valid authentication session found",
                 "session_id": session_id,
             }
-        
+
         # Check if user has valid Spotify authentication using token manager
         has_valid_auth = await validate_user_spotify_auth(user.id)
-        
+
         if not has_valid_auth:
             logger.warning(
                 "[SESSION-WARN-001] User found but Spotify authentication invalid",
@@ -109,10 +109,10 @@ async def get_current_session(request: Request = None):
                 "session_id": session_id,
                 "user_id": user.id
             }
-        
+
         # Get token info using token manager
         success, access_token, error = await spotify_token_manager.get_valid_token(user.id)
-        
+
         if not success or not access_token:
             logger.warning(
                 "[SESSION-WARN-002] Failed to get valid token for user",
@@ -128,16 +128,16 @@ async def get_current_session(request: Request = None):
                 "session_id": session_id,
                 "user_id": user.id
             }
-        
+
         # Build session-compatible response
         token_info = {
             "access_token": access_token,
             # Additional token info can be added here if needed
         }
-        
+
         # Convert user to dict for session compatibility
         user_dict = user.dict() if hasattr(user, 'dict') else user.__dict__
-        
+
         logger.info(
             "[SESSION-SUCCESS-001] Session retrieved successfully via token manager",
             extra={
@@ -147,14 +147,14 @@ async def get_current_session(request: Request = None):
                 "auth_method": "token_manager"
             }
         )
-        
+
         return {
             "token_info": token_info,
             "user": user_dict,
             "auth_method": "token_manager",
             "session_id": session_id,
         }
-        
+
     except Exception as e:
         logger.error(
             "[SESSION-ERROR-002] Unexpected error in session retrieval",
@@ -165,7 +165,7 @@ async def get_current_session(request: Request = None):
             },
             exc_info=True
         )
-        
+
         return {
             "error": "session_error",
             "message": f"Session error: {str(e)}",
@@ -188,27 +188,27 @@ def get_spotify_oauth():
 async def get_spotify_client(request: Request = None) -> Spotify:
     """
     Get Spotify client with automatic token management.
-    
+
     This function has been simplified to use the SpotifyTokenManager
     for robust token handling, removing the complex session management
     and emergency retry logic from the original implementation.
-    
+
     Args:
         request: FastAPI request object for user identification
-        
+
     Returns:
         Spotify: Authenticated Spotify client
-        
+
     Raises:
         HTTPException: If authentication fails or user needs to re-authenticate
     """
     client_id = f"client-{int(time.time())}"
-    
+
     logger.debug(
         "[SPOTIFY-CLIENT-001] Creating Spotify client with token manager",
         extra={"client_id": client_id}
     )
-    
+
     if not request:
         logger.error(
             "[SPOTIFY-CLIENT-ERROR-001] No request provided",
@@ -218,11 +218,11 @@ async def get_spotify_client(request: Request = None) -> Spotify:
             status_code=500,
             detail="Internal error: No request provided for authentication"
         )
-    
+
     try:
         # Get current user
         user = await get_current_user_optional(request)
-        
+
         if not user:
             logger.warning(
                 "[SPOTIFY-CLIENT-ERROR-002] No authenticated user found",
@@ -232,7 +232,7 @@ async def get_spotify_client(request: Request = None) -> Spotify:
                 status_code=401,
                 detail="Authentication required. Please log in."
             )
-        
+
         # Use token manager to get Spotify client
         logger.debug(
             "[SPOTIFY-CLIENT-002] Getting Spotify client for user",
@@ -242,10 +242,10 @@ async def get_spotify_client(request: Request = None) -> Spotify:
                 "spotify_id": user.spotify_id
             }
         )
-        
+
         # This function handles all token validation, refresh, and client creation
         spotify_client = await get_spotify_client_for_user(user.id)
-        
+
         logger.info(
             "[SPOTIFY-CLIENT-003] Spotify client created successfully",
             extra={
@@ -254,9 +254,9 @@ async def get_spotify_client(request: Request = None) -> Spotify:
                 "spotify_id": user.spotify_id
             }
         )
-        
+
         return spotify_client
-        
+
     except HTTPException:
         # Re-raise HTTPException as-is (from token manager)
         raise
@@ -279,17 +279,17 @@ async def get_spotify_client(request: Request = None) -> Spotify:
 async def refresh_spotify_token(request: Request = None):
     """
     Refresh Spotify token using the new token manager.
-    
+
     This function is kept for backward compatibility but now delegates
     to the SpotifyTokenManager for proper token refresh handling.
     """
     refresh_id = f"refresh-{int(time.time())}"
-    
+
     logger.info(
         "[SPOTIFY-REFRESH-001] Token refresh requested (delegating to token manager)",
         extra={"refresh_id": refresh_id}
     )
-    
+
     if not request:
         logger.error(
             "[SPOTIFY-REFRESH-ERROR-001] No request provided",
@@ -299,11 +299,11 @@ async def refresh_spotify_token(request: Request = None):
             status_code=500,
             detail="Internal error: No request provided for token refresh"
         )
-    
+
     try:
         # Get current user
         user = await get_current_user_optional(request)
-        
+
         if not user:
             logger.warning(
                 "[SPOTIFY-REFRESH-ERROR-002] No authenticated user found",
@@ -313,7 +313,7 @@ async def refresh_spotify_token(request: Request = None):
                 status_code=401,
                 detail="Authentication required. Please log in."
             )
-        
+
         # Use token manager to refresh token
         logger.debug(
             "[SPOTIFY-REFRESH-002] Delegating refresh to token manager",
@@ -322,9 +322,9 @@ async def refresh_spotify_token(request: Request = None):
                 "user_id": user.id
             }
         )
-        
+
         refresh_result, new_token = await spotify_token_manager.refresh_token(user.id)
-        
+
         if refresh_result.value.startswith("success") or refresh_result.value.startswith("skipped"):
             logger.info(
                 "[SPOTIFY-REFRESH-003] Token refresh completed successfully",
@@ -343,15 +343,15 @@ async def refresh_spotify_token(request: Request = None):
                     "result": refresh_result.value
                 }
             )
-            
+
             # Get user-friendly error message
             error_msg = spotify_token_manager._get_refresh_error_message(refresh_result)
-            
+
             if "expired" in error_msg.lower() or "log in" in error_msg.lower():
                 raise HTTPException(status_code=401, detail=error_msg)
             else:
                 raise HTTPException(status_code=500, detail=error_msg)
-        
+
     except HTTPException:
         # Re-raise HTTPException as-is
         raise

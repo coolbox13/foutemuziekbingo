@@ -33,7 +33,7 @@ class PlaylistService:
     ) -> List[Playlist]:
         """Get user's playlists with intelligent caching"""
         logger.info(
-            f"[PLAYLIST-GET-001] Getting playlists for user",
+            "[PLAYLIST-GET-001] Getting playlists for user",
             extra={"user_id": user.id, "spotify_id": user.spotify_id},
         )
 
@@ -46,7 +46,7 @@ class PlaylistService:
             )
 
             logger.debug(
-                f"[PLAYLIST-GET-002] Found cached playlists",
+                "[PLAYLIST-GET-002] Found cached playlists",
                 extra={"user_id": user.id, "cached_count": len(cached_playlists)},
             )
 
@@ -61,7 +61,7 @@ class PlaylistService:
             )
 
             logger.info(
-                f"[PLAYLIST-GET-003] Playlists retrieved successfully",
+                "[PLAYLIST-GET-003] Playlists retrieved successfully",
                 extra={"user_id": user.id, "total_playlists": len(updated_playlists)},
             )
 
@@ -70,7 +70,7 @@ class PlaylistService:
         except Exception as e:
             # Fallback: if database/cache fails, return playlists directly from Spotify
             logger.error(
-                f"[PLAYLIST-GET-ERROR] Error getting user playlists",
+                "[PLAYLIST-GET-ERROR] Error getting user playlists",
                 extra={"user_id": user.id, "error": str(e)},
             )
             try:
@@ -106,7 +106,7 @@ class PlaylistService:
         """Get specific playlist by ID"""
         try:
             logger.debug(
-                f"[PLAYLIST-SINGLE-001] Getting playlist by ID",
+                "[PLAYLIST-SINGLE-001] Getting playlist by ID",
                 extra={"playlist_id": playlist_id, "include_tracks": include_tracks},
             )
 
@@ -142,7 +142,7 @@ class PlaylistService:
                 playlist.total_tracks = len(tracks)
 
             logger.debug(
-                f"[PLAYLIST-SINGLE-002] Playlist retrieved successfully",
+                "[PLAYLIST-SINGLE-002] Playlist retrieved successfully",
                 extra={
                     "playlist_id": playlist_id,
                     "playlist_name": playlist.name,
@@ -154,7 +154,7 @@ class PlaylistService:
 
         except Exception as e:
             logger.error(
-                f"[PLAYLIST-SINGLE-ERROR] Error getting playlist",
+                "[PLAYLIST-SINGLE-ERROR] Error getting playlist",
                 extra={"playlist_id": playlist_id, "error": str(e)},
             )
             return None
@@ -174,7 +174,7 @@ class PlaylistService:
 
         except Exception as e:
             logger.error(
-                f"[PLAYLIST-SPOTIFY-ERROR] Error getting playlist by Spotify ID",
+                "[PLAYLIST-SPOTIFY-ERROR] Error getting playlist by Spotify ID",
                 extra={"spotify_id": spotify_id, "owner_id": owner_id, "error": str(e)},
             )
             return None
@@ -184,7 +184,7 @@ class PlaylistService:
     ) -> List[Dict[str, Any]]:
         """Fetch playlists from Spotify API"""
         logger.debug(
-            f"[SPOTIFY-FETCH-001] Fetching playlists from Spotify API",
+            "[SPOTIFY-FETCH-001] Fetching playlists from Spotify API",
             extra={"user_id": user.id},
         )
 
@@ -208,7 +208,7 @@ class PlaylistService:
                     break
 
             logger.debug(
-                f"[SPOTIFY-FETCH-002] Fetched playlists from Spotify",
+                "[SPOTIFY-FETCH-002] Fetched playlists from Spotify",
                 extra={"user_id": user.id, "playlist_count": len(spotify_playlists)},
             )
 
@@ -216,7 +216,7 @@ class PlaylistService:
 
         except Exception as e:
             logger.error(
-                f"[SPOTIFY-FETCH-ERROR] Error fetching from Spotify API",
+                "[SPOTIFY-FETCH-ERROR] Error fetching from Spotify API",
                 extra={"user_id": user.id, "error": str(e)},
             )
             raise PlaylistError(f"Failed to fetch playlists from Spotify: {str(e)}")
@@ -229,7 +229,7 @@ class PlaylistService:
     ) -> List[Playlist]:
         """Sync Spotify playlists with database cache"""
         logger.debug(
-            f"[PLAYLIST-SYNC-001] Syncing playlist cache",
+            "[PLAYLIST-SYNC-001] Syncing playlist cache",
             extra={
                 "user_id": user.id,
                 "spotify_count": len(spotify_playlists),
@@ -263,7 +263,7 @@ class PlaylistService:
 
                     if needs_update:
                         logger.debug(
-                            f"[PLAYLIST-SYNC-002] Updating cached playlist",
+                            "[PLAYLIST-SYNC-002] Updating cached playlist",
                             extra={
                                 "playlist_id": cached["id"],
                                 "spotify_id": spotify_id,
@@ -296,7 +296,7 @@ class PlaylistService:
                 else:
                     # Create new playlist in cache
                     logger.debug(
-                        f"[PLAYLIST-SYNC-003] Creating new cached playlist",
+                        "[PLAYLIST-SYNC-003] Creating new cached playlist",
                         extra={
                             "spotify_id": spotify_id,
                             "name": spotify_playlist["name"],
@@ -310,7 +310,7 @@ class PlaylistService:
                     synced_playlists.append(new_playlist)
 
             logger.debug(
-                f"[PLAYLIST-SYNC-004] Playlist sync completed",
+                "[PLAYLIST-SYNC-004] Playlist sync completed",
                 extra={"user_id": user.id, "synced_count": len(synced_playlists)},
             )
 
@@ -318,7 +318,7 @@ class PlaylistService:
 
         except Exception as e:
             logger.error(
-                f"[PLAYLIST-SYNC-ERROR] Error syncing playlist cache",
+                "[PLAYLIST-SYNC-ERROR] Error syncing playlist cache",
                 extra={"user_id": user.id, "error": str(e)},
             )
             raise PlaylistError(f"Failed to sync playlist cache: {str(e)}")
@@ -349,7 +349,7 @@ class PlaylistService:
 
         except Exception as e:
             logger.error(
-                f"[PLAYLIST-CREATE-ERROR] Error creating cached playlist",
+                "[PLAYLIST-CREATE-ERROR] Error creating cached playlist",
                 extra={
                     "spotify_id": spotify_playlist["id"],
                     "user_id": user.id,
@@ -363,7 +363,7 @@ class PlaylistService:
     ):
         """Refresh tracks for a playlist"""
         logger.debug(
-            f"[PLAYLIST-TRACKS-001] Refreshing playlist tracks",
+            "[PLAYLIST-TRACKS-001] Refreshing playlist tracks",
             extra={"playlist_id": playlist_id, "spotify_id": spotify_playlist["id"]},
         )
 
@@ -397,13 +397,13 @@ class PlaylistService:
                 await database.create_record("playlist_tracks", track_data)
 
             logger.debug(
-                f"[PLAYLIST-TRACKS-002] Playlist tracks refreshed",
+                "[PLAYLIST-TRACKS-002] Playlist tracks refreshed",
                 extra={"playlist_id": playlist_id, "track_count": len(tracks_data)},
             )
 
         except Exception as e:
             logger.error(
-                f"[PLAYLIST-TRACKS-ERROR] Error refreshing playlist tracks",
+                "[PLAYLIST-TRACKS-ERROR] Error refreshing playlist tracks",
                 extra={"playlist_id": playlist_id, "error": str(e)},
             )
             # Don't raise error here - playlist can exist without tracks temporarily
@@ -413,7 +413,7 @@ class PlaylistService:
     ) -> List[Track]:
         """Load fresh tracks from Spotify API"""
         logger.debug(
-            f"[SPOTIFY-TRACKS-001] Loading tracks from Spotify",
+            "[SPOTIFY-TRACKS-001] Loading tracks from Spotify",
             extra={"playlist_id": playlist_id},
         )
 
@@ -449,7 +449,7 @@ class PlaylistService:
                     break
 
             logger.debug(
-                f"[SPOTIFY-TRACKS-002] Loaded tracks from Spotify",
+                "[SPOTIFY-TRACKS-002] Loaded tracks from Spotify",
                 extra={"playlist_id": playlist_id, "track_count": len(tracks)},
             )
 
@@ -457,7 +457,7 @@ class PlaylistService:
 
         except Exception as e:
             logger.error(
-                f"[SPOTIFY-TRACKS-ERROR] Error loading tracks from Spotify",
+                "[SPOTIFY-TRACKS-ERROR] Error loading tracks from Spotify",
                 extra={"playlist_id": playlist_id, "error": str(e)},
             )
             raise PlaylistError(f"Failed to load tracks from Spotify: {str(e)}")
@@ -482,7 +482,7 @@ class PlaylistService:
                         suitable_playlists.append(playlist)
 
             logger.debug(
-                f"[PLAYLIST-GAME-001] Found suitable playlists for game",
+                "[PLAYLIST-GAME-001] Found suitable playlists for game",
                 extra={
                     "user_id": user.id,
                     "total_playlists": len(all_playlists),
@@ -494,7 +494,7 @@ class PlaylistService:
 
         except Exception as e:
             logger.error(
-                f"[PLAYLIST-GAME-ERROR] Error getting game playlists",
+                "[PLAYLIST-GAME-ERROR] Error getting game playlists",
                 extra={"user_id": user.id, "error": str(e)},
             )
             return []

@@ -657,7 +657,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             "X-RateLimit-Limit": str(status.limit),
             "X-RateLimit-Remaining": str(status.remaining),
             "X-RateLimit-Reset": str(int(status.reset_at.timestamp())),
-            "X-Content-Type-Options": "nosniff",
+            "X-Content-Type-Options": "nosnif",
             "X-Frame-Options": "DENY"
         }
 

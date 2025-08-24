@@ -15,6 +15,7 @@ from app.error_handlers import ErrorResponse, ErrorMessages
 import random
 from io import BytesIO
 import logging
+from datetime import datetime, timezone
 
 router = APIRouter()
 logger = logging.getLogger("music_bingo")
@@ -57,17 +58,17 @@ async def api_generate_cards(request: Request, current_user: User = Depends(get_
             f"[CARD-AUTH-001] User {current_user.id} generating cards",
             extra={"user_id": current_user.id, "spotify_id": current_user.spotify_id}
         )
-        
+
         # Get request data
         data = await request.json()
         num_cards = int(data.get("num_cards", 1))
-        
+
         if num_cards < 1 or num_cards > 10:
             raise ErrorResponse.bad_request(
                 "Invalid number of cards",
                 details="Number of cards must be between 1 and 10"
             )
-        
+
         # Check if there are enough unplayed tracks
         unplayed_tracks = game_state.get_unplayed_tracks()
         if len(unplayed_tracks) < 25:
@@ -75,7 +76,7 @@ async def api_generate_cards(request: Request, current_user: User = Depends(get_
                 ErrorMessages.INSUFFICIENT_TRACKS,
                 details=f"Only {len(unplayed_tracks)} tracks available, need at least 25"
             )
-        
+
         # Generate the cards
         cards = []
         for i in range(num_cards):
@@ -89,11 +90,11 @@ async def api_generate_cards(request: Request, current_user: User = Depends(get_
                 "created_at": datetime.utcnow().isoformat()
             }
             cards.append(card)
-        
+
         # Store cards in game state
         game_state.cards.extend(cards)
         game_state.save_to_file()
-        
+
         logger.info(
             f"[CARD-GEN-001] Generated {len(cards)} cards for user {current_user.id}",
             extra={
@@ -102,7 +103,7 @@ async def api_generate_cards(request: Request, current_user: User = Depends(get_
                 "total_cards": len(game_state.cards)
             }
         )
-        
+
         return {"success": True, "cards": cards, "total_cards": len(cards)}
 
     except HTTPException:
@@ -134,12 +135,12 @@ async def api_get_cards(current_user: User = Depends(get_current_user)):
     """Get all bingo cards for the current user - requires authentication."""
     try:
         user_cards = [card for card in game_state.cards if card.get("user_id") == current_user.id]
-        
+
         logger.debug(
             f"[CARD-GET-001] Retrieved {len(user_cards)} cards for user {current_user.id}",
             extra={"user_id": current_user.id, "card_count": len(user_cards)}
         )
-        
+
         return {"cards": user_cards}
 
     except Exception as e:
@@ -165,17 +166,17 @@ async def api_check_card(card_id: str, current_user: User = Depends(get_current_
             if c.get("id") == card_id and c.get("user_id") == current_user.id:
                 card = c
                 break
-        
+
         if not card:
             raise ErrorResponse.not_found(
                 "Bingo card",
                 card_id
             )
-        
+
         # Check for bingo
         played_tracks = game_state.get_played_tracks()
         has_bingo = check_bingo_status(card, played_tracks)
-        
+
         logger.debug(
             f"[CARD-CHECK-001] Checked card {card_id} for user {current_user.id}",
             extra={
@@ -185,7 +186,7 @@ async def api_check_card(card_id: str, current_user: User = Depends(get_current_
                 "matches": len(card.get("matches", []))
             }
         )
-        
+
         return {
             "card": card,
             "bingo": has_bingo,
@@ -208,22 +209,22 @@ async def api_check_card(card_id: str, current_user: User = Depends(get_current_
         )
 
 
-@router.get("/api/download_cards_pdf")
+@router.get("/api/download_cards_pd")
 async def api_download_cards_pdf(current_user: User = Depends(get_current_user)):
     """Download bingo cards as PDF - requires authentication."""
     try:
         # Get user's cards
         user_cards = [card for card in game_state.cards if card.get("user_id") == current_user.id]
-        
+
         if not user_cards:
             raise ErrorResponse.not_found(
                 "Bingo cards",
                 details="No cards found for current user. Please generate cards first."
             )
-        
+
         # Generate PDF
         pdf_buffer = generate_pdf(user_cards)
-        
+
         logger.info(
             f"[CARD-PDF-001] Generated PDF for {len(user_cards)} cards for user {current_user.id}",
             extra={
@@ -231,10 +232,10 @@ async def api_download_cards_pdf(current_user: User = Depends(get_current_user))
                 "card_count": len(user_cards)
             }
         )
-        
+
         return StreamingResponse(
             BytesIO(pdf_buffer),
-            media_type="application/pdf",
+            media_type="application/pd",
             headers={"Content-Disposition": "attachment; filename=bingo_cards.pdf"}
         )
 

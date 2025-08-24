@@ -26,18 +26,18 @@ _redis_available = None
 async def get_session_store():
     """
     Get the appropriate session store (Redis preferred, memory fallback).
-    
+
     Returns:
         Session store instance (Redis or memory-based)
     """
     global _redis_store, _redis_available
-    
+
     # Try Redis first if we haven't determined availability yet
     if _redis_available is None:
         try:
             from app.redis_session_store import get_redis_session_store, RedisConnectionError
             from app.config import get_config
-            
+
             config = get_config()
             if config.app_env == "test":
                 # Always use memory for tests
@@ -47,16 +47,16 @@ async def get_session_store():
                 _redis_store = get_redis_session_store()
                 health = await _redis_store.health_check()
                 _redis_available = health.get("healthy", False)
-                
+
                 if _redis_available:
                     logger.info("[SESSION-STORE] Using Redis/Dragonfly session storage")
                 else:
                     logger.warning(f"[SESSION-STORE] Redis unhealthy, using memory fallback: {health.get('error', 'unknown')}")
-                    
+
         except Exception as e:
             logger.warning(f"[SESSION-STORE] Redis unavailable, using memory fallback: {e}")
             _redis_available = False
-    
+
     if _redis_available and _redis_store:
         return _redis_store
     else:
@@ -109,7 +109,7 @@ async def create_secure_session(
     """
     session_store = await get_session_store()
     csrf_token = generate_csrf_token()
-    
+
     # Create session using the appropriate store
     if hasattr(session_store, 'create_session'):
         # Redis store
@@ -136,7 +136,7 @@ async def create_secure_session(
     from app.config import get_config
     config = get_config()
     secure_cookie = config.app_env == "production"
-    
+
     response.set_cookie(
         key=SESSION_COOKIE_NAME,
         value=cookie_value,
@@ -149,7 +149,7 @@ async def create_secure_session(
 
     # Expose CSRF token in a separate cookie (readable by JS)
     response.set_cookie(
-        key="music_bingo_csrf",
+        key="music_bingo_csr",
         value=csrf_token,
         max_age=config.session_lifetime_hours * 3600,
         httponly=False,
@@ -185,18 +185,18 @@ async def get_session_from_request(
     """
     import logging
     logger = logging.getLogger("music_bingo")
-    
+
     # Debug cookie retrieval
     cookie_value = request.cookies.get(SESSION_COOKIE_NAME)
     all_cookies = list(request.cookies.keys())
-    
+
     logger.info(f"[SESSION-COOKIE-DEBUG] Looking for cookie: {SESSION_COOKIE_NAME}")
     logger.info(f"[SESSION-COOKIE-DEBUG] Available cookies: {all_cookies}")
     logger.info(f"[SESSION-COOKIE-DEBUG] Session cookie found: {bool(cookie_value)}")
-    
+
     if cookie_value:
         logger.info(f"[SESSION-COOKIE-DEBUG] Cookie value length: {len(cookie_value)}")
-    
+
     return await get_session_from_cookie_value(cookie_value, secret_key)
 
 
@@ -225,14 +225,14 @@ async def get_session_from_cookie_value(
 
         # Get session data from appropriate store
         session_store = await get_session_store()
-        
+
         if hasattr(session_store, 'get_session'):
             # Redis store
             session_data = await session_store.get_session(session_token)
         else:
             # Memory store fallback
             session_data = session_store.get_session(session_token)
-            
+
         return session_data
 
     except Exception as e:
@@ -255,7 +255,7 @@ async def invalidate_session(session_token: str, response: Response) -> bool:
         True if session was found and invalidated
     """
     session_store = await get_session_store()
-    
+
     if hasattr(session_store, 'invalidate_session'):
         # Redis store
         session_found = await session_store.invalidate_session(session_token)
@@ -267,16 +267,16 @@ async def invalidate_session(session_token: str, response: Response) -> bool:
     from app.config import get_config
     config = get_config()
     secure_cookie = config.app_env == "production"
-    
+
     response.delete_cookie(
-        key=SESSION_COOKIE_NAME, 
-        httponly=True, 
-        secure=secure_cookie, 
+        key=SESSION_COOKIE_NAME,
+        httponly=True,
+        secure=secure_cookie,
         samesite="lax"
     )
-    
+
     response.delete_cookie(
-        key="music_bingo_csrf",
+        key="music_bingo_csr",
         httponly=False,
         secure=secure_cookie,
         samesite="lax"
@@ -294,7 +294,7 @@ async def cleanup_user_sessions(user_id: str, keep_latest: int = None):
         keep_latest: Number of recent sessions to keep
     """
     session_store = await get_session_store()
-    
+
     if hasattr(session_store, 'cleanup_user_sessions'):
         # Redis store
         await session_store.cleanup_user_sessions(user_id, keep_latest)
@@ -306,7 +306,7 @@ async def cleanup_user_sessions(user_id: str, keep_latest: int = None):
 async def cleanup_expired_sessions():
     """Clean up all expired sessions."""
     session_store = await get_session_store()
-    
+
     if hasattr(session_store, 'cleanup_expired_sessions'):
         # Redis store
         return await session_store.cleanup_expired_sessions()
@@ -318,7 +318,7 @@ async def cleanup_expired_sessions():
 async def get_session_stats() -> Dict[str, Any]:
     """Get statistics about active sessions."""
     session_store = await get_session_store()
-    
+
     if hasattr(session_store, 'get_session_stats'):
         # Redis store
         return await session_store.get_session_stats()
@@ -349,7 +349,7 @@ def update_session_token_info(
     try:
         # Try memory store first for backward compatibility
         MemorySessionStore().update_session_token_info(session_token, new_token_info)
-        
+
         # Also update Redis if available (fire and forget)
         async def _update_redis():
             try:
@@ -357,14 +357,14 @@ def update_session_token_info(
                     await _redis_store.update_session_token_info(session_token, new_token_info)
             except:
                 pass
-        
+
         # Run async update in background
         try:
             loop = asyncio.get_event_loop()
             loop.create_task(_update_redis())
         except:
             pass  # Ignore if no event loop
-            
+
     except Exception:
         pass  # Fail silently for backward compatibility
 
@@ -397,14 +397,14 @@ class MemorySessionStore:
     """
     In-memory session store for development/testing and Redis fallback.
     """
-    
+
     def __init__(self):
         self._sessions: Dict[str, Dict[str, Any]] = {}
         from app.config import get_config
         config = get_config()
         self.session_lifetime_hours = config.session_lifetime_hours
         self.max_sessions_per_user = config.max_sessions_per_user
-    
+
     def create_session(
         self,
         user_id: str,
@@ -414,10 +414,10 @@ class MemorySessionStore:
     ) -> str:
         """Create a session in memory."""
         session_token = generate_session_token()
-        
+
         # Clean up old sessions for this user first
         self.cleanup_user_sessions(user_id)
-        
+
         # Create session data
         session_data = {
             "user_id": user_id,
@@ -430,10 +430,10 @@ class MemorySessionStore:
             ).isoformat(),
             "last_activity": datetime.now(timezone.utc).isoformat(),
         }
-        
+
         # Store session
         self._sessions[session_token] = session_data
-        
+
         logger.info(
             "[MEMORY-SESSION-CREATE] Session created",
             extra={
@@ -441,97 +441,97 @@ class MemorySessionStore:
                 "session_token": session_token[:8] + "...",
             }
         )
-        
+
         return session_token
-    
+
     def get_session(self, session_token: str) -> Optional[Dict[str, Any]]:
         """Get session from memory."""
         if not session_token:
             return None
-        
+
         session_data = self._sessions.get(session_token)
         if not session_data:
             return None
-        
+
         # Check expiration
         expires_at = datetime.fromisoformat(session_data["expires_at"])
         if datetime.now(timezone.utc) > expires_at:
             # Clean up expired session
             del self._sessions[session_token]
             return None
-        
+
         # Update last activity
         session_data["last_activity"] = datetime.now(timezone.utc).isoformat()
         return session_data
-    
+
     def invalidate_session(self, session_token: str) -> bool:
         """Invalidate session in memory."""
         if session_token in self._sessions:
             del self._sessions[session_token]
             return True
         return False
-    
+
     def cleanup_user_sessions(self, user_id: str, keep_latest: int = None):
         """Clean up old sessions for a user."""
         if keep_latest is None:
             keep_latest = self.max_sessions_per_user - 1
-        
+
         user_sessions = []
-        
+
         # Find all sessions for this user
         for token, data in self._sessions.items():
             if data.get("user_id") == user_id:
                 user_sessions.append((token, data))
-        
+
         if len(user_sessions) <= keep_latest:
             return
-        
+
         # Sort by creation time (newest first)
         user_sessions.sort(key=lambda x: x[1]["created_at"], reverse=True)
-        
+
         # Remove old sessions
         sessions_to_remove = user_sessions[keep_latest:]
         for token, _ in sessions_to_remove:
             del self._sessions[token]
-    
+
     def cleanup_expired_sessions(self) -> int:
         """Clean up expired sessions."""
         now = datetime.now(timezone.utc)
         expired_tokens = []
-        
+
         for token, data in self._sessions.items():
             expires_at = datetime.fromisoformat(data["expires_at"])
             if now > expires_at:
                 expired_tokens.append(token)
-        
+
         for token in expired_tokens:
             del self._sessions[token]
-        
+
         return len(expired_tokens)
-    
+
     def get_session_stats(self) -> Dict[str, Any]:
         """Get session statistics."""
         now = datetime.now(timezone.utc)
         active_sessions = 0
         unique_users = set()
-        
+
         for data in self._sessions.values():
             expires_at = datetime.fromisoformat(data["expires_at"])
             if now <= expires_at:
                 active_sessions += 1
                 unique_users.add(data.get("user_id"))
-        
+
         return {
             "total_sessions": len(self._sessions),
             "active_sessions": active_sessions,
             "unique_users": len(unique_users),
             "storage_type": "Memory",
         }
-    
+
     def get_sessions_snapshot(self) -> Dict[str, Dict[str, Any]]:
         """Return snapshot of sessions."""
         return dict(self._sessions)
-    
+
     def update_session_token_info(self, session_token: str, new_token_info: Dict[str, Any]):
         """Update token info for a session."""
         if session_token in self._sessions:

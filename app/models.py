@@ -121,7 +121,7 @@ class User(UserBase):
 
     # Spotify data
     spotify_uri: Optional[str] = Field(None, description="Spotify URI")
-    spotify_href: Optional[str] = Field(None, description="Spotify API href")
+    spotify_href: Optional[str] = Field(None, description="Spotify API hre")
     spotify_external_url: Optional[str] = Field(None, description="Spotify profile URL")
 
     # Profile data
@@ -582,7 +582,7 @@ class RedisKeySchema:
 
 class GameValidationStatus(str, Enum):
     """Game validation status enumeration"""
-    
+
     VALID = "valid"
     INVALID = "invalid"
     NOT_FOUND = "not_found"
@@ -592,7 +592,7 @@ class GameValidationStatus(str, Enum):
 
 class GameValidationResult(BaseModel):
     """Individual game validation result"""
-    
+
     game_id: str = Field(..., description="Game ID")
     status: GameValidationStatus = Field(..., description="Validation status")
     exists: bool = Field(..., description="Whether game exists in database")
@@ -605,7 +605,7 @@ class GameValidationResult(BaseModel):
 
 class BulkGameValidationRequest(BaseModel):
     """Request model for bulk game validation"""
-    
+
     game_ids: List[str] = Field(..., description="List of game IDs to validate", max_items=100)
     include_track_count: bool = Field(default=True, description="Whether to include track count in response")
     filter_status: Optional[GameStatus] = Field(None, description="Optional status filter")
@@ -613,7 +613,7 @@ class BulkGameValidationRequest(BaseModel):
 
 class BulkGameValidationResponse(BaseModel):
     """Response model for bulk game validation"""
-    
+
     success: bool = Field(..., description="Request success status")
     total_requested: int = Field(..., description="Total number of games requested for validation")
     total_processed: int = Field(..., description="Total number of games processed")
@@ -625,9 +625,8 @@ class BulkGameValidationResponse(BaseModel):
 
 class GameExistenceCheck(BaseModel):
     """Simple game existence check response"""
-    
+
     game_id: str = Field(..., description="Game ID")
     exists: bool = Field(..., description="Whether game exists")
     accessible: bool = Field(default=False, description="Whether user can access the game")
     status: Optional[GameStatus] = Field(None, description="Game status if exists")
-

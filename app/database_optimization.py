@@ -29,15 +29,15 @@ class QueryPerformanceMetrics:
 class DatabaseOptimizer:
     """
     Database optimization enhancements for MED-002
-    
+
     Provides performance monitoring, caching integration, and query optimization
     for the Musical Bingo application's database operations.
     """
-    
+
     def __init__(self):
         self.performance_metrics: List[QueryPerformanceMetrics] = []
         self.cache_manager: Optional[CacheManager] = None
-        
+
     def set_cache_manager(self, cache_manager: CacheManager):
         """Set the cache manager for cache-database integration"""
         self.cache_manager = cache_manager
@@ -48,15 +48,15 @@ class DatabaseOptimizer:
         """Context manager to track query performance"""
         start_time = time.time()
         rows_affected = 0
-        
+
         # Create query hash for caching
         query_hash = hashlib.md5(f"{query_type}:{table}:{query_data}".encode()).hexdigest()[:8]
-        
+
         try:
             yield {"query_hash": query_hash}
         finally:
             execution_time = (time.time() - start_time) * 1000  # Convert to ms
-            
+
             metric = QueryPerformanceMetrics(
                 query_type=query_type,
                 table=table,
@@ -65,13 +65,13 @@ class DatabaseOptimizer:
                 timestamp=datetime.now(),
                 query_hash=query_hash
             )
-            
+
             self.performance_metrics.append(metric)
-            
+
             # Log slow queries (>100ms)
             if execution_time > 100:
                 logger.warning(
-                    f"[DB-SLOW-QUERY] Slow database query detected",
+                    "[DB-SLOW-QUERY] Slow database query detected",
                     extra={
                         "query_type": query_type,
                         "table": table,
@@ -79,7 +79,7 @@ class DatabaseOptimizer:
                         "query_hash": query_hash
                     }
                 )
-            
+
             # Keep only recent metrics to prevent memory bloat
             if len(self.performance_metrics) > 1000:
                 self.performance_metrics = self.performance_metrics[-500:]
@@ -87,12 +87,12 @@ class DatabaseOptimizer:
     async def optimized_get_user_games(self, user_id: str, status_filter: Optional[str] = None, use_cache: bool = True) -> List[Dict[str, Any]]:
         """
         Optimized user games retrieval with caching and performance monitoring
-        
+
         This method combines database optimization with intelligent caching to
         reduce the load on frequently accessed user game queries.
         """
         cache_key = f"user_games:{user_id}:{status_filter or 'all'}"
-        
+
         # Check cache first if caching is enabled
         if use_cache and self.cache_manager:
             try:
@@ -106,7 +106,7 @@ class DatabaseOptimizer:
                     return cached_result
             except Exception as e:
                 logger.warning(f"[DB-CACHE-WARN] Cache lookup failed: {e}")
-        
+
         # Perform optimized database query
         async with self.track_query_performance("select", "games", f"user_games:{user_id}"):
             try:
@@ -114,7 +114,7 @@ class DatabaseOptimizer:
                 filters = {"host_id": user_id}
                 if status_filter:
                     filters["status"] = status_filter
-                
+
                 # Get hosted games
                 hosted_games = await database.query_records(
                     "games",
@@ -122,39 +122,39 @@ class DatabaseOptimizer:
                     order_by={"column": "created_at", "ascending": False},
                     select="id, name, status, host_id, max_players, created_at, is_private, room_code"
                 )
-                
+
                 # Get player games using optimized query
                 player_games_data = await database.query_records(
-                    "game_players", 
+                    "game_players",
                     filters={"user_id": user_id}
                 )
-                
+
                 joined_games = []
                 if player_games_data:
                     player_game_ids = [pg["game_id"] for pg in player_games_data]
-                    
+
                     # Use IN clause for bulk retrieval (optimized with idx_games_status)
                     bulk_filters = {"id": {"in": player_game_ids}}
                     if status_filter:
                         bulk_filters["status"] = status_filter
-                    
+
                     joined_games = await database.query_records(
                         "games",
                         filters=bulk_filters,
                         order_by={"column": "created_at", "ascending": False},
                         select="id, name, status, host_id, max_players, created_at, is_private, room_code"
                     )
-                
+
                 # Combine and deduplicate
                 all_games = hosted_games + joined_games
                 seen_ids = set()
                 unique_games = []
-                
+
                 for game in all_games:
                     if game["id"] not in seen_ids:
                         seen_ids.add(game["id"])
                         unique_games.append(game)
-                
+
                 # Cache the result if caching is enabled
                 if use_cache and self.cache_manager:
                     try:
@@ -166,12 +166,12 @@ class DatabaseOptimizer:
                         )
                     except Exception as e:
                         logger.warning(f"[DB-CACHE-WARN] Cache storage failed: {e}")
-                
+
                 return unique_games
-                
+
             except Exception as e:
                 logger.error(
-                    f"[DB-OPTIMIZER-ERROR] Optimized user games query failed",
+                    "[DB-OPTIMIZER-ERROR] Optimized user games query failed",
                     extra={"user_id": user_id, "error": str(e)}
                 )
                 raise DatabaseError(f"Failed to retrieve user games: {str(e)}")
@@ -179,12 +179,12 @@ class DatabaseOptimizer:
     async def optimized_get_playlist_track_count(self, playlist_id: str, use_cache: bool = True) -> int:
         """
         Optimized playlist track counting with caching
-        
+
         Uses strategic caching and the idx_playlist_tracks_playlist_id index
         for optimal performance.
         """
         cache_key = f"playlist_track_count:{playlist_id}"
-        
+
         # Check cache first
         if use_cache and self.cache_manager:
             try:
@@ -198,7 +198,7 @@ class DatabaseOptimizer:
                     return cached_count
             except Exception as e:
                 logger.warning(f"[DB-CACHE-WARN] Track count cache lookup failed: {e}")
-        
+
         # Perform optimized count query (uses idx_playlist_tracks_playlist_id)
         async with self.track_query_performance("count", "playlist_tracks", playlist_id):
             try:
@@ -206,7 +206,7 @@ class DatabaseOptimizer:
                     "playlist_tracks",
                     filters={"playlist_id": playlist_id}
                 )
-                
+
                 # Cache the result
                 if use_cache and self.cache_manager:
                     try:
@@ -218,12 +218,12 @@ class DatabaseOptimizer:
                         )
                     except Exception as e:
                         logger.warning(f"[DB-CACHE-WARN] Track count cache storage failed: {e}")
-                
+
                 return count
-                
+
             except Exception as e:
                 logger.error(
-                    f"[DB-OPTIMIZER-ERROR] Track count query failed",
+                    "[DB-OPTIMIZER-ERROR] Track count query failed",
                     extra={"playlist_id": playlist_id, "error": str(e)}
                 )
                 raise DatabaseError(f"Failed to count playlist tracks: {str(e)}")
@@ -231,19 +231,19 @@ class DatabaseOptimizer:
     async def bulk_cache_user_data(self, user_ids: List[str]) -> Dict[str, Any]:
         """
         Pre-warm cache for multiple users to prevent N+1 cache misses
-        
+
         This method helps prevent cascading cache misses when multiple users
         are accessing the system simultaneously.
         """
         if not self.cache_manager:
             logger.warning("[DB-OPTIMIZER-WARN] Cache manager not available for bulk caching")
             return {"cached": 0, "failed": 0}
-        
+
         logger.info(f"[DB-OPTIMIZER-002] Pre-warming cache for {len(user_ids)} users")
-        
+
         cached_count = 0
         failed_count = 0
-        
+
         for user_id in user_ids:
             try:
                 # Cache user games
@@ -255,19 +255,19 @@ class DatabaseOptimizer:
                     games
                 )
                 cached_count += 1
-                
+
             except Exception as e:
                 logger.warning(
-                    f"[DB-OPTIMIZER-WARN] Failed to cache user data",
+                    "[DB-OPTIMIZER-WARN] Failed to cache user data",
                     extra={"user_id": user_id, "error": str(e)}
                 )
                 failed_count += 1
-        
+
         logger.info(
-            f"[DB-OPTIMIZER-003] Cache pre-warming completed",
+            "[DB-OPTIMIZER-003] Cache pre-warming completed",
             extra={"cached": cached_count, "failed": failed_count}
         )
-        
+
         return {"cached": cached_count, "failed": failed_count}
 
     def get_performance_metrics(self) -> Dict[str, Any]:
@@ -278,11 +278,11 @@ class DatabaseOptimizer:
                 "total_queries": 0,
                 "avg_execution_time_ms": 0
             }
-        
+
         total_queries = len(self.performance_metrics)
         avg_execution_time = sum(m.execution_time_ms for m in self.performance_metrics) / total_queries
         slow_queries = [m for m in self.performance_metrics if m.execution_time_ms > 100]
-        
+
         # Group by table and operation
         operations = {}
         for metric in self.performance_metrics:
@@ -290,7 +290,7 @@ class DatabaseOptimizer:
             if key not in operations:
                 operations[key] = []
             operations[key].append(metric.execution_time_ms)
-        
+
         operation_stats = {}
         for op, times in operations.items():
             operation_stats[op] = {
@@ -299,7 +299,7 @@ class DatabaseOptimizer:
                 "max_time_ms": max(times),
                 "min_time_ms": min(times)
             }
-        
+
         # Cache hit analysis if cache manager is available
         cache_stats = {}
         if self.cache_manager:
@@ -308,7 +308,7 @@ class DatabaseOptimizer:
             except Exception as e:
                 logger.warning(f"[DB-OPTIMIZER-WARN] Failed to get cache stats: {e}")
                 cache_stats = {"error": str(e)}
-        
+
         return {
             "total_queries": total_queries,
             "avg_execution_time_ms": round(avg_execution_time, 2),
@@ -335,13 +335,13 @@ class DatabaseOptimizer:
     async def validate_indexes_performance(self) -> Dict[str, Any]:
         """
         Validate that the MED-002 performance indexes are working effectively
-        
+
         This method runs test queries to verify index usage and performance.
         """
         logger.info("[DB-OPTIMIZER-004] Validating index performance")
-        
+
         validation_results = {}
-        
+
         # Test queries that should benefit from indexes
         test_queries = [
             {
@@ -352,7 +352,7 @@ class DatabaseOptimizer:
             },
             {
                 "name": "games_by_status",
-                "table": "games", 
+                "table": "games",
                 "test_query": "SELECT COUNT(*) FROM games WHERE status = 'waiting'",
                 "expected_index": "idx_games_status"
             },
@@ -363,13 +363,13 @@ class DatabaseOptimizer:
                 "expected_index": "idx_game_players_user_id"
             }
         ]
-        
+
         for test in test_queries:
             try:
                 async with self.track_query_performance("validation", test["table"], test["name"]):
                     # Execute test query (should be fast with indexes)
                     start_time = time.time()
-                    
+
                     # Note: In a real implementation, we'd use EXPLAIN ANALYZE
                     # For now, we'll simulate by timing a simple count query
                     try:
@@ -379,26 +379,26 @@ class DatabaseOptimizer:
                         )
                     except Exception:
                         count = 0  # Expected for test values
-                    
+
                     execution_time = (time.time() - start_time) * 1000
-                
+
                 validation_results[test["name"]] = {
                     "execution_time_ms": round(execution_time, 2),
                     "expected_index": test["expected_index"],
                     "status": "fast" if execution_time < 50 else "slow"
                 }
-                
+
             except Exception as e:
                 validation_results[test["name"]] = {
                     "error": str(e),
                     "status": "failed"
                 }
-        
+
         logger.info(
-            f"[DB-OPTIMIZER-005] Index validation completed",
+            "[DB-OPTIMIZER-005] Index validation completed",
             extra={"results": validation_results}
         )
-        
+
         return validation_results
 
 # Global database optimizer instance

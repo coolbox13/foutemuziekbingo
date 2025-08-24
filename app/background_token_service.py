@@ -21,12 +21,11 @@ import asyncio
 import logging
 from datetime import datetime, timezone, timedelta
 from typing import Optional, List, Dict, Any
-import signal
 from dataclasses import dataclass
 from enum import Enum
 
 from app.spotify_token_manager import (
-    spotify_token_manager, 
+    spotify_token_manager,
     TokenRefreshResult,
     TokenStatus
 )
@@ -64,29 +63,29 @@ class RefreshStats:
 class BackgroundTokenService:
     """
     Background service for proactive Spotify token management.
-    
+
     Runs periodic checks to refresh tokens before they expire,
     maintaining service availability and user experience.
     """
 
-    def __init__(self, 
+    def __init__(self,
                  check_interval_minutes: int = 10,
                  refresh_buffer_minutes: int = 15):
         """
         Initialize background token service.
-        
+
         Args:
             check_interval_minutes: How often to check for tokens needing refresh
             refresh_buffer_minutes: Refresh tokens this many minutes before expiry
         """
         self.check_interval = timedelta(minutes=check_interval_minutes)
         self.refresh_buffer = timedelta(minutes=refresh_buffer_minutes)
-        
+
         self.status = ServiceStatus.STOPPED
         self.stats = RefreshStats()
         self._task: Optional[asyncio.Task] = None
         self._shutdown_event = asyncio.Event()
-        
+
         logger.info(
             "[BACKGROUND-TOKEN-INIT] Background token service initialized",
             extra={
@@ -98,7 +97,7 @@ class BackgroundTokenService:
     async def start(self) -> bool:
         """
         Start the background token refresh service.
-        
+
         Returns:
             True if started successfully, False otherwise
         """
@@ -109,18 +108,18 @@ class BackgroundTokenService:
         try:
             self.status = ServiceStatus.STARTING
             logger.info("[BACKGROUND-TOKEN-002] Starting background token service")
-            
+
             # Reset shutdown event
             self._shutdown_event.clear()
-            
+
             # Start the background task
             self._task = asyncio.create_task(self._run_service())
-            
+
             self.status = ServiceStatus.RUNNING
             logger.info("[BACKGROUND-TOKEN-003] Background token service started successfully")
-            
+
             return True
-            
+
         except Exception as e:
             self.status = ServiceStatus.ERROR
             logger.error(
@@ -133,10 +132,10 @@ class BackgroundTokenService:
     async def stop(self, timeout: float = 30.0) -> bool:
         """
         Stop the background token refresh service gracefully.
-        
+
         Args:
             timeout: Maximum time to wait for graceful shutdown
-            
+
         Returns:
             True if stopped successfully, False if timeout occurred
         """
@@ -147,10 +146,10 @@ class BackgroundTokenService:
         try:
             self.status = ServiceStatus.STOPPING
             logger.info("[BACKGROUND-TOKEN-005] Stopping background token service")
-            
+
             # Signal shutdown
             self._shutdown_event.set()
-            
+
             # Wait for task to complete
             if self._task:
                 try:
@@ -167,10 +166,10 @@ class BackgroundTokenService:
 
             self.status = ServiceStatus.STOPPED
             self._task = None
-            
+
             logger.info("[BACKGROUND-TOKEN-007] Background token service stopped")
             return True
-            
+
         except Exception as e:
             logger.error(
                 "[BACKGROUND-TOKEN-ERROR-002] Error during service shutdown",
@@ -183,15 +182,15 @@ class BackgroundTokenService:
     async def _run_service(self):
         """Main service loop for background token refresh"""
         logger.info("[BACKGROUND-TOKEN-008] Background token service loop started")
-        
+
         try:
             while not self._shutdown_event.is_set():
                 run_start = datetime.now(timezone.utc)
-                
+
                 try:
                     # Perform token refresh check
                     await self._refresh_cycle()
-                    
+
                 except Exception as e:
                     logger.error(
                         "[BACKGROUND-TOKEN-ERROR-003] Error in refresh cycle",
@@ -199,7 +198,7 @@ class BackgroundTokenService:
                         exc_info=True
                     )
                     self.stats.errors.append(f"Refresh cycle error: {str(e)}")
-                    
+
                     # Limit error list size
                     if len(self.stats.errors) > 100:
                         self.stats.errors = self.stats.errors[-50:]
@@ -230,26 +229,26 @@ class BackgroundTokenService:
             )
             self.status = ServiceStatus.ERROR
             raise
-        
+
         logger.info("[BACKGROUND-TOKEN-009] Background token service loop ended")
 
     async def _refresh_cycle(self):
         """Perform one cycle of token refresh checks"""
         cycle_id = f"cycle-{int(datetime.now().timestamp())}"
-        
+
         logger.debug(
             "[BACKGROUND-TOKEN-010] Starting refresh cycle",
             extra={"cycle_id": cycle_id}
         )
-        
+
         # Reset cycle stats
         cycle_stats = RefreshStats()
-        
+
         try:
             # Get users who might need token refresh
             users_to_check = await self._get_users_needing_refresh()
             cycle_stats.total_users_checked = len(users_to_check)
-            
+
             if not users_to_check:
                 logger.debug(
                     "[BACKGROUND-TOKEN-011] No users need token refresh",
@@ -307,14 +306,14 @@ class BackgroundTokenService:
     async def _get_users_needing_refresh(self) -> List[Dict[str, Any]]:
         """
         Get users whose tokens might need refresh.
-        
+
         Returns users with Spotify tokens that expire within the refresh buffer.
         """
         try:
             # Calculate cutoff time for token expiry
             cutoff_time = datetime.now(timezone.utc) + self.refresh_buffer
             cutoff_iso = cutoff_time.isoformat()
-            
+
             # Query for users with tokens expiring soon
             # Note: This is a simplified query - adjust based on your database schema
             users = await database.query_records(
@@ -325,7 +324,7 @@ class BackgroundTokenService:
                 },
                 limit=100  # Process in batches
             )
-            
+
             logger.debug(
                 "[BACKGROUND-TOKEN-014] Found users with tokens expiring soon",
                 extra={
@@ -333,7 +332,7 @@ class BackgroundTokenService:
                     "cutoff_time": cutoff_iso
                 }
             )
-            
+
             return users
 
         except Exception as e:
@@ -366,7 +365,7 @@ class BackgroundTokenService:
         try:
             # Validate current token status
             validation = await spotify_token_manager.validate_token(user_id)
-            
+
             if validation.status == TokenStatus.VALID and not validation.needs_refresh:
                 logger.debug(
                     "[BACKGROUND-TOKEN-017] User token still valid, skipping",
@@ -380,11 +379,11 @@ class BackgroundTokenService:
 
             # Attempt token refresh
             if validation.needs_refresh or validation.status in [
-                TokenStatus.EXPIRED, 
+                TokenStatus.EXPIRED,
                 TokenStatus.REFRESH_NEEDED
             ]:
                 stats.tokens_refreshed += 1
-                
+
                 logger.info(
                     "[BACKGROUND-TOKEN-018] Attempting proactive token refresh",
                     extra={
@@ -407,7 +406,7 @@ class BackgroundTokenService:
                     )
                 else:
                     stats.refresh_failures += 1
-                    
+
                     # Check if user needs re-authentication
                     if refresh_result in [
                         TokenRefreshResult.FAILED_NO_REFRESH_TOKEN,
@@ -422,10 +421,10 @@ class BackgroundTokenService:
                                 "refresh_result": refresh_result.value
                             }
                         )
-                        
-                        # TODO: Implement user notification here
+
+                        # User notification implemented via UserNotificationService
                         await self._notify_user_reauth_needed(user_id, cycle_id)
-                        
+
                     else:
                         logger.warning(
                             "[BACKGROUND-TOKEN-021] Token refresh failed",
@@ -452,7 +451,7 @@ class BackgroundTokenService:
     async def _notify_user_reauth_needed(self, user_id: str, cycle_id: str):
         """
         Notify user that re-authentication is needed.
-        
+
         This is a placeholder for future user notification implementation.
         Could be email, push notification, in-app notification, etc.
         """
@@ -464,13 +463,26 @@ class BackgroundTokenService:
                 "notification_type": "reauth_needed"
             }
         )
+
+        # User notification system implemented via UserNotificationService
+        # Creates database notification record with action URL for re-authentication
+        # WebSocket notifications sent to active user sessions
+        from app.user_notification_service import get_user_notification_service
         
-        # TODO: Implement actual user notification
-        # Examples:
-        # - Email notification
-        # - Push notification  
-        # - In-app notification flag
-        # - WebSocket message to active sessions
+        try:
+            notification_service = get_user_notification_service()
+            await notification_service.create_notification(
+                user_id=user_id,
+                notification_type="reauth_required",
+                title="Spotify Re-authentication Required",
+                message="Your Spotify session has expired. Please log in again to continue using music features.",
+                action_url="/auth/login",
+                action_text="Login to Spotify",
+                priority="high"
+            )
+            logger.debug("User notification created for re-authentication", extra={"user_id": user_id})
+        except Exception as e:
+            logger.error("Failed to create user notification", extra={"user_id": user_id, "error": str(e)})
 
     def _update_service_stats(self, cycle_stats: RefreshStats):
         """Update service-wide statistics with cycle results"""
@@ -479,10 +491,10 @@ class BackgroundTokenService:
         self.stats.refresh_successes += cycle_stats.refresh_successes
         self.stats.refresh_failures += cycle_stats.refresh_failures
         self.stats.users_needing_reauth += cycle_stats.users_needing_reauth
-        
+
         # Add cycle errors to service errors
         self.stats.errors.extend(cycle_stats.errors)
-        
+
         # Limit error list size
         if len(self.stats.errors) > 100:
             self.stats.errors = self.stats.errors[-50:]
@@ -504,8 +516,8 @@ class BackgroundTokenService:
                     if self.stats.tokens_refreshed > 0 else 0.0
                 ),
                 "last_run_duration": self.stats.last_run_duration,
-                "last_run_timestamp": self.stats.last_run_timestamp.isoformat() 
-                    if self.stats.last_run_timestamp else None,
+                "last_run_timestamp": self.stats.last_run_timestamp.isoformat()
+                if self.stats.last_run_timestamp else None,
                 "recent_errors": self.stats.errors[-10:],  # Last 10 errors
             }
         }
@@ -517,29 +529,29 @@ class BackgroundTokenService:
             "status": self.status.value,
             "uptime_status": "unknown"
         }
-        
+
         # Check if service has run recently
         if self.stats.last_run_timestamp:
             time_since_last_run = (
                 datetime.now(timezone.utc) - self.stats.last_run_timestamp
             ).total_seconds()
-            
+
             expected_interval = self.check_interval.total_seconds()
-            
+
             if time_since_last_run > expected_interval * 2:
                 health_status["healthy"] = False
                 health_status["uptime_status"] = "stale"
                 health_status["time_since_last_run"] = time_since_last_run
             else:
                 health_status["uptime_status"] = "active"
-        
+
         # Check error rate
         if self.stats.tokens_refreshed > 10:  # Only check if we have sufficient data
             error_rate = self.stats.refresh_failures / self.stats.tokens_refreshed
             if error_rate > 0.5:  # More than 50% failure rate
                 health_status["healthy"] = False
                 health_status["high_error_rate"] = error_rate
-        
+
         return health_status
 
 

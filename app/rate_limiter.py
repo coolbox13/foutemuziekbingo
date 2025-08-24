@@ -39,58 +39,58 @@ logger = logging.getLogger("music_bingo")
 @dataclass
 class RateLimitAnalytics:
     """Comprehensive rate limiting analytics and monitoring."""
-    
+
     # Basic counters
     requests_checked: int = 0
     requests_blocked: int = 0
     requests_warned: int = 0
-    
+
     # Per-endpoint metrics
     endpoint_stats: Dict[str, Dict[str, int]] = field(default_factory=dict)
-    
+
     # Per-rule metrics
     rule_stats: Dict[str, Dict[str, int]] = field(default_factory=dict)
-    
+
     # Abuse detection
     suspicious_ips: Dict[str, Dict[str, Any]] = field(default_factory=dict)
     blocked_users: Dict[str, Dict[str, Any]] = field(default_factory=dict)
-    
+
     # Performance metrics
     avg_processing_time_ms: float = 0.0
     total_processing_time: float = 0.0
-    
+
     # Time-based metrics
     start_time: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     last_reset: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
-    
+
     def record_request(self, rule_name: str, endpoint: str, processing_time_ms: float):
         """Record a processed request."""
         self.requests_checked += 1
         self.total_processing_time += processing_time_ms
         self.avg_processing_time_ms = self.total_processing_time / self.requests_checked
-        
+
         # Per-endpoint stats
         if endpoint not in self.endpoint_stats:
             self.endpoint_stats[endpoint] = {"checked": 0, "blocked": 0, "warned": 0}
         self.endpoint_stats[endpoint]["checked"] += 1
-        
+
         # Per-rule stats
         if rule_name not in self.rule_stats:
             self.rule_stats[rule_name] = {"checked": 0, "blocked": 0, "warned": 0}
         self.rule_stats[rule_name]["checked"] += 1
-    
+
     def record_block(self, rule_name: str, endpoint: str, client_ip: str, user_id: Optional[str] = None):
         """Record a blocked request."""
         self.requests_blocked += 1
-        
+
         # Update endpoint stats
         if endpoint in self.endpoint_stats:
             self.endpoint_stats[endpoint]["blocked"] += 1
-        
-        # Update rule stats  
+
+        # Update rule stats
         if rule_name in self.rule_stats:
             self.rule_stats[rule_name]["blocked"] += 1
-        
+
         # Track suspicious IP
         if client_ip not in self.suspicious_ips:
             self.suspicious_ips[client_ip] = {
@@ -99,11 +99,11 @@ class RateLimitAnalytics:
                 "last_block": datetime.now(timezone.utc),
                 "endpoints": set()
             }
-        
+
         self.suspicious_ips[client_ip]["blocks"] += 1
         self.suspicious_ips[client_ip]["last_block"] = datetime.now(timezone.utc)
         self.suspicious_ips[client_ip]["endpoints"].add(endpoint)
-        
+
         # Track blocked user if authenticated
         if user_id:
             if user_id not in self.blocked_users:
@@ -113,87 +113,87 @@ class RateLimitAnalytics:
                     "last_block": datetime.now(timezone.utc),
                     "endpoints": set()
                 }
-            
+
             self.blocked_users[user_id]["blocks"] += 1
             self.blocked_users[user_id]["last_block"] = datetime.now(timezone.utc)
             self.blocked_users[user_id]["endpoints"].add(endpoint)
-    
+
     def record_warning(self, rule_name: str, endpoint: str):
         """Record a warning (approaching limit)."""
         self.requests_warned += 1
-        
+
         if endpoint in self.endpoint_stats:
             self.endpoint_stats[endpoint]["warned"] += 1
-        
+
         if rule_name in self.rule_stats:
             self.rule_stats[rule_name]["warned"] += 1
-    
+
     def get_comprehensive_stats(self) -> Dict[str, Any]:
         """Get comprehensive statistics for monitoring."""
         now = datetime.now(timezone.utc)
         uptime_seconds = (now - self.start_time).total_seconds()
-        
+
         # Calculate rates
         requests_per_second = self.requests_checked / max(uptime_seconds, 1)
         block_rate = (self.requests_blocked / max(self.requests_checked, 1)) * 100
         warning_rate = (self.requests_warned / max(self.requests_checked, 1)) * 100
-        
+
         # Identify top problem IPs
         top_blocked_ips = sorted(
             self.suspicious_ips.items(),
             key=lambda x: x[1]["blocks"],
             reverse=True
         )[:10]
-        
+
         # Identify most blocked endpoints
         top_blocked_endpoints = sorted(
             [(endpoint, stats["blocked"]) for endpoint, stats in self.endpoint_stats.items()],
             key=lambda x: x[1],
             reverse=True
         )[:10]
-        
+
         return {
             # Basic metrics
             "requests_total": self.requests_checked,
             "requests_blocked_total": self.requests_blocked,
             "requests_warned_total": self.requests_warned,
             "requests_allowed_total": self.requests_checked - self.requests_blocked,
-            
+
             # Rates and percentages
             "requests_per_second": round(requests_per_second, 2),
             "block_rate_percent": round(block_rate, 2),
             "warning_rate_percent": round(warning_rate, 2),
             "success_rate_percent": round(100 - block_rate, 2),
-            
+
             # Performance metrics
             "avg_processing_time_ms": round(self.avg_processing_time_ms, 2),
             "total_processing_time_ms": round(self.total_processing_time, 2),
-            
+
             # Time metrics
             "uptime_seconds": int(uptime_seconds),
             "uptime_hours": round(uptime_seconds / 3600, 2),
             "start_time": self.start_time.isoformat(),
             "last_reset": self.last_reset.isoformat(),
-            
+
             # Detailed stats
             "endpoint_stats": dict(self.endpoint_stats),
             "rule_stats": dict(self.rule_stats),
-            
+
             # Security insights
             "unique_blocked_ips": len(self.suspicious_ips),
             "unique_blocked_users": len(self.blocked_users),
             "top_blocked_ips": [(ip, stats["blocks"]) for ip, stats in top_blocked_ips],
             "top_blocked_endpoints": top_blocked_endpoints,
-            
+
             # Abuse patterns
             "potential_abuse_patterns": self._detect_abuse_patterns()
         }
-    
+
     def _detect_abuse_patterns(self) -> List[Dict[str, Any]]:
         """Detect potential abuse patterns."""
         patterns = []
         now = datetime.now(timezone.utc)
-        
+
         # Pattern 1: High frequency blocks from single IP
         for ip, stats in self.suspicious_ips.items():
             if stats["blocks"] >= 10:  # 10+ blocks
@@ -207,7 +207,7 @@ class RateLimitAnalytics:
                         "endpoints_hit": len(stats["endpoints"]),
                         "severity": "high" if stats["blocks"] >= 20 else "medium"
                     })
-        
+
         # Pattern 2: Distributed attack (multiple IPs, same endpoints)
         endpoint_ip_map = {}
         for ip, stats in self.suspicious_ips.items():
@@ -215,7 +215,7 @@ class RateLimitAnalytics:
                 if endpoint not in endpoint_ip_map:
                     endpoint_ip_map[endpoint] = set()
                 endpoint_ip_map[endpoint].add(ip)
-        
+
         for endpoint, ips in endpoint_ip_map.items():
             if len(ips) >= 5:  # 5+ different IPs hitting same endpoint
                 patterns.append({
@@ -224,7 +224,7 @@ class RateLimitAnalytics:
                     "unique_ips": len(ips),
                     "severity": "high" if len(ips) >= 10 else "medium"
                 })
-        
+
         # Pattern 3: Authenticated user abuse
         for user_id, stats in self.blocked_users.items():
             if stats["blocks"] >= 5:  # 5+ blocks for authenticated user
@@ -235,9 +235,9 @@ class RateLimitAnalytics:
                     "endpoints_hit": len(stats["endpoints"]),
                     "severity": "medium"
                 })
-        
+
         return patterns
-    
+
     def reset_stats(self, keep_history: bool = False):
         """Reset statistics, optionally keeping historical data."""
         if not keep_history:
@@ -245,56 +245,56 @@ class RateLimitAnalytics:
         else:
             # Keep abuse tracking but reset counters
             self.requests_checked = 0
-            self.requests_blocked = 0  
+            self.requests_blocked = 0
             self.requests_warned = 0
             self.endpoint_stats.clear()
             self.rule_stats.clear()
             self.avg_processing_time_ms = 0.0
             self.total_processing_time = 0.0
             self.last_reset = datetime.now(timezone.utc)
-    
+
     def get_prometheus_metrics(self) -> List[str]:
         """Generate Prometheus-compatible metrics."""
         stats = self.get_comprehensive_stats()
-        
+
         metrics = [
             # Basic counters
-            f"# HELP rate_limit_requests_total Total rate limiting requests processed",
-            f"# TYPE rate_limit_requests_total counter", 
+            "# HELP rate_limit_requests_total Total rate limiting requests processed",
+            "# TYPE rate_limit_requests_total counter",
             f"rate_limit_requests_total {stats['requests_total']}",
-            
-            f"# HELP rate_limit_blocks_total Total requests blocked by rate limiting",
-            f"# TYPE rate_limit_blocks_total counter",
+
+            "# HELP rate_limit_blocks_total Total requests blocked by rate limiting",
+            "# TYPE rate_limit_blocks_total counter",
             f"rate_limit_blocks_total {stats['requests_blocked_total']}",
-            
-            f"# HELP rate_limit_warnings_total Total rate limiting warnings issued", 
-            f"# TYPE rate_limit_warnings_total counter",
+
+            "# HELP rate_limit_warnings_total Total rate limiting warnings issued",
+            "# TYPE rate_limit_warnings_total counter",
             f"rate_limit_warnings_total {stats['requests_warned_total']}",
-            
+
             # Rates
-            f"# HELP rate_limit_requests_per_second Current rate of requests processed",
-            f"# TYPE rate_limit_requests_per_second gauge",
+            "# HELP rate_limit_requests_per_second Current rate of requests processed",
+            "# TYPE rate_limit_requests_per_second gauge",
             f"rate_limit_requests_per_second {stats['requests_per_second']}",
-            
-            f"# HELP rate_limit_block_rate_percent Percentage of requests blocked",
-            f"# TYPE rate_limit_block_rate_percent gauge", 
+
+            "# HELP rate_limit_block_rate_percent Percentage of requests blocked",
+            "# TYPE rate_limit_block_rate_percent gauge",
             f"rate_limit_block_rate_percent {stats['block_rate_percent']}",
-            
+
             # Performance
-            f"# HELP rate_limit_processing_time_ms Average processing time in milliseconds",
-            f"# TYPE rate_limit_processing_time_ms gauge",
+            "# HELP rate_limit_processing_time_ms Average processing time in milliseconds",
+            "# TYPE rate_limit_processing_time_ms gauge",
             f"rate_limit_processing_time_ms {stats['avg_processing_time_ms']}",
-            
+
             # Security
-            f"# HELP rate_limit_blocked_ips_total Number of unique IPs blocked",
-            f"# TYPE rate_limit_blocked_ips_total gauge",
+            "# HELP rate_limit_blocked_ips_total Number of unique IPs blocked",
+            "# TYPE rate_limit_blocked_ips_total gauge",
             f"rate_limit_blocked_ips_total {stats['unique_blocked_ips']}",
-            
-            f"# HELP rate_limit_abuse_patterns_total Number of detected abuse patterns", 
-            f"# TYPE rate_limit_abuse_patterns_total gauge",
+
+            "# HELP rate_limit_abuse_patterns_total Number of detected abuse patterns",
+            "# TYPE rate_limit_abuse_patterns_total gauge",
             f"rate_limit_abuse_patterns_total {len(stats['potential_abuse_patterns'])}",
         ]
-        
+
         # Per-rule metrics
         for rule_name, rule_stats in stats["rule_stats"].items():
             rule_label = rule_name.replace("-", "_")
@@ -303,7 +303,7 @@ class RateLimitAnalytics:
                 f"rate_limit_rule_blocks_total{{rule=\"{rule_name}\"}} {rule_stats['blocked']}",
                 f"rate_limit_rule_warnings_total{{rule=\"{rule_name}\"}} {rule_stats['warned']}",
             ])
-        
+
         return metrics
 
 
@@ -760,9 +760,9 @@ class AsyncRateLimiter:
         processing_time = time.time() * 1000  # Convert to ms
         start_time = processing_time - 1  # Approximate processing time
         self._analytics.record_request(rule_name, request.url.path, processing_time - start_time)
-        
+
         if status.is_blocked:
-            user_id = await self._get_user_id(request) 
+            user_id = await self._get_user_id(request)
             self._analytics.record_block(rule_name, request.url.path, client_ip, user_id)
         elif status.is_warning:
             self._analytics.record_warning(rule_name, request.url.path)
@@ -883,15 +883,15 @@ class AsyncRateLimiter:
             "backend_stats": self.backend.get_statistics() if hasattr(self.backend, 'get_statistics') else {}
         })
         return stats
-    
+
     def get_prometheus_metrics(self) -> List[str]:
         """Get Prometheus-compatible metrics."""
         return self._analytics.get_prometheus_metrics()
-    
+
     def get_abuse_patterns(self) -> List[Dict[str, Any]]:
         """Get detected abuse patterns for security monitoring."""
         return self._analytics._detect_abuse_patterns()
-    
+
     def reset_analytics(self, keep_history: bool = False):
         """Reset analytics data."""
         self._analytics.reset_stats(keep_history)
@@ -957,7 +957,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             "X-RateLimit-Limit": str(status.limit),
             "X-RateLimit-Remaining": str(status.remaining),
             "X-RateLimit-Reset": str(int(status.reset_at.timestamp())),
-            "X-Content-Type-Options": "nosniff",
+            "X-Content-Type-Options": "nosnif",
             "X-Frame-Options": "DENY"
         }
 

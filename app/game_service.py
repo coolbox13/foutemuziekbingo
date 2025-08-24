@@ -80,7 +80,7 @@ class GameStateService:
         game_id = f"game-{int(datetime.now().timestamp())}"
 
         logger.info(
-            f"[GAME-CREATE-001] Creating new game",
+            "[GAME-CREATE-001] Creating new game",
             extra={
                 "game_id": game_id,
                 "host_user_id": host_user.id,
@@ -111,7 +111,7 @@ class GameStateService:
 
             if not playlist:
                 raise GameError(
-                    f"Playlist not found. Ensure playlists are synced (open dashboard once) and pass a valid playlist id."
+                    "Playlist not found. Ensure playlists are synced (open dashboard once) and pass a valid playlist id."
                 )
 
             # Generate unique room code if private game
@@ -139,7 +139,7 @@ class GameStateService:
             created_game = await database.create_record("games", db_game_data)
 
             logger.info(
-                f"[GAME-CREATE-002] Game created successfully",
+                "[GAME-CREATE-002] Game created successfully",
                 extra={
                     "game_id": created_game["id"],
                     "room_code": room_code,
@@ -155,7 +155,7 @@ class GameStateService:
 
         except DatabaseError as e:
             logger.error(
-                f"[GAME-CREATE-ERROR] Database error creating game",
+                "[GAME-CREATE-ERROR] Database error creating game",
                 extra={
                     "game_id": game_id,
                     "error": str(e),
@@ -165,7 +165,7 @@ class GameStateService:
             raise GameError(f"Failed to create game: {str(e)}")
         except Exception as e:
             logger.error(
-                f"[GAME-CREATE-ERROR] Unexpected error creating game",
+                "[GAME-CREATE-ERROR] Unexpected error creating game",
                 extra={
                     "game_id": game_id,
                     "error": str(e),
@@ -180,7 +180,7 @@ class GameStateService:
         """Get game by ID with optional related data"""
         try:
             logger.debug(
-                f"[GAME-GET-001] Retrieving game",
+                "[GAME-GET-001] Retrieving game",
                 extra={
                     "game_id": game_id,
                     "include_playlist": include_playlist,
@@ -232,7 +232,7 @@ class GameStateService:
                 game.players = player_users
 
             logger.debug(
-                f"[GAME-GET-002] Game retrieved successfully",
+                "[GAME-GET-002] Game retrieved successfully",
                 extra={
                     "game_id": game_id,
                     "game_name": game.name,
@@ -245,7 +245,7 @@ class GameStateService:
 
         except Exception as e:
             logger.error(
-                f"[GAME-GET-ERROR] Error retrieving game",
+                "[GAME-GET-ERROR] Error retrieving game",
                 extra={"game_id": game_id, "error": str(e)},
             )
             return None
@@ -263,7 +263,7 @@ class GameStateService:
 
         except Exception as e:
             logger.error(
-                f"[GAME-ROOM-ERROR] Error finding game by room code",
+                "[GAME-ROOM-ERROR] Error finding game by room code",
                 extra={"room_code": room_code, "error": str(e)},
             )
             return None
@@ -271,7 +271,7 @@ class GameStateService:
     async def join_game(self, game_id: str, user: User) -> Game:
         """Add player to game"""
         logger.info(
-            f"[GAME-JOIN-001] User joining game",
+            "[GAME-JOIN-001] User joining game",
             extra={
                 "game_id": game_id,
                 "user_id": user.id,
@@ -292,7 +292,7 @@ class GameStateService:
             # Check if user is already in game
             if any(player.id == user.id for player in game.players):
                 logger.info(
-                    f"[GAME-JOIN-002] User already in game",
+                    "[GAME-JOIN-002] User already in game",
                     extra={"game_id": game_id, "user_id": user.id},
                 )
                 return game
@@ -316,7 +316,7 @@ class GameStateService:
             )
 
             logger.info(
-                f"[GAME-JOIN-003] User joined game successfully",
+                "[GAME-JOIN-003] User joined game successfully",
                 extra={
                     "game_id": game_id,
                     "user_id": user.id,
@@ -331,7 +331,7 @@ class GameStateService:
             raise
         except Exception as e:
             logger.error(
-                f"[GAME-JOIN-ERROR] Error joining game",
+                "[GAME-JOIN-ERROR] Error joining game",
                 extra={"game_id": game_id, "user_id": user.id, "error": str(e)},
             )
             raise GameError(f"Failed to join game: {str(e)}")
@@ -339,7 +339,7 @@ class GameStateService:
     async def start_game(self, game_id: str, host_user: User) -> Game:
         """Start a game (host only)"""
         logger.info(
-            f"[GAME-START-001] Starting game",
+            "[GAME-START-001] Starting game",
             extra={"game_id": game_id, "host_user_id": host_user.id},
         )
 
@@ -370,7 +370,7 @@ class GameStateService:
             await database.update_record("games", game_id, update_data)
 
             logger.info(
-                f"[GAME-START-002] Game started successfully",
+                "[GAME-START-002] Game started successfully",
                 extra={"game_id": game_id, "player_count": len(game.players)},
             )
 
@@ -380,7 +380,7 @@ class GameStateService:
             raise
         except Exception as e:
             logger.error(
-                f"[GAME-START-ERROR] Error starting game",
+                "[GAME-START-ERROR] Error starting game",
                 extra={
                     "game_id": game_id,
                     "host_user_id": host_user.id,
@@ -394,7 +394,7 @@ class GameStateService:
     ) -> BingoCard:
         """Generate a bingo card for a player"""
         logger.debug(
-            f"[CARD-GEN-001] Generating bingo card",
+            "[CARD-GEN-001] Generating bingo card",
             extra={"game_id": game_id, "user_id": user_id, "track_count": len(tracks)},
         )
 
@@ -447,7 +447,7 @@ class GameStateService:
             created_card = await database.create_record("bingo_cards", card_data)
 
             logger.debug(
-                f"[CARD-GEN-002] Bingo card generated successfully",
+                "[CARD-GEN-002] Bingo card generated successfully",
                 extra={
                     "game_id": game_id,
                     "user_id": user_id,
@@ -459,7 +459,7 @@ class GameStateService:
 
         except Exception as e:
             logger.error(
-                f"[CARD-GEN-ERROR] Error generating bingo card",
+                "[CARD-GEN-ERROR] Error generating bingo card",
                 extra={"game_id": game_id, "user_id": user_id, "error": str(e)},
             )
             raise GameError(f"Failed to generate bingo card: {str(e)}")
@@ -469,7 +469,7 @@ class GameStateService:
     ) -> Dict[str, Any]:
         """Mark a track on user's bingo card"""
         logger.debug(
-            f"[TRACK-MARK-001] Marking track",
+            "[TRACK-MARK-001] Marking track",
             extra={"game_id": game_id, "user_id": user_id, "track_id": track_id},
         )
 
@@ -497,7 +497,7 @@ class GameStateService:
 
             if not marked_position:
                 logger.warning(
-                    f"[TRACK-MARK-WARN] Track not found on card",
+                    "[TRACK-MARK-WARN] Track not found on card",
                     extra={
                         "game_id": game_id,
                         "user_id": user_id,
@@ -525,7 +525,7 @@ class GameStateService:
             await database.update_record("bingo_cards", card.id, update_data)
 
             logger.debug(
-                f"[TRACK-MARK-002] Track marked successfully",
+                "[TRACK-MARK-002] Track marked successfully",
                 extra={
                     "game_id": game_id,
                     "user_id": user_id,
@@ -546,7 +546,7 @@ class GameStateService:
             raise
         except Exception as e:
             logger.error(
-                f"[TRACK-MARK-ERROR] Error marking track",
+                "[TRACK-MARK-ERROR] Error marking track",
                 extra={
                     "game_id": game_id,
                     "user_id": user_id,
@@ -624,7 +624,7 @@ class GameStateService:
     ) -> List[GamePublic]:
         """
         Get games for a specific user with improved error recovery
-        
+
         CRIT-002 FIX: Simplified version that relies on CASCADE DELETE constraints
         to ensure no orphaned records exist. Emergency cleanup logic removed.
         """
@@ -643,7 +643,7 @@ class GameStateService:
                 )
             except Exception as db_error:
                 logger.warning(
-                    f"[GAME-HOST-WARN] Failed to query hosted games",
+                    "[GAME-HOST-WARN] Failed to query hosted games",
                     extra={"user_id": user_id, "error": str(db_error)},
                 )
                 hosted_games = []
@@ -657,27 +657,27 @@ class GameStateService:
                 joined_games = []
                 if player_games_data:
                     player_game_ids = [pg["game_id"] for pg in player_games_data]
-                    
+
                     # Query all games in bulk - with CASCADE DELETE constraints,
                     # all referenced games should exist
                     bulk_query_filters = {"id": {"in": player_game_ids}}
                     if status_filter:
                         bulk_query_filters["status"] = status_filter.value
-                    
+
                     joined_games = await database.query_records(
-                        "games", 
+                        "games",
                         filters=bulk_query_filters,
                         order_by={"column": "created_at", "ascending": False}
                     )
-                    
+
                     # CRIT-002 INTEGRITY CHECK: Verify CASCADE DELETE is working
                     found_game_ids = {game["id"] for game in joined_games}
                     missing_game_ids = set(player_game_ids) - found_game_ids
-                    
+
                     if missing_game_ids:
                         # This should not happen with proper CASCADE DELETE constraints
                         logger.error(
-                            f"[GAME-INTEGRITY-ERROR] Found game_players records referencing non-existent games",
+                            "[GAME-INTEGRITY-ERROR] Found game_players records referencing non-existent games",
                             extra={
                                 "user_id": user_id,
                                 "missing_game_count": len(missing_game_ids),
@@ -685,18 +685,18 @@ class GameStateService:
                                 "total_player_games": len(player_game_ids)
                             }
                         )
-                        
+
                         # Instead of cleaning up, we raise an error for investigation
                         # This indicates the CASCADE DELETE migration hasn't been applied
                         raise DatabaseError(
                             f"Database integrity violation: {len(missing_game_ids)} game_players records "
-                            f"reference non-existent games. This indicates missing CASCADE DELETE constraints. "
-                            f"Please run the CRIT-002 migration to fix database schema."
+                            "reference non-existent games. This indicates missing CASCADE DELETE constraints. "
+                            "Please run the CRIT-002 migration to fix database schema."
                         )
 
             except Exception as player_error:
                 logger.warning(
-                    f"[GAME-PLAYER-WARN] Failed to query player games",
+                    "[GAME-PLAYER-WARN] Failed to query player games",
                     extra={"user_id": user_id, "error": str(player_error)},
                 )
                 joined_games = []
@@ -719,7 +719,7 @@ class GameStateService:
                         )
                     except Exception as player_count_error:
                         logger.warning(
-                            f"[GAME-PLAYERS-WARN] Failed to get player count",
+                            "[GAME-PLAYERS-WARN] Failed to get player count",
                             extra={
                                 "user_id": user_id,
                                 "game_id": game_data["id"],
@@ -750,7 +750,7 @@ class GameStateService:
 
                     except Exception as conversion_error:
                         logger.warning(
-                            f"[GAME-CONVERT-WARN] Failed to convert game data",
+                            "[GAME-CONVERT-WARN] Failed to convert game data",
                             extra={
                                 "user_id": user_id,
                                 "game_id": game_data["id"],
@@ -768,7 +768,7 @@ class GameStateService:
 
         except Exception as e:
             logger.error(
-                f"[GAME-SERVICE-ERROR] Failed to get user games",
+                "[GAME-SERVICE-ERROR] Failed to get user games",
                 extra={
                     "user_id": user_id,
                     "error": str(e),
@@ -782,19 +782,19 @@ class GameStateService:
     async def validate_game(self, game_id: str, user_id: str, include_track_count: bool = True) -> "GameValidationResult":
         """
         Validate a single game for existence, accessibility, and readiness.
-        
+
         Args:
             game_id: Game ID to validate
             user_id: User ID requesting validation (for access checks)
             include_track_count: Whether to include playlist track count
-            
+
         Returns:
             GameValidationResult with comprehensive validation status
         """
         from app.models import GameValidationResult, GameValidationStatus
-        
+
         logger.debug(f"[GAME-VALIDATE-001] Validating game {game_id} for user {user_id}")
-        
+
         try:
             # Check if game exists in database
             game_data = await database.get_record("games", game_id)
@@ -808,26 +808,26 @@ class GameStateService:
                     can_generate_cards=False,
                     error_message="Game not found in database"
                 )
-            
+
             # Check user access to game
             user_has_access = (
-                game_data["host_id"] == user_id or 
+                game_data["host_id"] == user_id or
                 not game_data.get("is_private", False)
             )
-            
+
             if game_data.get("is_private", False) and game_data["host_id"] != user_id:
                 # Check if user is a player
                 players = await database.query_records(
-                    "game_players", 
+                    "game_players",
                     filters={"game_id": game_id, "user_id": user_id}
                 )
                 user_has_access = len(players) > 0
-            
+
             # Get playlist data if game exists
             playlist_id = game_data.get("playlist_id")
             has_playlist = False
             track_count = 0
-            
+
             if playlist_id:
                 playlist_data = await database.get_record("playlists", playlist_id)
                 if playlist_data:
@@ -842,7 +842,7 @@ class GameStateService:
                     else:
                         # Use stored total_tracks if available
                         track_count = playlist_data.get("total_tracks", 0)
-            
+
             # Determine validation status
             if not user_has_access:
                 status = GameValidationStatus.INVALID
@@ -856,14 +856,14 @@ class GameStateService:
             else:
                 status = GameValidationStatus.VALID
                 error_message = None
-            
+
             # Get last activity timestamp
             last_activity = None
             if game_data.get("updated_at"):
                 last_activity = datetime.fromisoformat(game_data["updated_at"])
             elif game_data.get("created_at"):
                 last_activity = datetime.fromisoformat(game_data["created_at"])
-            
+
             return GameValidationResult(
                 game_id=game_id,
                 status=status,
@@ -874,7 +874,7 @@ class GameStateService:
                 error_message=error_message,
                 last_activity=last_activity
             )
-            
+
         except Exception as e:
             logger.error(
                 f"[GAME-VALIDATE-ERROR] Error validating game {game_id}",
@@ -891,31 +891,31 @@ class GameStateService:
             )
 
     async def validate_games_bulk(
-        self, 
-        game_ids: List[str], 
-        user_id: str, 
+        self,
+        game_ids: List[str],
+        user_id: str,
         include_track_count: bool = True,
         filter_status: Optional["GameStatus"] = None
     ) -> "BulkGameValidationResponse":
         """
         Validate multiple games in a single efficient operation.
-        
+
         Args:
             game_ids: List of game IDs to validate (max 100)
             user_id: User ID requesting validation
             include_track_count: Whether to include playlist track counts
             filter_status: Optional status filter for games
-            
+
         Returns:
             BulkGameValidationResponse with all validation results
         """
         from app.models import BulkGameValidationResponse, GameValidationStatus
         import time
-        
+
         start_time = time.time()
-        
+
         logger.info(
-            f"[GAME-BULK-VALIDATE-001] Starting bulk validation",
+            "[GAME-BULK-VALIDATE-001] Starting bulk validation",
             extra={
                 "user_id": user_id,
                 "game_count": len(game_ids),
@@ -923,15 +923,15 @@ class GameStateService:
                 "filter_status": filter_status.value if filter_status else None
             }
         )
-        
+
         # Limit to prevent abuse
         if len(game_ids) > 100:
             game_ids = game_ids[:100]
             logger.warning(
-                f"[GAME-BULK-VALIDATE-WARN] Truncated game list to 100 items",
+                "[GAME-BULK-VALIDATE-WARN] Truncated game list to 100 items",
                 extra={"user_id": user_id, "original_count": len(game_ids)}
             )
-        
+
         validation_results = []
         summary = {
             "valid": 0,
@@ -940,71 +940,71 @@ class GameStateService:
             "no_playlist": 0,
             "insufficient_tracks": 0
         }
-        
+
         try:
             # Efficient bulk database queries
             # 1. Get all games in one query
             games_query = """
                 SELECT id, host_id, playlist_id, is_private, status, created_at, updated_at
-                FROM games 
+                FROM games
                 WHERE id = ANY($1)
             """
             if filter_status:
                 games_query += " AND status = $2"
                 games_data = await database.execute_query(
-                    games_query, 
+                    games_query,
                     [game_ids, filter_status.value]
                 )
             else:
                 games_data = await database.execute_query(games_query, [game_ids])
-            
+
             # Create lookup for existing games
             games_lookup = {game["id"]: game for game in games_data}
-            
+
             # 2. Get user's game participation in one query
             player_games_query = """
-                SELECT DISTINCT game_id 
-                FROM game_players 
+                SELECT DISTINCT game_id
+                FROM game_players
                 WHERE user_id = $1 AND game_id = ANY($2)
             """
             player_games_data = await database.execute_query(
-                player_games_query, 
+                player_games_query,
                 [user_id, game_ids]
             )
             user_game_ids = {row["game_id"] for row in player_games_data}
-            
+
             # 3. Get playlist data for games that have playlists
             playlist_ids = [
-                game["playlist_id"] for game in games_data 
+                game["playlist_id"] for game in games_data
                 if game.get("playlist_id")
             ]
-            
+
             playlists_lookup = {}
             track_counts_lookup = {}
-            
+
             if playlist_ids:
                 # Get playlist existence
                 playlists_query = "SELECT id, total_tracks FROM playlists WHERE id = ANY($1)"
                 playlists_data = await database.execute_query(playlists_query, [playlist_ids])
                 playlists_lookup = {p["id"]: p for p in playlists_data}
-                
+
                 # Get actual track counts if requested
                 if include_track_count:
                     track_counts_query = """
                         SELECT playlist_id, COUNT(*) as track_count
-                        FROM playlist_tracks 
+                        FROM playlist_tracks
                         WHERE playlist_id = ANY($1)
                         GROUP BY playlist_id
                     """
                     track_counts_data = await database.execute_query(
-                        track_counts_query, 
+                        track_counts_query,
                         [playlist_ids]
                     )
                     track_counts_lookup = {
-                        row["playlist_id"]: row["track_count"] 
+                        row["playlist_id"]: row["track_count"]
                         for row in track_counts_data
                     }
-            
+
             # 4. Process each game ID
             for game_id in game_ids:
                 try:
@@ -1017,10 +1017,10 @@ class GameStateService:
                         track_counts_lookup=track_counts_lookup,
                         include_track_count=include_track_count
                     )
-                    
+
                     validation_results.append(result)
                     summary[result.status.value] += 1
-                    
+
                 except Exception as e:
                     logger.error(
                         f"[GAME-BULK-VALIDATE-ERROR] Error validating game {game_id}",
@@ -1039,11 +1039,11 @@ class GameStateService:
                     )
                     validation_results.append(error_result)
                     summary["invalid"] += 1
-            
+
             processing_time_ms = (time.time() - start_time) * 1000
-            
+
             logger.info(
-                f"[GAME-BULK-VALIDATE-002] Bulk validation completed",
+                "[GAME-BULK-VALIDATE-002] Bulk validation completed",
                 extra={
                     "user_id": user_id,
                     "total_requested": len(game_ids),
@@ -1052,7 +1052,7 @@ class GameStateService:
                     "summary": summary
                 }
             )
-            
+
             return BulkGameValidationResponse(
                 success=True,
                 total_requested=len(game_ids),
@@ -1062,19 +1062,19 @@ class GameStateService:
                 timestamp=datetime.now(timezone.utc),
                 processing_time_ms=processing_time_ms
             )
-            
+
         except Exception as e:
             logger.error(
-                f"[GAME-BULK-VALIDATE-ERROR] Bulk validation failed",
+                "[GAME-BULK-VALIDATE-ERROR] Bulk validation failed",
                 extra={
                     "user_id": user_id,
                     "game_count": len(game_ids),
                     "error": str(e)
                 }
             )
-            
+
             processing_time_ms = (time.time() - start_time) * 1000
-            
+
             return BulkGameValidationResponse(
                 success=False,
                 total_requested=len(game_ids),
@@ -1097,11 +1097,11 @@ class GameStateService:
     ) -> "GameValidationResult":
         """
         Helper method to validate a single game using pre-fetched bulk data.
-        
+
         This method is optimized for bulk operations and avoids individual database queries.
         """
         from app.models import GameValidationResult, GameValidationStatus
-        
+
         # Check if game exists
         game_data = games_lookup.get(game_id)
         if not game_data:
@@ -1114,14 +1114,14 @@ class GameStateService:
                 can_generate_cards=False,
                 error_message="Game not found in database"
             )
-        
+
         # Check user access
         user_has_access = (
-            game_data["host_id"] == user_id or 
+            game_data["host_id"] == user_id or
             not game_data.get("is_private", False) or
             game_id in user_game_ids
         )
-        
+
         if not user_has_access:
             return GameValidationResult(
                 game_id=game_id,
@@ -1132,12 +1132,12 @@ class GameStateService:
                 can_generate_cards=False,
                 error_message="Access denied to private game"
             )
-        
+
         # Check playlist
         playlist_id = game_data.get("playlist_id")
         has_playlist = False
         track_count = 0
-        
+
         if playlist_id and playlist_id in playlists_lookup:
             has_playlist = True
             if include_track_count and playlist_id in track_counts_lookup:
@@ -1145,7 +1145,7 @@ class GameStateService:
             else:
                 # Use stored total_tracks as fallback
                 track_count = playlists_lookup[playlist_id].get("total_tracks", 0)
-        
+
         # Determine status
         if not has_playlist:
             status = GameValidationStatus.NO_PLAYLIST
@@ -1156,14 +1156,14 @@ class GameStateService:
         else:
             status = GameValidationStatus.VALID
             error_message = None
-        
+
         # Get last activity
         last_activity = None
         if game_data.get("updated_at"):
             last_activity = datetime.fromisoformat(game_data["updated_at"])
         elif game_data.get("created_at"):
             last_activity = datetime.fromisoformat(game_data["created_at"])
-        
+
         return GameValidationResult(
             game_id=game_id,
             status=status,
@@ -1178,16 +1178,16 @@ class GameStateService:
     async def check_game_existence(self, game_id: str, user_id: str) -> "GameExistenceCheck":
         """
         Quick game existence check without full validation.
-        
+
         Args:
             game_id: Game ID to check
             user_id: User ID for access validation
-            
+
         Returns:
             GameExistenceCheck with basic existence and access info
         """
         from app.models import GameExistenceCheck
-        
+
         try:
             game_data = await database.get_record("games", game_id)
             if not game_data:
@@ -1197,13 +1197,13 @@ class GameStateService:
                     accessible=False,
                     status=None
                 )
-            
+
             # Check accessibility
             accessible = (
-                game_data["host_id"] == user_id or 
+                game_data["host_id"] == user_id or
                 not game_data.get("is_private", False)
             )
-            
+
             if game_data.get("is_private", False) and game_data["host_id"] != user_id:
                 # Quick check if user is a player
                 players = await database.query_records(
@@ -1211,17 +1211,17 @@ class GameStateService:
                     filters={"game_id": game_id, "user_id": user_id}
                 )
                 accessible = len(players) > 0
-            
+
             return GameExistenceCheck(
                 game_id=game_id,
                 exists=True,
                 accessible=accessible,
                 status=GameStatus(game_data["status"]) if game_data.get("status") else None
             )
-            
+
         except Exception as e:
             logger.error(
-                f"[GAME-EXISTENCE-ERROR] Error checking game existence",
+                "[GAME-EXISTENCE-ERROR] Error checking game existence",
                 extra={"game_id": game_id, "user_id": user_id, "error": str(e)}
             )
             return GameExistenceCheck(

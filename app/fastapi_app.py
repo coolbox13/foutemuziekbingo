@@ -3,7 +3,7 @@ FastAPI application factory with comprehensive middleware stack.
 Includes security, rate limiting, CORS, and monitoring.
 """
 
-from fastapi import FastAPI, Request
+from fastapi import HTTPException, FastAPI, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, RedirectResponse
@@ -22,7 +22,7 @@ from app.csrf_middleware import add_csrf_protection, CSRFConfig
 from app.cors_config import get_cors_config, get_cors_security_report
 from app.cache_manager import get_cache_manager
 from app.rate_limiter import (
-    RateLimitMiddleware, 
+    RateLimitMiddleware,
     create_default_rate_limiter,
     RateLimitRule,
     RateLimitAlgorithm,
@@ -34,7 +34,7 @@ def create_app() -> FastAPI:
     """Create and configure the FastAPI application with modern middleware stack."""
     # Get configuration (handles .env loading internally)
     config = get_config()
-    
+
     app = FastAPI(
         title="Foute Muziek Bingo",
         description="Modern musical bingo application with real-time gameplay",
@@ -46,11 +46,11 @@ def create_app() -> FastAPI:
     # =============================================
     # MIDDLEWARE CONFIGURATION (order matters!)
     # =============================================
-    
+
     # 1. CORS middleware (must be first for preflight requests)
     cors_config = get_cors_config()
     cors_settings = cors_config.get_cors_config()
-    
+
     app.add_middleware(
         CORSMiddleware,
         **cors_settings
@@ -58,7 +58,7 @@ def create_app() -> FastAPI:
 
     # 2. Rate limiting middleware (before authentication)
     rate_limiter = create_default_rate_limiter()
-    
+
     # Add specialized rate limit rules
     if config.app_env == "production":
         # Stricter production limits
@@ -71,18 +71,18 @@ def create_app() -> FastAPI:
             block_duration_seconds=120,
             warning_threshold=0.7
         ))
-        
+
         # Very strict for critical operations
         rate_limiter.add_rule("critical", RateLimitRule(
             requests=3,
             window_seconds=300,  # 5 minutes
-            algorithm=RateLimitAlgorithm.SLIDING_WINDOW, 
+            algorithm=RateLimitAlgorithm.SLIDING_WINDOW,
             scope=RateLimitScope.IP,
             paths={"/api/games/create", "/api/cards/generate"},
             block_duration_seconds=900,  # 15 minutes
             warning_threshold=0.3
         ))
-    
+
     app.add_middleware(
         RateLimitMiddleware,
         limiter=rate_limiter,
@@ -90,7 +90,7 @@ def create_app() -> FastAPI:
         exempt_paths={
             "/health",
             "/ready",
-            "/metrics", 
+            "/metrics",
             "/docs",
             "/redoc",
             "/openapi.json",
@@ -105,10 +105,10 @@ def create_app() -> FastAPI:
             "/auth/login",
             "/auth/spotify/callback",
             "/health",
-            "/ready", 
+            "/ready",
             "/metrics",
             "/docs",
-            "/redoc", 
+            "/redoc",
             "/openapi.json",
             "/static/",
             "/favicon.ico"
@@ -120,7 +120,7 @@ def create_app() -> FastAPI:
     # =============================================
     # STATIC FILES AND TEMPLATES
     # =============================================
-    
+
     # Mount static files
     app.mount("/static", StaticFiles(directory="static"), name="static")
 
@@ -130,7 +130,7 @@ def create_app() -> FastAPI:
     # =============================================
     # LOGGING CONFIGURATION
     # =============================================
-    
+
     if not os.path.exists("logs"):
         os.makedirs("logs")
 
@@ -139,9 +139,9 @@ def create_app() -> FastAPI:
         "%(asctime)s [%(process)d] [%(levelname)s] "
         "%(name)s: %(message)s [%(pathname)s:%(lineno)d]"
     )
-    
+
     file_handler = RotatingFileHandler(
-        "logs/music_bingo.log", 
+        "logs/music_bingo.log",
         maxBytes=50 * 1024 * 1024,  # 50MB
         backupCount=10
     )
@@ -161,7 +161,7 @@ def create_app() -> FastAPI:
     async def startup_event():
         """Initialize application dependencies on startup."""
         logger.info("Initializing application dependencies...")
-        
+
         # 1. Initialize database connection
         try:
             await database.initialize()
@@ -191,14 +191,14 @@ def create_app() -> FastAPI:
         # 4. Log startup completion
         logger.info(
             f"Application startup complete - Environment: {config.app_env}, "
-            f"Rate limiting: enabled, CSRF: enabled, Redis: enabled"
+            "Rate limiting: enabled, CSRF: enabled, Redis: enabled"
         )
 
     @app.on_event("shutdown")
     async def shutdown_event():
         """Cleanup resources on shutdown."""
         logger.info("Application shutting down...")
-        
+
         try:
             # Close Redis connections
             from app.redis_session_store import cleanup_redis_session_store
@@ -230,7 +230,7 @@ def create_app() -> FastAPI:
             safety_window = config.spotify_token_safety_window
 
             logger.info(
-                f"[SPOTIFY-MAINT] Starting token maintenance loop "
+                "[SPOTIFY-MAINT] Starting token maintenance loop "
                 f"(interval: {check_interval}s, safety: {safety_window}s)"
             )
 
@@ -244,7 +244,7 @@ def create_app() -> FastAPI:
                         token_info = data.get("token_info") or {}
                         refresh_token = token_info.get("refresh_token")
                         expires_at = token_info.get("expires_at")
-                        
+
                         if not refresh_token:
                             continue
 
@@ -287,7 +287,7 @@ def create_app() -> FastAPI:
     # =============================================
     # ROUTE REGISTRATION
     # =============================================
-    
+
     register_routes(app)
 
     # =============================================
@@ -299,21 +299,21 @@ def create_app() -> FastAPI:
         """Root endpoint - show login page for unauthenticated users, proper home for authenticated."""
         try:
             from app.secure_session import get_session_from_request
-            
+
             session_data = await get_session_from_request(request, config.secret_key)
             if session_data and session_data.get("user"):
                 # Show proper authenticated home page (not redirect loop)
                 return templates.TemplateResponse("homepage.html", {
-                    "request": request, 
+                    "request": request,
                     "authenticated": True,
                     "user": session_data.get("user")
                 })
         except Exception as e:
             logger.debug(f"Session check failed in root route: {e}")
-        
+
         # Show login/welcome page for unauthenticated users
         return templates.TemplateResponse("homepage.html", {
-            "request": request, 
+            "request": request,
             "authenticated": False
         })
 
@@ -326,11 +326,11 @@ def create_app() -> FastAPI:
         """Comprehensive health check endpoint for monitoring."""
         from app.config import validate_config_health
         from app.redis_session_store import get_redis_session_store
-        
+
         try:
             # Check configuration health
             config_health = validate_config_health()
-            
+
             # Check session store health
             session_store = get_redis_session_store()
             session_health = await session_store.health_check()
@@ -340,20 +340,20 @@ def create_app() -> FastAPI:
             cache_manager = get_cache_manager()
             cache_health = await cache_manager.health_check()
             cache_stats = await cache_manager.get_cache_stats()
-            
+
             # Check CORS security configuration
             cors_security = get_cors_security_report()
-            
+
             # Check rate limiter health
             rate_limiter_stats = rate_limiter.get_statistics()
             rate_limiter_backend_stats = await rate_limiter.backend.get_statistics()
-            
+
             # Overall health assessment
             is_healthy = (
-                config_health["healthy"] and 
+                config_health["healthy"] and
                 session_health.get("healthy", False)
             )
-            
+
             return {
                 "status": "healthy" if is_healthy else "unhealthy",
                 "timestamp": datetime.now(timezone.utc).isoformat(),
@@ -375,11 +375,11 @@ def create_app() -> FastAPI:
                     "uptime_hours": None,  # Could add application uptime tracking
                 }
             }
-            
+
         except Exception as e:
             logger.error(f"Health check failed: {e}")
             return {
-                "status": "unhealthy", 
+                "status": "unhealthy",
                 "timestamp": datetime.now(timezone.utc).isoformat(),
                 "error": str(e)
             }
@@ -391,13 +391,13 @@ def create_app() -> FastAPI:
             ready = True
             services = {}
             checks = []
-            
+
             # Check session store readiness
             try:
                 from app.redis_session_store import get_redis_session_store
                 store = get_redis_session_store()
                 health = await store.health_check()
-                
+
                 if health.get("healthy"):
                     services["session_store"] = "ready"
                     checks.append("session_store: ready")
@@ -409,7 +409,7 @@ def create_app() -> FastAPI:
                 services["session_store"] = "error"
                 checks.append(f"session_store: error - {e}")
                 ready = False
-            
+
             # Check database readiness (if needed)
             try:
                 # Add database check if required
@@ -419,14 +419,14 @@ def create_app() -> FastAPI:
                 services["database"] = "not_ready"
                 checks.append(f"database: not_ready - {e}")
                 ready = False
-            
+
             return {
                 "ready": ready,
                 "timestamp": datetime.now(timezone.utc).isoformat(),
                 "services": services,
                 "checks": checks
             }
-            
+
         except Exception as e:
             logger.error(f"Readiness check failed: {e}")
             return {
@@ -441,49 +441,49 @@ def create_app() -> FastAPI:
         """Basic metrics endpoint for monitoring (Prometheus-compatible format available)."""
         try:
             from app.redis_session_store import get_redis_session_store
-            
+
             # Gather metrics from various components
             session_store = get_redis_session_store()
             session_stats = await session_store.get_session_stats()
-            
+
             rate_limiter_stats = rate_limiter.get_statistics()
-            
+
             # Format as Prometheus-style metrics
             metrics_lines = []
-            
+
             # Session metrics
             metrics_lines.extend([
-                f"# HELP sessions_active Number of active sessions",
-                f"# TYPE sessions_active gauge", 
+                "# HELP sessions_active Number of active sessions",
+                "# TYPE sessions_active gauge",
                 f"sessions_active {session_stats.get('active_sessions', 0)}",
-                f"# HELP sessions_total Total sessions created",
-                f"# TYPE sessions_total counter",
+                "# HELP sessions_total Total sessions created",
+                "# TYPE sessions_total counter",
                 f"sessions_total {session_stats.get('total_sessions_created', 0)}",
             ])
-            
+
             # Enhanced Rate limiting metrics from analytics
             rate_prometheus_metrics = rate_limiter.get_prometheus_metrics()
             metrics_lines.extend(rate_prometheus_metrics)
-            
+
             # Additional security metrics
             abuse_patterns = rate_limiter.get_abuse_patterns()
             metrics_lines.extend([
-                f"# HELP rate_limit_abuse_patterns_detected Security abuse patterns detected",
-                f"# TYPE rate_limit_abuse_patterns_detected gauge",
+                "# HELP rate_limit_abuse_patterns_detected Security abuse patterns detected",
+                "# TYPE rate_limit_abuse_patterns_detected gauge",
                 f"rate_limit_abuse_patterns_detected {len(abuse_patterns)}",
             ])
-            
-            
+
+
             # Cache metrics
             metrics_lines.extend([
-                f"# HELP cache_keys_total Total number of cache keys",
-                f"# TYPE cache_keys_total gauge",
+                "# HELP cache_keys_total Total number of cache keys",
+                "# TYPE cache_keys_total gauge",
                 f"cache_keys_total {cache_stats.total_keys}",
-                f"# HELP cache_memory_bytes Memory used by cache",
-                f"# TYPE cache_memory_bytes gauge",
+                "# HELP cache_memory_bytes Memory used by cache",
+                "# TYPE cache_memory_bytes gauge",
                 f"cache_memory_bytes {cache_stats.total_memory}",
-                f"# HELP cache_hit_rate_percent Cache hit rate percentage",
-                f"# TYPE cache_hit_rate_percent gauge",
+                "# HELP cache_hit_rate_percent Cache hit rate percentage",
+                "# TYPE cache_hit_rate_percent gauge",
                 f"cache_hit_rate_percent {cache_stats.hit_rate}",
             ])
 
@@ -491,7 +491,7 @@ def create_app() -> FastAPI:
                 content="\n".join(metrics_lines) + "\n",
                 media_type="text/plain"
             )
-            
+
         except Exception as e:
             logger.error(f"Metrics endpoint failed: {e}")
             return {
@@ -503,7 +503,7 @@ def create_app() -> FastAPI:
     # ===== GLOBAL EXCEPTION HANDLERS =====
     from app.error_handlers import ErrorResponse, ErrorMessages
     from fastapi.responses import JSONResponse
-    
+
     @app.exception_handler(HTTPException)
     async def http_exception_handler(request: Request, exc: HTTPException):
         """Handle HTTP exceptions with standardized format."""
@@ -515,14 +515,14 @@ def create_app() -> FastAPI:
                 "status_code": exc.status_code
             }
         )
-        
+
         # If detail is already structured (from our ErrorResponse), return as-is
         if isinstance(exc.detail, dict) and "error" in exc.detail:
             return JSONResponse(
                 status_code=exc.status_code,
                 content=exc.detail
             )
-        
+
         # Convert simple string details to standardized format
         return JSONResponse(
             status_code=exc.status_code,
@@ -532,12 +532,12 @@ def create_app() -> FastAPI:
                 "timestamp": datetime.now(timezone.utc).isoformat()
             }
         )
-    
+
     @app.exception_handler(Exception)
     async def general_exception_handler(request: Request, exc: Exception):
         """Handle unexpected exceptions with standardized error response."""
         error_id = f"err_{datetime.now().timestamp()}"
-        
+
         logger.error(
             f"Unhandled exception [{error_id}]: {str(exc)}",
             extra={
@@ -548,28 +548,28 @@ def create_app() -> FastAPI:
             },
             exc_info=True
         )
-        
+
         # Use standardized internal server error response
         error_response = ErrorResponse.internal_server_error(
             "An unexpected error occurred",
             error=exc,
             operation=f"{request.method} {request.url.path}"
         )
-        
+
         return JSONResponse(
             status_code=500,
             content=error_response.detail
         )
-    
+
     return app
 
     # =============================================
     # GLOBAL EXCEPTION HANDLERS
     # =============================================
-    
+
     from app.error_handlers import ErrorResponse, ErrorMessages
     from fastapi.responses import JSONResponse
-    
+
     @app.exception_handler(HTTPException)
     async def http_exception_handler(request: Request, exc: HTTPException):
         """Handle HTTP exceptions with standardized format."""
@@ -581,29 +581,29 @@ def create_app() -> FastAPI:
                 "status_code": exc.status_code
             }
         )
-        
+
         # If detail is already structured (from our ErrorResponse), return as-is
         if isinstance(exc.detail, dict) and "error" in exc.detail:
             return JSONResponse(
                 status_code=exc.status_code,
                 content=exc.detail
             )
-        
+
         # Convert simple string details to standardized format
         return JSONResponse(
             status_code=exc.status_code,
             content={
-                "error": "http_error", 
+                "error": "http_error",
                 "message": str(exc.detail),
                 "timestamp": datetime.now(timezone.utc).isoformat()
             }
         )
-    
+
     @app.exception_handler(Exception)
     async def general_exception_handler(request: Request, exc: Exception):
         """Handle unexpected exceptions with standardized error response."""
         error_id = f"err_{datetime.now().timestamp()}"
-        
+
         logger.error(
             f"Unhandled exception [{error_id}]: {str(exc)}",
             extra={
@@ -614,19 +614,19 @@ def create_app() -> FastAPI:
             },
             exc_info=True
         )
-        
+
         # Use standardized internal server error response
         error_response = ErrorResponse.internal_server_error(
             "An unexpected error occurred",
             error=exc,
             operation=f"{request.method} {request.url.path}"
         )
-        
+
         return JSONResponse(
             status_code=500,
             content=error_response.detail
         )
-    
+
     @app.exception_handler(ValueError)
     async def value_error_handler(request: Request, exc: ValueError):
         """Handle ValueError with bad request response."""
@@ -638,12 +638,12 @@ def create_app() -> FastAPI:
                 "exception_type": "ValueError"
             }
         )
-        
+
         error_response = ErrorResponse.bad_request(
             "Invalid input provided",
             details=str(exc)
         )
-        
+
         return JSONResponse(
             status_code=400,
             content=error_response.detail

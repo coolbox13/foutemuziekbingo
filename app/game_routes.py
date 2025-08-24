@@ -394,35 +394,35 @@ async def validate_games(
 ):
     """
     Validate multiple games for existence, accessibility, and readiness.
-    
+
     This endpoint replaces the frontend validation loops that were causing API storms.
     It efficiently validates multiple games in a single database operation.
-    
+
     Args:
         game_ids: Comma-separated string of game IDs (max 100)
         include_track_count: Whether to include playlist track counts
         filter_status: Optional filter by game status
         current_user: Authenticated user
-        
+
     Returns:
         List of GameValidationResult objects with detailed validation status
-        
+
     Raises:
         HTTPException: 400 for invalid input, 500 for server errors
     """
     try:
         # Parse and validate game IDs
         game_id_list = [gid.strip() for gid in game_ids.split(",") if gid.strip()]
-        
+
         if not game_id_list:
             raise HTTPException(status_code=400, detail="No game IDs provided")
-            
+
         if len(game_id_list) > 100:
             raise HTTPException(
-                status_code=400, 
+                status_code=400,
                 detail="Too many game IDs (maximum 100 allowed)"
             )
-        
+
         # Validate games using the game service
         results = []
         for game_id in game_id_list:
@@ -431,14 +431,14 @@ async def validate_games(
                 user_id=current_user.id,
                 include_track_count=include_track_count
             )
-            
+
             # Apply status filter if specified
             if filter_status is None or (
-                result.exists and 
+                result.exists and
                 result.status == GameValidationStatus.VALID
             ):
                 results.append(result)
-        
+
         logger.info(
             "[GAME-VALIDATE-API-001] Games validation completed",
             extra={
@@ -448,9 +448,9 @@ async def validate_games(
                 "filter_status": filter_status.value if filter_status else None
             }
         )
-        
+
         return results
-        
+
     except HTTPException:
         raise
     except Exception as e:
@@ -472,17 +472,17 @@ async def validate_games_batch(
 ):
     """
     Efficient bulk validation of multiple games in a single operation.
-    
+
     This endpoint is optimized for performance and replaces individual validation calls
     that were causing API storms. It uses bulk database queries to minimize latency.
-    
+
     Args:
         request: BulkGameValidationRequest with game IDs and options
         current_user: Authenticated user
-        
+
     Returns:
         BulkGameValidationResponse with comprehensive validation results and performance metrics
-        
+
     Raises:
         HTTPException: 400 for invalid input, 500 for server errors
     """
@@ -490,13 +490,13 @@ async def validate_games_batch(
         # Validate request
         if not request.game_ids:
             raise HTTPException(status_code=400, detail="No game IDs provided")
-            
+
         if len(request.game_ids) > 100:
             raise HTTPException(
                 status_code=400,
                 detail="Too many game IDs (maximum 100 allowed)"
             )
-        
+
         # Perform bulk validation
         response = await game_service.validate_games_bulk(
             game_ids=request.game_ids,
@@ -504,7 +504,7 @@ async def validate_games_batch(
             include_track_count=request.include_track_count,
             filter_status=request.filter_status
         )
-        
+
         logger.info(
             "[GAME-BULK-VALIDATE-API-001] Bulk validation completed",
             extra={
@@ -512,13 +512,13 @@ async def validate_games_batch(
                 "requested_count": len(request.game_ids),
                 "processed_count": response.total_processed,
                 "processing_time_ms": response.processing_time_ms,
-                "success_rate": (response.summary.get("valid", 0) / response.total_processed * 100) 
+                "success_rate": (response.summary.get("valid", 0) / response.total_processed * 100)
                               if response.total_processed > 0 else 0
             }
         )
-        
+
         return response
-        
+
     except HTTPException:
         raise
     except Exception as e:
@@ -540,17 +540,17 @@ async def check_game_existence(
 ):
     """
     Quick check for game existence and user access.
-    
+
     This is a lightweight endpoint for checking if a game exists and if the user
     can access it, without performing full validation.
-    
+
     Args:
         game_id: Game ID to check
         current_user: Authenticated user
-        
+
     Returns:
         GameExistenceCheck with basic existence and accessibility info
-        
+
     Raises:
         HTTPException: 500 for server errors
     """
@@ -559,7 +559,7 @@ async def check_game_existence(
             game_id=game_id,
             user_id=current_user.id
         )
-        
+
         logger.debug(
             "[GAME-EXISTENCE-API-001] Game existence check completed",
             extra={
@@ -569,13 +569,12 @@ async def check_game_existence(
                 "accessible": result.accessible
             }
         )
-        
+
         return result
-        
+
     except Exception as e:
         logger.error(
             "[GAME-EXISTENCE-API-ERROR] Error checking game existence",
             extra={"game_id": game_id, "user_id": current_user.id, "error": str(e)}
         )
         raise HTTPException(status_code=500, detail="Failed to check game existence")
-

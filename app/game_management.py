@@ -26,7 +26,7 @@ async def save_game(request: Request, current_user: User = Depends(get_current_u
             f"[GAME-SAVE-AUTH-001] User {current_user.id} saving game",
             extra={"user_id": current_user.id, "spotify_id": current_user.spotify_id}
         )
-        
+
         data = await request.json()
         game_name = data.get("name")
         description = data.get("description", "")
@@ -58,10 +58,10 @@ async def save_game(request: Request, current_user: User = Depends(get_current_u
             json.dump(save_data, f, indent=4)
 
         logger.info(
-            f"[GAME-SAVE-AUTH-003] Game saved successfully",
+            "[GAME-SAVE-AUTH-003] Game saved successfully",
             extra={
-                "user_id": current_user.id, 
-                "game_name": game_name, 
+                "user_id": current_user.id,
+                "game_name": game_name,
                 "game_filename": filename,
                 "state_size": len(str(current_state))
             }
@@ -87,7 +87,7 @@ async def load_game(filename: str, current_user: User = Depends(get_current_user
             f"[GAME-LOAD-AUTH-001] User {current_user.id} loading game {filename}",
             extra={"user_id": current_user.id, "game_filename": filename}
         )
-        
+
         filepath = os.path.join(SAVED_GAMES_DIR, filename)
 
         if not os.path.exists(filepath):
@@ -113,9 +113,9 @@ async def load_game(filename: str, current_user: User = Depends(get_current_user
         game_state.update_state(update_state)
 
         logger.info(
-            f"[GAME-LOAD-AUTH-003] Game loaded successfully",
+            "[GAME-LOAD-AUTH-003] Game loaded successfully",
             extra={
-                "user_id": current_user.id, 
+                "user_id": current_user.id,
                 "game_filename": filename,
                 "original_saver": save_data.get("saved_by", "unknown"),
                 "game_name": save_data.get("name", "unknown")
@@ -150,7 +150,7 @@ async def list_saved_games(current_user: User = Depends(get_current_user)):
             f"[GAME-LIST-AUTH-001] User {current_user.id} listing saved games",
             extra={"user_id": current_user.id}
         )
-        
+
         ensure_saved_games_dir()
         saved_games = []
 
@@ -177,9 +177,9 @@ async def list_saved_games(current_user: User = Depends(get_current_user)):
                     continue
 
         sorted_games = sorted(saved_games, key=lambda x: x["timestamp"], reverse=True)
-        
+
         logger.info(
-            f"[GAME-LIST-AUTH-002] Saved games listed successfully",
+            "[GAME-LIST-AUTH-002] Saved games listed successfully",
             extra={"user_id": current_user.id, "game_count": len(sorted_games)}
         )
 

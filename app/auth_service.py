@@ -6,7 +6,7 @@ JWT functionality has been removed for cleaner, simpler authentication architect
 
 Key Features:
 - Session-only authentication (no JWT tokens)
-- User management with Supabase integration  
+- User management with Supabase integration
 - Spotify OAuth profile handling
 - Session-based route protection
 
@@ -77,7 +77,7 @@ class UserService:
                     "last_login_at": datetime.now(timezone.utc).isoformat(),
                     "updated_at": datetime.now(timezone.utc).isoformat(),
                     # Update Spotify profile data
-                    "spotify_href": spotify_profile.href,
+                    "spotify_hre": spotify_profile.href,
                     "spotify_uri": spotify_profile.uri,
                     "spotify_external_url": spotify_profile.external_urls.get("spotify")
                     if spotify_profile.external_urls
@@ -136,7 +136,7 @@ class UserService:
                     "subscription_type": "free",
                     # Spotify profile data
                     "spotify_uri": spotify_profile.uri,
-                    "spotify_href": spotify_profile.href,
+                    "spotify_hre": spotify_profile.href,
                     "spotify_external_url": spotify_profile.external_urls.get("spotify")
                     if spotify_profile.external_urls
                     else None,

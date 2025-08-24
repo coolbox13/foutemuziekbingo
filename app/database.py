@@ -3,11 +3,9 @@ Supabase Database Service for Foute Muziek Bingo FastAPI
 Migrated from PWA project with modern Python patterns
 """
 import os
-import asyncio
 import logging
-from typing import Dict, List, Optional, Any, Union
+from typing import Dict, List, Optional, Any
 from datetime import datetime
-import json
 from supabase import create_client, Client
 from dotenv import load_dotenv
 
@@ -64,7 +62,7 @@ class SupabaseService:
 
         try:
             logger.info(
-                f"[DB-INIT-001] Starting database initialization",
+                "[DB-INIT-001] Starting database initialization",
                 extra={"init_id": init_id, "timestamp": datetime.now().isoformat()},
             )
 
@@ -74,7 +72,7 @@ class SupabaseService:
             if not supabase_url or not supabase_service_key:
                 message = "Supabase URL and Service Key must be provided"
                 logger.error(
-                    f"[DB-INIT-ERROR-001] Missing required Supabase configuration",
+                    "[DB-INIT-ERROR-001] Missing required Supabase configuration",
                     extra={
                         "init_id": init_id,
                         "has_url": bool(supabase_url),
@@ -84,7 +82,7 @@ class SupabaseService:
                 raise DatabaseError(message)
 
             logger.info(
-                f"[DB-INIT-002] Creating Supabase client",
+                "[DB-INIT-002] Creating Supabase client",
                 extra={
                     "init_id": init_id,
                     "supabase_url": supabase_url[:30] + "...",
@@ -108,7 +106,7 @@ class SupabaseService:
                 self.last_health_check = datetime.now()
 
                 logger.info(
-                    f"[DB-INIT-004] Database connection established successfully",
+                    "[DB-INIT-004] Database connection established successfully",
                     extra={
                         "init_id": init_id,
                         "health_check": health_check_result,
@@ -118,14 +116,14 @@ class SupabaseService:
             else:
                 self.connection_status = "error"
                 logger.warning(
-                    f"[DB-INIT-WARN-004] Database connection has issues",
+                    "[DB-INIT-WARN-004] Database connection has issues",
                     extra={"init_id": init_id, "health_check": health_check_result},
                 )
 
                 # In development, allow the app to start even if database connection fails
                 if os.getenv("NODE_ENV") == "development":
                     logger.warning(
-                        f"[DB-INIT-WARN-005] Continuing in development mode despite database connection issues",
+                        "[DB-INIT-WARN-005] Continuing in development mode despite database connection issues",
                         extra={"init_id": init_id},
                     )
                     self.is_initialized = True
@@ -133,7 +131,7 @@ class SupabaseService:
                     raise DatabaseError("Database connection health check failed")
 
             logger.info(
-                f"[DB-INIT-005] Database initialization completed",
+                "[DB-INIT-005] Database initialization completed",
                 extra={
                     "init_id": init_id,
                     "status": self.connection_status,
@@ -146,7 +144,7 @@ class SupabaseService:
             self.connection_status = "error"
             message = f"Database initialization failed: {str(error)}"
             logger.error(
-                f"[DB-INIT-ERROR] Database initialization failed",
+                "[DB-INIT-ERROR] Database initialization failed",
                 extra={
                     "init_id": init_id,
                     "error": {"message": str(error), "type": type(error).__name__},
@@ -155,7 +153,7 @@ class SupabaseService:
 
             if os.getenv("NODE_ENV") == "development":
                 logger.warning(
-                    f"[DB-INIT-WARN] Continuing in development mode despite initialization failure",
+                    "[DB-INIT-WARN] Continuing in development mode despite initialization failure",
                     extra={"init_id": init_id},
                 )
                 self.is_initialized = True
@@ -174,7 +172,7 @@ class SupabaseService:
         health_check_id = f"health-{int(start_time.timestamp())}"
 
         logger.debug(
-            f"[DB-HEALTH-001] Starting database health check",
+            "[DB-HEALTH-001] Starting database health check",
             extra={"health_check_id": health_check_id},
         )
 
@@ -189,7 +187,7 @@ class SupabaseService:
         try:
             # Test basic connection
             logger.debug(
-                f"[DB-HEALTH-002] Testing basic connection",
+                "[DB-HEALTH-002] Testing basic connection",
                 extra={"health_check_id": health_check_id},
             )
 
@@ -200,7 +198,7 @@ class SupabaseService:
                 result["checks"]["connection"] = True
             except Exception as conn_error:
                 # Expected errors that indicate connection is working:
-                # - PostgreSQL: "relation does not exist" 
+                # - PostgreSQL: "relation does not exist"
                 # - Supabase: "Could not find the table" or "schema cache"
                 error_str = str(conn_error)
                 connection_working_indicators = [
@@ -209,16 +207,16 @@ class SupabaseService:
                     "schema cache" in error_str,
                     "PGRST205" in error_str  # Supabase table not found error code
                 ]
-                
+
                 if any(connection_working_indicators):
                     logger.debug(
-                        f"[DB-HEALTH-CONN-OK] Connection test passed (dummy table doesn't exist as expected)",
+                        "[DB-HEALTH-CONN-OK] Connection test passed (dummy table doesn't exist as expected)",
                         extra={"health_check_id": health_check_id, "error": error_str},
                     )
                     result["checks"]["connection"] = True
                 else:
                     logger.error(
-                        f"[DB-HEALTH-CONN-ERROR] Connection test failed",
+                        "[DB-HEALTH-CONN-ERROR] Connection test failed",
                         extra={
                             "health_check_id": health_check_id,
                             "error": error_str,
@@ -230,7 +228,7 @@ class SupabaseService:
 
             if result["checks"]["connection"]:
                 logger.debug(
-                    f"[DB-HEALTH-003] Basic connection successful",
+                    "[DB-HEALTH-003] Basic connection successful",
                     extra={"health_check_id": health_check_id},
                 )
 
@@ -244,7 +242,7 @@ class SupabaseService:
                     )
                     result["checks"]["auth"] = True
                     logger.debug(
-                        f"[DB-HEALTH-004] Auth check result",
+                        "[DB-HEALTH-004] Auth check result",
                         extra={
                             "health_check_id": health_check_id,
                             "auth_result": result["checks"]["auth"],
@@ -252,7 +250,7 @@ class SupabaseService:
                     )
                 except Exception as auth_error:
                     logger.error(
-                        f"[DB-HEALTH-WARN-004] Auth check failed",
+                        "[DB-HEALTH-WARN-004] Auth check failed",
                         extra={
                             "health_check_id": health_check_id,
                             "error": str(auth_error),
@@ -275,7 +273,7 @@ class SupabaseService:
                         result["checks"]["tables"][table] = True
 
                         logger.debug(
-                            f"[DB-HEALTH-005] Table check result",
+                            "[DB-HEALTH-005] Table check result",
                             extra={
                                 "health_check_id": health_check_id,
                                 "table": table,
@@ -285,7 +283,7 @@ class SupabaseService:
                     except Exception as table_error:
                         result["checks"]["tables"][table] = False
                         logger.debug(
-                            f"[DB-HEALTH-WARN-005] Table check failed",
+                            "[DB-HEALTH-WARN-005] Table check failed",
                             extra={
                                 "health_check_id": health_check_id,
                                 "table": table,
@@ -301,7 +299,7 @@ class SupabaseService:
         except Exception as error:
             result["error"] = str(error)
             logger.error(
-                f"[DB-HEALTH-ERROR] Health check failed",
+                "[DB-HEALTH-ERROR] Health check failed",
                 extra={
                     "health_check_id": health_check_id,
                     "error": result["error"],
@@ -316,7 +314,7 @@ class SupabaseService:
         self.last_health_check = result["timestamp"]
 
         logger.debug(
-            f"[DB-HEALTH-006] Health check completed",
+            "[DB-HEALTH-006] Health check completed",
             extra={
                 "health_check_id": health_check_id,
                 "result": {
@@ -373,7 +371,7 @@ class SupabaseService:
                 raise error
             message = f"Unexpected database error: {str(error)}"
             logger.error(
-                f"[DB-QUERY-ERROR] Unexpected database error",
+                "[DB-QUERY-ERROR] Unexpected database error",
                 extra={"error": {"message": str(error), "type": type(error).__name__}},
             )
             raise DatabaseError(message, error)
@@ -382,7 +380,7 @@ class SupabaseService:
         """Create a new record in the specified table"""
         try:
             logger.debug(
-                f"[DB-CREATE] Creating record",
+                "[DB-CREATE] Creating record",
                 extra={"table": table, "data_keys": list(data.keys())},
             )
 
@@ -395,7 +393,7 @@ class SupabaseService:
         except Exception as error:
             message = f"Failed to create record in {table}: {str(error)}"
             logger.error(
-                f"[DB-CREATE-ERROR] Create record failed",
+                "[DB-CREATE-ERROR] Create record failed",
                 extra={"table": table, "error": str(error)},
             )
             raise DatabaseError(message, error)
@@ -420,7 +418,7 @@ class SupabaseService:
                 return response.data[0]
             else:
                 logger.debug(
-                    f"[DB-GET] Record not found",
+                    "[DB-GET] Record not found",
                     extra={"table": table, "id": record_id},
                 )
                 return None
@@ -430,7 +428,7 @@ class SupabaseService:
                 raise error
             message = f"Unexpected error getting record from {table}: {str(error)}"
             logger.error(
-                f"[DB-GET-ERROR] Unexpected get record error",
+                "[DB-GET-ERROR] Unexpected get record error",
                 extra={"table": table, "id": record_id, "error": str(error)},
             )
             raise DatabaseError(message, error)
@@ -441,7 +439,7 @@ class SupabaseService:
         """Update a record by ID"""
         try:
             logger.debug(
-                f"[DB-UPDATE] Updating record",
+                "[DB-UPDATE] Updating record",
                 extra={
                     "table": table,
                     "id": record_id,
@@ -458,7 +456,7 @@ class SupabaseService:
         except Exception as error:
             message = f"Failed to update record in {table}: {str(error)}"
             logger.error(
-                f"[DB-UPDATE-ERROR] Update record failed",
+                "[DB-UPDATE-ERROR] Update record failed",
                 extra={"table": table, "id": record_id, "error": str(error)},
             )
             raise DatabaseError(message, error)
@@ -478,7 +476,7 @@ class SupabaseService:
             response = self.client.table(table).delete().eq("id", record_id).execute()
 
             logger.debug(
-                f"[DB-DELETE] Record deleted successfully",
+                "[DB-DELETE] Record deleted successfully",
                 extra={"table": table, "id": record_id},
             )
 
@@ -487,7 +485,7 @@ class SupabaseService:
                 raise error
             message = f"Unexpected error deleting record from {table}: {str(error)}"
             logger.error(
-                f"[DB-DELETE-ERROR] Unexpected delete record error",
+                "[DB-DELETE-ERROR] Unexpected delete record error",
                 extra={"table": table, "id": record_id, "error": str(error)},
             )
             raise DatabaseError(message, error)
@@ -502,7 +500,7 @@ class SupabaseService:
             select_fields = kwargs.get("select", "*")
 
             logger.debug(
-                f"[DB-QUERY] Querying records",
+                "[DB-QUERY] Querying records",
                 extra={
                     "table": table,
                     "filter_count": len(filters) if filters else 0,
@@ -545,7 +543,7 @@ class SupabaseService:
             result = response.data or []
 
             logger.debug(
-                f"[DB-QUERY] Query completed",
+                "[DB-QUERY] Query completed",
                 extra={"table": table, "result_count": len(result)},
             )
 
@@ -556,7 +554,7 @@ class SupabaseService:
                 raise error
             message = f"Unexpected error querying records from {table}: {str(error)}"
             logger.error(
-                f"[DB-QUERY-ERROR] Unexpected query records error",
+                "[DB-QUERY-ERROR] Unexpected query records error",
                 extra={"table": table, "error": str(error)},
             )
             raise DatabaseError(message, error)
@@ -567,7 +565,7 @@ class SupabaseService:
         """Count records in a table with optional filters"""
         try:
             logger.debug(
-                f"[DB-COUNT] Counting records",
+                "[DB-COUNT] Counting records",
                 extra={"table": table, "filter_count": len(filters) if filters else 0},
             )
 
@@ -597,7 +595,7 @@ class SupabaseService:
                 raise error
             message = f"Unexpected error counting records in {table}: {str(error)}"
             logger.error(
-                f"[DB-COUNT-ERROR] Unexpected count records error",
+                "[DB-COUNT-ERROR] Unexpected count records error",
                 extra={"table": table, "error": str(error)},
             )
             raise DatabaseError(message, error)

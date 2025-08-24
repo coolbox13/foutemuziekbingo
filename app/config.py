@@ -49,7 +49,7 @@ class AppConfig:
     # Rate Limiting Configuration
     rate_limit_requests_per_minute: int
     rate_limit_burst_size: int
-    
+
     @property
     def redis_password(self) -> Optional[str]:
         """Backward compatibility alias for dragonfly_password."""

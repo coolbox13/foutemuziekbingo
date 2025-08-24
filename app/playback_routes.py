@@ -70,7 +70,7 @@ async def api_play_track(
         playback_info = await play_track_with_fallback(sp, track_uri)
 
         logger.info(
-            f"[PLAYBACK-001] Track started playing",
+            "[PLAYBACK-001] Track started playing",
             extra={
                 "game_id": game_id,
                 "track_id": track.id,
@@ -113,7 +113,7 @@ async def api_play_track(
         raise convert_spotify_exception_to_http(e, "play track")
     except Exception as e:
         logger.error(
-            f"[PLAYBACK-ERROR] Unexpected error playing track",
+            "[PLAYBACK-ERROR] Unexpected error playing track",
             extra={
                 "game_id": game_id,
                 "user_id": current_user.id,
@@ -150,7 +150,7 @@ async def api_pause_game(
         await pause_playback(sp)
 
         logger.info(
-            f"[PLAYBACK-002] Playback paused",
+            "[PLAYBACK-002] Playback paused",
             extra={"game_id": game_id, "user_id": current_user.id},
         )
 
@@ -168,7 +168,7 @@ async def api_pause_game(
         raise convert_spotify_exception_to_http(e, "pause playback")
     except Exception as e:
         logger.error(
-            f"[PLAYBACK-ERROR] Unexpected error pausing playback",
+            "[PLAYBACK-ERROR] Unexpected error pausing playback",
             extra={
                 "game_id": game_id,
                 "user_id": current_user.id,
@@ -245,7 +245,7 @@ async def api_game_played_tracks(
         raise
     except Exception as e:
         logger.error(
-            f"[PLAYBACK-ERROR] Unexpected error getting played tracks",
+            "[PLAYBACK-ERROR] Unexpected error getting played tracks",
             extra={
                 "game_id": game_id,
                 "user_id": current_user.id,

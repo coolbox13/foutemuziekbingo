@@ -28,7 +28,7 @@ async def list_sounds(request: Request, current_user: Optional[User] = None):
             current_user = await get_current_user_optional(request)
         except:
             current_user = None
-    
+
     try:
         # Log access (authenticated vs anonymous)
         if current_user:
@@ -38,10 +38,10 @@ async def list_sounds(request: Request, current_user: Optional[User] = None):
             )
         else:
             logger.info(
-                f"[SOUND-PUBLIC-001] Anonymous user listing sounds",
+                "[SOUND-PUBLIC-001] Anonymous user listing sounds",
                 extra={"client_ip": request.client.host, "access_type": "anonymous"}
             )
-        
+
         # Ensure the sounds directory exists
         if not os.path.exists(SOUNDS_DIR):
             logger.error(f"Sounds directory not found: {SOUNDS_DIR}")
@@ -61,14 +61,14 @@ async def list_sounds(request: Request, current_user: Optional[User] = None):
                 "access_type": "authenticated" if current_user else "anonymous"
             }
         )
-        
+
         return {"sounds": sorted(sounds, key=lambda x: x["filename"])}
 
     except HTTPException:
         raise
     except Exception as e:
         logger.error(
-            f"[SOUND-LIST-ERROR] Error listing sounds",
+            "[SOUND-LIST-ERROR] Error listing sounds",
             extra={
                 "user_id": current_user.id if current_user else "anonymous",
                 "error": str(e),
@@ -87,7 +87,7 @@ async def serve_sound(filename: str, request: Request, current_user: Optional[Us
             current_user = await get_current_user_optional(request)
         except:
             current_user = None
-    
+
     try:
         # Log access (authenticated vs anonymous)
         if current_user:
@@ -100,7 +100,7 @@ async def serve_sound(filename: str, request: Request, current_user: Optional[Us
                 f"[SOUND-PUBLIC-002] Anonymous user requesting sound: {filename}",
                 extra={"client_ip": request.client.host, "sound_filename": filename, "access_type": "anonymous"}
             )
-        
+
         if not os.path.exists(SOUNDS_DIR):
             logger.error(f"Sounds directory not found: {SOUNDS_DIR}")
             raise HTTPException(status_code=500, detail="Sounds directory not found")
@@ -120,9 +120,9 @@ async def serve_sound(filename: str, request: Request, current_user: Optional[Us
             raise HTTPException(status_code=404, detail="Sound file not found")
 
         mime_type = mimetypes.guess_type(filename)[0]
-        
+
         logger.info(
-            f"[SOUND-SERVE-004] Serving sound file successfully",
+            "[SOUND-SERVE-004] Serving sound file successfully",
             extra={
                 "user_id": current_user.id if current_user else "anonymous",
                 "sound_filename": filename,

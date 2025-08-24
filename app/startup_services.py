@@ -29,7 +29,7 @@ class StartupManager:
     async def startup_application(self) -> Dict[str, Any]:
         """
         Start all background services and initialize system components.
-        
+
         Returns:
             Dictionary with startup results and any errors
         """
@@ -46,7 +46,7 @@ class StartupManager:
         try:
             logger.info("[STARTUP-002] Starting background token refresh service")
             token_service_started = await start_background_token_service()
-            
+
             if token_service_started:
                 startup_results["services_started"].append("background_token_service")
                 self.services_started.append("background_token_service")
@@ -55,7 +55,7 @@ class StartupManager:
                 startup_results["services_failed"].append("background_token_service")
                 startup_results["errors"].append("Failed to start background token service")
                 logger.error("[STARTUP-ERROR-001] Failed to start background token service")
-                
+
         except Exception as e:
             startup_results["success"] = False
             startup_results["services_failed"].append("background_token_service")
@@ -70,7 +70,7 @@ class StartupManager:
         try:
             logger.info("[STARTUP-004] Performing token manager health check")
             health = await spotify_token_manager.health_check()
-            
+
             if health.get("healthy", False):
                 startup_results["services_started"].append("token_manager")
                 logger.info("[STARTUP-005] Token manager health check passed")
@@ -81,7 +81,7 @@ class StartupManager:
                     "[STARTUP-WARN-001] Token manager health check failed",
                     extra={"health_status": health}
                 )
-                
+
         except Exception as e:
             startup_results["services_failed"].append("token_manager")
             startup_results["errors"].append(f"Token manager health check error: {str(e)}")
@@ -116,7 +116,7 @@ class StartupManager:
     async def shutdown_application(self) -> Dict[str, Any]:
         """
         Gracefully shutdown all services.
-        
+
         Returns:
             Dictionary with shutdown results
         """
@@ -134,7 +134,7 @@ class StartupManager:
             try:
                 logger.info("[SHUTDOWN-002] Stopping background token service")
                 token_service_stopped = await stop_background_token_service()
-                
+
                 if token_service_stopped:
                     shutdown_results["services_stopped"].append("background_token_service")
                     self.services_started.remove("background_token_service")
@@ -143,7 +143,7 @@ class StartupManager:
                     shutdown_results["services_failed"].append("background_token_service")
                     shutdown_results["errors"].append("Failed to stop background token service")
                     logger.error("[SHUTDOWN-ERROR-001] Failed to stop background token service")
-                    
+
             except Exception as e:
                 shutdown_results["success"] = False
                 shutdown_results["services_failed"].append("background_token_service")

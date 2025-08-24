@@ -19,14 +19,14 @@ Security Features:
 
 Routes:
 - GET /login/page: Display login page
-- GET /login: Initiate Spotify OAuth flow  
+- GET /login: Initiate Spotify OAuth flow
 - GET /spotify/callback: Handle OAuth callback
 - GET /me: Get current user information
 - POST /logout: Logout and clear session
 - GET /status: Check authentication status
 """
 
-from fastapi import APIRouter, Request, HTTPException, Depends, Response
+from fastapi import APIRouter, Request, Depends, Response
 from typing import Optional
 from fastapi.responses import RedirectResponse, HTMLResponse
 from fastapi.templating import Jinja2Templates
@@ -330,7 +330,7 @@ async def spotify_callback(
             followers=spotify_user.get("followers"),
             images=spotify_user.get("images", []),
             external_urls=spotify_user.get("external_urls"),
-            href=spotify_user.get("href"),
+            href=spotify_user.get("hre"),
             uri=spotify_user.get("uri"),
             explicit_content=spotify_user.get("explicit_content"),
         )
@@ -444,7 +444,7 @@ async def get_current_user_info(current_user=Depends(get_current_user)) -> UserP
         Response:
         {
             "id": "user_uuid",
-            "spotify_id": "spotify_user_id", 
+            "spotify_id": "spotify_user_id",
             "display_name": "User Name",
             "email": "user@example.com",
             "avatar_url": "https://example.com/avatar.jpg",
@@ -555,7 +555,7 @@ async def logout(
         await invalidate_session(session_token, response)
 
     logger.info(
-        f"[AUTH-LOGOUT] User logged out",
+        "[AUTH-LOGOUT] User logged out",
         extra={
             "user_id": current_user.id if current_user else "unknown",
             "session_token": session_token[:8] + "..." if session_token else "none",
@@ -569,10 +569,10 @@ async def logout(
 async def debug_session_info(request: Request, current_user=Depends(get_current_user_optional)):
     """Debug endpoint to check session authentication status"""
     from app.config import get_config
-    
+
     config = get_config()
     session_data = await get_session_from_request(request, config.secret_key)
-    
+
     return {
         "authenticated": current_user is not None,
         "user_id": current_user.id if current_user else None,
@@ -586,9 +586,9 @@ async def debug_session_info(request: Request, current_user=Depends(get_current_
 @router.get("/debug/test-endpoints")
 async def debug_test_endpoints(current_user=Depends(get_current_user_optional)):
     """Debug endpoint to test if key endpoints are accessible"""
-    
+
     results = {}
-    
+
     # Test game service
     try:
         from app.game_service import game_service
@@ -603,7 +603,7 @@ async def debug_test_endpoints(current_user=Depends(get_current_user_optional)):
             results["user_games"] = {"accessible": False, "reason": "not_authenticated"}
     except Exception as e:
         results["user_games"] = {"accessible": False, "error": str(e)}
-    
+
     return {
         "authenticated": current_user is not None,
         "user_id": current_user.id if current_user else None,
