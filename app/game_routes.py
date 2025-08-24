@@ -71,6 +71,7 @@ from app.models import (
 )
 from app.game_service import game_service, GameError
 from app.socket_handler import sio
+from app.auth_service import get_current_user
 
 router = APIRouter()
 logger = logging.getLogger("music_bingo")

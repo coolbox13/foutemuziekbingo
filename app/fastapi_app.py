@@ -338,20 +338,31 @@ def create_app() -> FastAPI:
 
             # Check cache manager health
             cache_manager = get_cache_manager()
-            cache_health = await cache_manager.health_check()
-            cache_stats = await cache_manager.get_cache_stats()
+            try:
+                cache_health = await cache_manager.health_check()
+                cache_stats = await cache_manager.get_cache_stats()
+            except Exception as e:
+                cache_health = {"healthy": False, "error": str(e)}
+                cache_stats = {"error": str(e)}
 
             # Check CORS security configuration
             cors_security = get_cors_security_report()
 
             # Check rate limiter health
-            rate_limiter_stats = rate_limiter.get_statistics()
-            rate_limiter_backend_stats = await rate_limiter.backend.get_statistics()
+            try:
+                rate_limiter_stats = await rate_limiter.get_statistics_async()
+            except Exception as e:
+                rate_limiter_stats = {
+                    "rules_configured": len(rate_limiter.rules),
+                    "rule_names": list(rate_limiter.rules.keys()),
+                    "backend_stats": {"error": str(e), "healthy": False}
+                }
 
             # Overall health assessment
             is_healthy = (
                 config_health["healthy"] and
-                session_health.get("healthy", False)
+                session_health.get("healthy", False) and
+                cache_health.get("healthy", False)
             )
 
             return {
@@ -364,10 +375,7 @@ def create_app() -> FastAPI:
                     "session_store": session_health,
                     "cache_manager": cache_health,
                     "cors_security": cors_security,
-                    "rate_limiter": {
-                        **rate_limiter_stats,
-                        "backend": rate_limiter_backend_stats
-                    }
+                    "rate_limiter": rate_limiter_stats
                 },
                 "statistics": {
                     "sessions": session_stats,
@@ -441,12 +449,20 @@ def create_app() -> FastAPI:
         """Basic metrics endpoint for monitoring (Prometheus-compatible format available)."""
         try:
             from app.redis_session_store import get_redis_session_store
+            from app.cache_manager import get_cache_manager
 
             # Gather metrics from various components
             session_store = get_redis_session_store()
             session_stats = await session_store.get_session_stats()
 
             rate_limiter_stats = rate_limiter.get_statistics()
+
+            # Get cache metrics
+            cache_manager = get_cache_manager()
+            try:
+                cache_stats = await cache_manager.get_cache_stats()
+            except Exception as e:
+                cache_stats = {"total_keys": 0, "total_memory": 0, "hit_rate": 0, "error": str(e)}
 
             # Format as Prometheus-style metrics
             metrics_lines = []
@@ -473,18 +489,21 @@ def create_app() -> FastAPI:
                 f"rate_limit_abuse_patterns_detected {len(abuse_patterns)}",
             ])
 
-
             # Cache metrics
+            total_keys = getattr(cache_stats, 'total_keys', cache_stats.get('total_keys', 0)) if hasattr(cache_stats, 'get') or hasattr(cache_stats, 'total_keys') else 0
+            total_memory = getattr(cache_stats, 'total_memory', cache_stats.get('total_memory', 0)) if hasattr(cache_stats, 'get') or hasattr(cache_stats, 'total_memory') else 0
+            hit_rate = getattr(cache_stats, 'hit_rate', cache_stats.get('hit_rate', 0)) if hasattr(cache_stats, 'get') or hasattr(cache_stats, 'hit_rate') else 0
+            
             metrics_lines.extend([
                 "# HELP cache_keys_total Total number of cache keys",
                 "# TYPE cache_keys_total gauge",
-                f"cache_keys_total {cache_stats.total_keys}",
+                f"cache_keys_total {total_keys}",
                 "# HELP cache_memory_bytes Memory used by cache",
                 "# TYPE cache_memory_bytes gauge",
-                f"cache_memory_bytes {cache_stats.total_memory}",
+                f"cache_memory_bytes {total_memory}",
                 "# HELP cache_hit_rate_percent Cache hit rate percentage",
                 "# TYPE cache_hit_rate_percent gauge",
-                f"cache_hit_rate_percent {cache_stats.hit_rate}",
+                f"cache_hit_rate_percent {hit_rate}",
             ])
 
             return Response(
@@ -558,94 +577,6 @@ def create_app() -> FastAPI:
 
         return JSONResponse(
             status_code=500,
-            content=error_response.detail
-        )
-
-    return app
-
-    # =============================================
-    # GLOBAL EXCEPTION HANDLERS
-    # =============================================
-
-    from app.error_handlers import ErrorResponse, ErrorMessages
-    from fastapi.responses import JSONResponse
-
-    @app.exception_handler(HTTPException)
-    async def http_exception_handler(request: Request, exc: HTTPException):
-        """Handle HTTP exceptions with standardized format."""
-        logger.warning(
-            f"HTTP exception: {exc.status_code} - {exc.detail}",
-            extra={
-                "path": request.url.path,
-                "method": request.method,
-                "status_code": exc.status_code
-            }
-        )
-
-        # If detail is already structured (from our ErrorResponse), return as-is
-        if isinstance(exc.detail, dict) and "error" in exc.detail:
-            return JSONResponse(
-                status_code=exc.status_code,
-                content=exc.detail
-            )
-
-        # Convert simple string details to standardized format
-        return JSONResponse(
-            status_code=exc.status_code,
-            content={
-                "error": "http_error",
-                "message": str(exc.detail),
-                "timestamp": datetime.now(timezone.utc).isoformat()
-            }
-        )
-
-    @app.exception_handler(Exception)
-    async def general_exception_handler(request: Request, exc: Exception):
-        """Handle unexpected exceptions with standardized error response."""
-        error_id = f"err_{datetime.now().timestamp()}"
-
-        logger.error(
-            f"Unhandled exception [{error_id}]: {str(exc)}",
-            extra={
-                "path": request.url.path,
-                "method": request.method,
-                "error_id": error_id,
-                "exception_type": type(exc).__name__
-            },
-            exc_info=True
-        )
-
-        # Use standardized internal server error response
-        error_response = ErrorResponse.internal_server_error(
-            "An unexpected error occurred",
-            error=exc,
-            operation=f"{request.method} {request.url.path}"
-        )
-
-        return JSONResponse(
-            status_code=500,
-            content=error_response.detail
-        )
-
-    @app.exception_handler(ValueError)
-    async def value_error_handler(request: Request, exc: ValueError):
-        """Handle ValueError with bad request response."""
-        logger.warning(
-            f"ValueError: {str(exc)}",
-            extra={
-                "path": request.url.path,
-                "method": request.method,
-                "exception_type": "ValueError"
-            }
-        )
-
-        error_response = ErrorResponse.bad_request(
-            "Invalid input provided",
-            details=str(exc)
-        )
-
-        return JSONResponse(
-            status_code=400,
             content=error_response.detail
         )
 

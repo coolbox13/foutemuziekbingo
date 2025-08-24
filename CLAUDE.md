@@ -4,27 +4,33 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Development Commands
 
+**CRITICAL: ALL commands must use conda 'base' environment with proper zsh shell activation:**
+
+Activate conda environment (required before ANY Python commands):
+```bash
+source /opt/homebrew/Caskroom/miniforge/base/etc/profile.d/conda.sh && conda activate base
+```
+
 Start the application:
 ```bash
-python app.py
+source /opt/homebrew/Caskroom/miniforge/base/etc/profile.d/conda.sh && conda activate base && python app.py
 ```
 
 The FastAPI server runs on http://localhost:1313.
 
 Install dependencies (using conda environment 'base'):
 ```bash
-conda activate base
-pip install -r requirements.txt
+source /opt/homebrew/Caskroom/miniforge/base/etc/profile.d/conda.sh && conda activate base && pip install -r requirements.txt
 ```
 
 Check linters and syntax (using Python 3.11 in conda base environment):
 ```bash
-python3.11 -m py_compile app.py
-python3.11 app.py
-flake8 app/*.py --max-line-length=100
+source /opt/homebrew/Caskroom/miniforge/base/etc/profile.d/conda.sh && conda activate base && python -m py_compile app.py
+source /opt/homebrew/Caskroom/miniforge/base/etc/profile.d/conda.sh && conda activate base && python app.py
+source /opt/homebrew/Caskroom/miniforge/base/etc/profile.d/conda.sh && conda activate base && flake8 app/*.py --max-line-length=100
 ```
 
-Note: User prefers conda environment 'base' with zsh shell. Uses Python 3.11 with FastAPI packages installed.
+Note: User requires conda environment 'base' with zsh shell. Python packages are installed in conda base environment, NOT system Python.
 
 ## Required Environment Variables
 
@@ -77,9 +83,8 @@ DRAGONFLY_URL=dragonfly://localhost:6379/0
 
 Run tests:
 ```bash
-conda activate base
-pip install pyjwt  # Required for tests
-python3 tests/run_all_tests.py
+source /opt/homebrew/Caskroom/miniforge/base/etc/profile.d/conda.sh && conda activate base && pip install pyjwt  # Required for tests
+source /opt/homebrew/Caskroom/miniforge/base/etc/profile.d/conda.sh && conda activate base && python tests/run_all_tests.py
 ```
 
 ## Application Architecture

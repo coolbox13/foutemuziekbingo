@@ -880,7 +880,24 @@ class AsyncRateLimiter:
         stats.update({
             "rules_configured": len(self.rules),
             "rule_names": list(self.rules.keys()),
-            "backend_stats": self.backend.get_statistics() if hasattr(self.backend, 'get_statistics') else {}
+            "backend_stats": "async_method_available" if hasattr(self.backend, 'get_statistics') else {}
+        })
+        return stats
+    
+    async def get_statistics_async(self) -> Dict[str, Any]:
+        """Get comprehensive rate limiter statistics with analytics (async version)."""
+        stats = self._analytics.get_comprehensive_stats()
+        backend_stats = {}
+        if hasattr(self.backend, 'get_statistics'):
+            try:
+                backend_stats = await self.backend.get_statistics()
+            except Exception as e:
+                backend_stats = {"error": str(e), "healthy": False}
+        
+        stats.update({
+            "rules_configured": len(self.rules),
+            "rule_names": list(self.rules.keys()),
+            "backend_stats": backend_stats
         })
         return stats
 
