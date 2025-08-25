@@ -206,7 +206,7 @@ async def leave(sid, data):
 
 
 @sio.event
-async def request_game_state(sid):
+async def request_game_state(sid, data=None):
     session = await sio.get_session(sid)
     if not session or not session.get("user_id"):
         await sio.emit("error", {"error": "Unauthorized"}, room=sid)
