@@ -2,7 +2,6 @@ import os
 import socketio
 from app.state import game_state
 import logging
-from urllib.parse import parse_qs
 from app.secure_session import get_session_from_cookie_value, SESSION_COOKIE_NAME
 from app.auth_service import AuthService, AuthenticationError
 
@@ -58,13 +57,15 @@ def check_bingo_status(card_id):
 
 @sio.event
 async def connect(sid, environ):
+    """Handle client connection with proper authentication and error logging."""
     # Expect Authorization: Bearer <token> header OR session cookie
     scope = environ.get("asgi.scope") or {}
     headers = {}
     for k, v in scope.get("headers", []):
         try:
             headers[k.decode()] = v.decode()
-        except Exception:
+        except (UnicodeDecodeError, AttributeError) as e:
+            logger.debug(f"[SIO] Failed to decode header {k}: {e}")
             continue
 
     token = None
@@ -85,7 +86,8 @@ async def connect(sid, environ):
             try:
                 from app.config import get_config
 
-                config = get_config(); session_data = await get_session_from_cookie_value(raw_cookie, config.secret_key)
+                config = get_config()
+                session_data = await get_session_from_cookie_value(raw_cookie, config.secret_key)
                 if (
                     session_data
                     and session_data.get("user")
@@ -100,8 +102,8 @@ async def connect(sid, environ):
                         "connection_status", {"status": "connected"}, room=sid
                     )
                     return
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning(f"[SIO-AUTH] Session cookie validation failed: {e}")
 
     if not token:
         logger.warning("[SIO-AUTH] Missing token on connect; rejecting")
@@ -117,127 +119,205 @@ async def connect(sid, environ):
             "[SIO-AUTH] Invalid token on connect; rejecting", extra={"error": e.message}
         )
         return False
+    except Exception as e:
+        logger.error(f"[SIO-AUTH] Unexpected error during authentication: {e}", exc_info=True)
+        return False
 
 
 @sio.event
 async def disconnect(sid):
-    logger.info("WebSocket client disconnected.")
+    """Handle client disconnection with proper logging."""
+    try:
+        session = await sio.get_session(sid)
+        user_id = session.get("user_id") if session else None
+        logger.info(
+            "[SIO] WebSocket client disconnected",
+            extra={"session_id": sid, "user_id": user_id}
+        )
+    except Exception as e:
+        logger.warning(f"[SIO] Error during disconnect handling: {e}")
 
 
 @sio.event
 async def card_validated(sid, data):
-    session = await sio.get_session(sid)
-    if not session or not session.get("user_id"):
-        await sio.emit("error", {"error": "Unauthorized"}, room=sid)
-        return
-    card_id = data.get("card_id")
-    if not card_id:
-        await sio.emit("error", {"error": "No card ID provided"}, room=sid)
-        return
-    state = game_state.get_state()
-    card = state["cards"].get(card_id)
-    if card:
-        await sio.emit(
-            "card_status_update",
-            {
-                "card_id": card_id,
-                "status": card.get("bingo_status", "Not checked"),
-                "matches": card.get("matches", []),
-            },
-            room=sid,
-        )
+    """Handle card validation event with proper error handling."""
+    try:
+        session = await sio.get_session(sid)
+        if not session or not session.get("user_id"):
+            logger.warning("[SIO] Unauthorized card_validated request", extra={"session_id": sid})
+            await sio.emit("error", {"error": "Unauthorized"}, room=sid)
+            return
+
+        card_id = data.get("card_id")
+        if not card_id:
+            logger.warning("[SIO] card_validated request missing card_id", extra={"session_id": sid})
+            await sio.emit("error", {"error": "No card ID provided"}, room=sid)
+            return
+
+        state = game_state.get_state()
+        card = state["cards"].get(card_id)
+        if card:
+            await sio.emit(
+                "card_status_update",
+                {
+                    "card_id": card_id,
+                    "status": card.get("bingo_status", "Not checked"),
+                    "matches": card.get("matches", []),
+                },
+                room=sid,
+            )
+            logger.debug(f"[SIO] Card status updated for {card_id}", extra={"session_id": sid})
+        else:
+            logger.warning(f"[SIO] Card {card_id} not found", extra={"session_id": sid})
+    except Exception as e:
+        logger.error(f"[SIO] Error in card_validated: {e}", exc_info=True)
+        await sio.emit("error", {"error": "Internal server error"}, room=sid)
 
 
 @sio.event
 async def check_bingo(sid, data):
-    session = await sio.get_session(sid)
-    if not session or not session.get("user_id"):
-        await sio.emit("bingo_result", {"error": "Unauthorized"}, room=sid)
-        return
-    card_id = data.get("card_id")
-    if not card_id:
-        await sio.emit("bingo_result", {"error": "No card ID provided"}, room=sid)
-        return
-    result = check_bingo_status(card_id)
-    await sio.emit("bingo_result", {"card_id": card_id, "result": result}, room=sid)
+    """Handle bingo check event with proper error handling."""
+    try:
+        session = await sio.get_session(sid)
+        if not session or not session.get("user_id"):
+            logger.warning("[SIO] Unauthorized check_bingo request", extra={"session_id": sid})
+            await sio.emit("bingo_result", {"error": "Unauthorized"}, room=sid)
+            return
+
+        card_id = data.get("card_id")
+        if not card_id:
+            logger.warning("[SIO] check_bingo request missing card_id", extra={"session_id": sid})
+            await sio.emit("bingo_result", {"error": "No card ID provided"}, room=sid)
+            return
+
+        result = check_bingo_status(card_id)
+        await sio.emit("bingo_result", {"card_id": card_id, "result": result}, room=sid)
+        logger.info(f"[SIO] Bingo check completed for {card_id}: {result}", extra={"session_id": sid})
+    except Exception as e:
+        logger.error(f"[SIO] Error in check_bingo: {e}", exc_info=True)
+        await sio.emit("bingo_result", {"error": "Internal server error"}, room=sid)
 
 
 @sio.event
 async def track_played(sid, track_data):
-    session = await sio.get_session(sid)
-    if not session or not session.get("user_id"):
-        await sio.emit("error", {"error": "Unauthorized"}, room=sid)
-        return
-    if not track_data:
-        await sio.emit("error", {"error": "No track data provided"}, room=sid)
-        return
-    logger.info(f"Track played: {track_data}")
-    await sio.emit("new_track", track_data)
+    """Handle track played event with proper error handling."""
+    try:
+        session = await sio.get_session(sid)
+        if not session or not session.get("user_id"):
+            logger.warning("[SIO] Unauthorized track_played request", extra={"session_id": sid})
+            await sio.emit("error", {"error": "Unauthorized"}, room=sid)
+            return
+
+        if not track_data:
+            logger.warning("[SIO] track_played request missing track_data", extra={"session_id": sid})
+            await sio.emit("error", {"error": "No track data provided"}, room=sid)
+            return
+
+        logger.info(f"[SIO] Track played: {track_data.get('name', 'unknown')}",
+                    extra={"session_id": sid, "track_id": track_data.get("id")})
+        await sio.emit("new_track", track_data)
+    except Exception as e:
+        logger.error(f"[SIO] Error in track_played: {e}", exc_info=True)
+        await sio.emit("error", {"error": "Internal server error"}, room=sid)
 
 
 @sio.event
 async def join(sid, data):
-    session = await sio.get_session(sid)
-    if not session or not session.get("user_id"):
-        await sio.emit("error", {"error": "Unauthorized"}, room=sid)
-        return
-    room = data.get("room")
-    if room:
-        await sio.enter_room(sid, room)
-        logger.info(f"Client joined room: {room}")
-        await sio.emit("room_joined", {"room": room}, room=room)
-    else:
-        await sio.emit("error", {"error": "No room specified"}, room=sid)
+    """Handle room join event with proper error handling."""
+    try:
+        session = await sio.get_session(sid)
+        if not session or not session.get("user_id"):
+            logger.warning("[SIO] Unauthorized join request", extra={"session_id": sid})
+            await sio.emit("error", {"error": "Unauthorized"}, room=sid)
+            return
+
+        room = data.get("room")
+        if room:
+            await sio.enter_room(sid, room)
+            logger.info(f"[SIO] Client joined room: {room}", extra={"session_id": sid})
+            await sio.emit("room_joined", {"room": room}, room=room)
+        else:
+            logger.warning("[SIO] join request missing room", extra={"session_id": sid})
+            await sio.emit("error", {"error": "No room specified"}, room=sid)
+    except Exception as e:
+        logger.error(f"[SIO] Error in join: {e}", exc_info=True)
+        await sio.emit("error", {"error": "Internal server error"}, room=sid)
 
 
 @sio.event
 async def leave(sid, data):
-    session = await sio.get_session(sid)
-    if not session or not session.get("user_id"):
-        await sio.emit("error", {"error": "Unauthorized"}, room=sid)
-        return
-    room = data.get("room")
-    if room:
-        await sio.leave_room(sid, room)
-        logger.info(f"Client left room: {room}")
-        await sio.emit("room_left", {"room": room}, room=room)
-    else:
-        await sio.emit("error", {"error": "No room specified"}, room=sid)
+    """Handle room leave event with proper error handling."""
+    try:
+        session = await sio.get_session(sid)
+        if not session or not session.get("user_id"):
+            logger.warning("[SIO] Unauthorized leave request", extra={"session_id": sid})
+            await sio.emit("error", {"error": "Unauthorized"}, room=sid)
+            return
+
+        room = data.get("room")
+        if room:
+            await sio.leave_room(sid, room)
+            logger.info(f"[SIO] Client left room: {room}", extra={"session_id": sid})
+            await sio.emit("room_left", {"room": room}, room=room)
+        else:
+            logger.warning("[SIO] leave request missing room", extra={"session_id": sid})
+            await sio.emit("error", {"error": "No room specified"}, room=sid)
+    except Exception as e:
+        logger.error(f"[SIO] Error in leave: {e}", exc_info=True)
+        await sio.emit("error", {"error": "Internal server error"}, room=sid)
 
 
 @sio.event
 async def request_game_state(sid, data=None):
-    session = await sio.get_session(sid)
-    if not session or not session.get("user_id"):
-        await sio.emit("error", {"error": "Unauthorized"}, room=sid)
-        return
-    state = game_state.get_state()
-    await sio.emit("game_state", state, room=sid)
+    """Handle game state request with proper error handling."""
+    try:
+        session = await sio.get_session(sid)
+        if not session or not session.get("user_id"):
+            logger.warning("[SIO] Unauthorized request_game_state", extra={"session_id": sid})
+            await sio.emit("error", {"error": "Unauthorized"}, room=sid)
+            return
+
+        state = game_state.get_state()
+        await sio.emit("game_state", state, room=sid)
+        logger.debug("[SIO] Game state sent", extra={"session_id": sid})
+    except Exception as e:
+        logger.error(f"[SIO] Error in request_game_state: {e}", exc_info=True)
+        await sio.emit("error", {"error": "Internal server error"}, room=sid)
 
 
 @sio.event
 async def play_track(sid, data):
-    session = await sio.get_session(sid)
-    if not session or not session.get("user_id"):
-        await sio.emit("error", {"error": "Unauthorized"}, room=sid)
-        return
-    track_id = data.get("track_id")
-    if not track_id:
-        await sio.emit("error", {"error": "No track ID provided"}, room=sid)
-        return
-    logger.info(f"Requested to play track: {track_id}")
-    state = game_state.get_state()
-    track = next((t for t in state["unplayed_tracks"] if t["id"] == track_id), None)
-    if track:
+    """Handle play track event with proper error handling."""
+    try:
+        session = await sio.get_session(sid)
+        if not session or not session.get("user_id"):
+            logger.warning("[SIO] Unauthorized play_track request", extra={"session_id": sid})
+            await sio.emit("error", {"error": "Unauthorized"}, room=sid)
+            return
 
-        def update_track_lists(state):
-            if track in state["unplayed_tracks"]:
-                state["unplayed_tracks"].remove(track)
-            state["played_tracks"].append(track)
+        track_id = data.get("track_id")
+        if not track_id:
+            logger.warning("[SIO] play_track request missing track_id", extra={"session_id": sid})
+            await sio.emit("error", {"error": "No track ID provided"}, room=sid)
+            return
 
-        game_state.update_state(update_track_lists)
-        await sio.emit("track_played", {"track_id": track_id, "track": track}, room=sid)
-    else:
-        await sio.emit(
-            "error", {"error": "Track not found in unplayed tracks"}, room=sid
-        )
+        logger.info(f"[SIO] Requested to play track: {track_id}", extra={"session_id": sid})
+        state = game_state.get_state()
+        track = next((t for t in state["unplayed_tracks"] if t["id"] == track_id), None)
+        if track:
+            def update_track_lists(state):
+                if track in state["unplayed_tracks"]:
+                    state["unplayed_tracks"].remove(track)
+                state["played_tracks"].append(track)
+
+            game_state.update_state(update_track_lists)
+            await sio.emit("track_played", {"track_id": track_id, "track": track}, room=sid)
+            logger.info(f"[SIO] Track {track_id} moved to played", extra={"session_id": sid})
+        else:
+            logger.warning(f"[SIO] Track {track_id} not found in unplayed tracks", extra={"session_id": sid})
+            await sio.emit(
+                "error", {"error": "Track not found in unplayed tracks"}, room=sid
+            )
+    except Exception as e:
+        logger.error(f"[SIO] Error in play_track: {e}", exc_info=True)
+        await sio.emit("error", {"error": "Internal server error"}, room=sid)
