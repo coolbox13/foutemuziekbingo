@@ -1,0 +1,76 @@
+    # =============================================
+    # ENHANCED LOGGING CONFIGURATION
+    # =============================================
+
+    if not os.path.exists("logs"):
+        os.makedirs("logs")
+
+    # Enhanced logging format
+    log_format = (
+        "%(asctime)s [%(process)d] [%(levelname)s] "
+        "%(name)s: %(message)s [%(pathname)s:%(lineno)d]"
+    )
+
+    # File handler for application logs
+    file_handler = RotatingFileHandler(
+        "logs/music_bingo.log",
+        maxBytes=50 * 1024 * 1024,  # 50MB
+        backupCount=10
+    )
+    file_handler.setFormatter(logging.Formatter(log_format))
+    file_handler.setLevel(logging.INFO)
+
+    # Console handler to capture stdout/stderr
+    console_handler = logging.StreamHandler()
+    console_handler.setFormatter(logging.Formatter(log_format))
+    console_handler.setLevel(logging.WARNING)  # Only warnings/errors to console
+
+    # Configure root logger to capture all library output
+    root_logger = logging.getLogger()
+    root_logger.addHandler(file_handler)
+    root_logger.addHandler(console_handler)
+    root_logger.setLevel(logging.INFO if config.app_env != "development" else logging.DEBUG)
+
+    # Application logger
+    logger = logging.getLogger("music_bingo")
+    logger.addHandler(file_handler)
+    logger.addHandler(console_handler)
+    logger.setLevel(logging.INFO if config.app_env != "development" else logging.DEBUG)
+    logger.propagate = False  # Don't duplicate messages
+    
+    # Configure third-party library loggers
+    third_party_loggers = [
+        "uvicorn",
+        "uvicorn.error", 
+        "uvicorn.access",
+        "socketio",
+        "socketio.server",
+        "socketio.client", 
+        "engineio",
+        "engineio.server",
+        "redis",
+        "spotipy",
+        "urllib3",
+        "requests",
+        "httpx"
+    ]
+    
+    for logger_name in third_party_loggers:
+        lib_logger = logging.getLogger(logger_name)
+        lib_logger.addHandler(file_handler)
+        if config.app_env == "development":
+            lib_logger.addHandler(console_handler)
+        lib_logger.setLevel(logging.WARNING)  # Only warnings/errors for third-party
+        lib_logger.propagate = False
+    
+    # Special handling for database and cache errors
+    db_loggers = ["databases", "asyncpg", "psycopg2", "sqlalchemy"]
+    for logger_name in db_loggers:
+        db_logger = logging.getLogger(logger_name)
+        db_logger.addHandler(file_handler)
+        db_logger.addHandler(console_handler)
+        db_logger.setLevel(logging.WARNING)
+        db_logger.propagate = False
+
+    logger.info(f"Enhanced logging configured - Environment: {config.app_env}")
+    logger.info("Third-party library logging: uvicorn, socketio, redis, spotipy, databases")
