@@ -111,7 +111,17 @@ def create_app() -> FastAPI:
             "/redoc",
             "/openapi.json",
             "/static/",
-            "/favicon.ico"
+            "/favicon.ico",
+            # API endpoints (authenticated via session cookies)
+            "/game/api/",
+            "/playlist/api/",
+            "/card/api/", 
+            "/playback/api/",
+            "/device/api/",
+            "/dashboard/api/",
+            "/game_management/api/",
+            "/token/",
+            "/sound/api/"
         ],
         require_https=(config.app_env == "production")
     )
