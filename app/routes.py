@@ -26,6 +26,7 @@ def register_routes(app: FastAPI):
     from app.game_management import router as game_management_router
     from app.sound_routes import router as sound_router
     from app.token_management_routes import router as token_management_router
+    from app.logging_routes import router as logging_router
 
     # Register all routers with Flask blueprint prefixes to match frontend expectations
     app.include_router(auth_router, prefix="/auth", tags=["auth"])
@@ -40,4 +41,5 @@ def register_routes(app: FastAPI):
     )
     app.include_router(token_management_router, prefix="/token", tags=["token-management"])
     app.include_router(sound_router, prefix="/sound", tags=["sound"])
+    app.include_router(logging_router, tags=["logging"])
     # Native WebSocket routes removed in favor of Socket.IO

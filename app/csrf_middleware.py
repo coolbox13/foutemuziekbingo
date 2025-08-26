@@ -39,6 +39,8 @@ class CSRFMiddleware(BaseHTTPMiddleware):
             "/auth/spotify/callback",  # OAuth callback from external service
             "/health",  # Health checks don't need CSRF protection
             "/metrics",  # Metrics endpoints
+            "/api/frontend-log",  # Frontend error logging endpoint
+            "/api/frontend-batch-log",  # Frontend batch logging endpoint
         ]
         self.protected_methods = {"POST", "PUT", "DELETE", "PATCH"}
         self.config = get_config()
@@ -52,8 +54,9 @@ class CSRFMiddleware(BaseHTTPMiddleware):
 
         # Skip CSRF protection for exempt paths
         request_path = request.url.path
+        logger.info(f"[CSRF-MIDDLEWARE] Checking path: {request_path} against exempt paths: {self.exempt_paths}")
         if any(request_path.startswith(exempt_path) for exempt_path in self.exempt_paths):
-            logger.debug(f"[CSRF-MIDDLEWARE] Skipping CSRF check for exempt path: {request_path}")
+            logger.info(f"[CSRF-MIDDLEWARE] Skipping CSRF check for exempt path: {request_path}")
             return await call_next(request)
 
         # Get CSRF token from various sources

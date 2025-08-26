@@ -121,7 +121,9 @@ def create_app() -> FastAPI:
             "/dashboard/api/",
             "/game_management/api/",
             "/token/",
-            "/sound/api/"
+            "/sound/api/",
+            "/api/frontend-log",
+            "/api/frontend-batch-log"
         ],
         require_https=(config.app_env == "production")
     )
