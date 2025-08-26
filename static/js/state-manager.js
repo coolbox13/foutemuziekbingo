@@ -41,10 +41,15 @@ class StateManager {
             lastErrorTime: null
         };
         
+        // RACE CONDITION FIX: Add atomic state update protection
+        this.updateQueue = [];
+        this.isProcessingUpdates = false;
+        this.updateLock = false;
+        
         this.subscribers = new Map();
         this.cache = new Map();
         this.cacheExpiry = new Map();
-        this.defaultCacheTTL = 300000; // 5 minutes
+        this.defaultCacheTTL = appConfig.getTiming('stateCacheTTL'); // CONFIGURATION FIX: Use centralized timing
         
         this.setupStatePersistence();
     }
@@ -71,6 +76,76 @@ class StateManager {
      * @param {boolean} notify - Whether to notify subscribers
      */
     setState(path, value, notify = true) {
+        return this.queueStateUpdate({ type: 'single', path, value, notify });
+    }
+
+    /**
+     * Update multiple state paths atomically
+     * @param {Object} updates - Object with path: value pairs
+     * @param {boolean} notify - Whether to notify subscribers
+     */
+    updateState(updates, notify = true) {
+        return this.queueStateUpdate({ type: 'multiple', updates, notify });
+    }
+
+    /**
+     * Queue state update for atomic processing
+     * RACE CONDITION FIX: Ensures state updates are processed sequentially
+     * @param {Object} updateRequest - Update request object
+     * @returns {Promise} - Resolves when update is complete
+     */
+    async queueStateUpdate(updateRequest) {
+        return new Promise((resolve) => {
+            this.updateQueue.push({ ...updateRequest, resolve });
+            this.processUpdateQueue();
+        });
+    }
+
+    /**
+     * Process queued state updates atomically
+     * RACE CONDITION FIX: Prevents concurrent state modifications
+     */
+    async processUpdateQueue() {
+        if (this.isProcessingUpdates || this.updateQueue.length === 0) {
+            return;
+        }
+
+        this.isProcessingUpdates = true;
+
+        while (this.updateQueue.length > 0) {
+            const updateRequest = this.updateQueue.shift();
+            
+            try {
+                if (updateRequest.type === 'single') {
+                    this.performSingleStateUpdate(
+                        updateRequest.path, 
+                        updateRequest.value, 
+                        updateRequest.notify
+                    );
+                } else if (updateRequest.type === 'multiple') {
+                    this.performMultipleStateUpdates(
+                        updateRequest.updates, 
+                        updateRequest.notify
+                    );
+                }
+                
+                updateRequest.resolve();
+            } catch (error) {
+                console.error('Error processing state update:', error);
+                updateRequest.resolve(); // Resolve even on error to prevent hanging
+            }
+        }
+
+        this.isProcessingUpdates = false;
+    }
+
+    /**
+     * Perform single state update (internal method)
+     * @param {string} path - State path
+     * @param {any} value - New value
+     * @param {boolean} notify - Whether to notify subscribers
+     */
+    performSingleStateUpdate(path, value, notify) {
         const oldValue = this.getNestedValue(this.state, path);
         this.setNestedValue(this.state, path, value);
         
@@ -82,14 +157,14 @@ class StateManager {
     }
 
     /**
-     * Update multiple state paths atomically
-     * @param {Object} updates - Object with path: value pairs
+     * Perform multiple state updates (internal method)
+     * @param {Object} updates - Updates object
      * @param {boolean} notify - Whether to notify subscribers
      */
-    updateState(updates, notify = true) {
+    performMultipleStateUpdates(updates, notify) {
         const oldValues = {};
         
-        // Apply all updates
+        // Apply all updates atomically
         Object.entries(updates).forEach(([path, value]) => {
             oldValues[path] = this.getNestedValue(this.state, path);
             this.setNestedValue(this.state, path, value);
@@ -393,7 +468,7 @@ class StateManager {
      * @param {string} type - Notification type
      * @param {number} duration - Auto-hide duration
      */
-    addNotification(message, type = 'info', duration = 5000) {
+    addNotification(message, type = 'info', duration = appConfig.getTiming('notificationDuration')) {
         const notifications = [...this.getState('notifications')];
         const id = Date.now() + Math.random();
         
@@ -493,7 +568,7 @@ class StateManager {
         // Save state periodically
         setInterval(() => {
             this.saveStateToStorage();
-        }, 30000); // Every 30 seconds
+        }, appConfig.getTiming('stateSaveInterval')); // CONFIGURATION FIX: Use centralized timing
         
         // Save state on page unload
         window.addEventListener('beforeunload', () => {
@@ -529,7 +604,7 @@ class StateManager {
                 const persistentState = JSON.parse(saved);
                 
                 // Only restore if saved recently (within 1 hour)
-                const oneHour = 60 * 60 * 1000;
+                const oneHour = appConfig.getTiming('stateExpiryTime'); // CONFIGURATION FIX: Use centralized timing
                 if (persistentState.lastUpdate && (Date.now() - persistentState.lastUpdate) < oneHour) {
                     this.updateState({
                         activeGameId: persistentState.activeGameId,

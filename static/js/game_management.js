@@ -11,12 +11,10 @@ class GameManagement {
         if (btnSaveGame) {
             btnSaveGame.addEventListener('click', () => this.saveGame());
         }
-
         const btnLoadGame = document.getElementById('btnLoadGame');
         if (btnLoadGame) {
             btnLoadGame.addEventListener('click', () => this.loadGame());
         }
-
         // Refresh saved games list when modal opens
         const savedGamesSelect = document.getElementById('savedGamesSelect');
         if (savedGamesSelect) {
@@ -25,14 +23,33 @@ class GameManagement {
     }
 
     async saveGame() {
-        const gameName = document.getElementById('gameSaveName').value;
-        const gameDescription = document.getElementById('gameSaveDescription').value;
+        const gameNameEl = document.getElementById('gameSaveName');
+        const gameDescriptionEl = document.getElementById('gameSaveDescription');
+
+        // INPUT VALIDATION FIX: Comprehensive input validation and sanitization
+        let gameName, gameDescription;
+        try {
+        gameName = this.validateAndSanitizeInput(gameNameEl?.value, 'string', {
+            minLength: 1,
+            maxLength: appConfig.getLimit('maxGameNameLength'), // CONFIGURATION FIX: Use centralized limit
+            pattern: appConfig.getPattern('gameNamePattern'), // CONFIGURATION FIX: Use centralized pattern
+            fieldName: 'Game Name'
+        });
+
+        gameDescription = this.validateAndSanitizeInput(gameDescriptionEl?.value, 'string', {
+            required: false,
+            maxLength: appConfig.getLimit('maxGameDescriptionLength'), // CONFIGURATION FIX: Use centralized limit
+            fieldName: 'Game Description'
+        });
+        } catch (error) {
+            showError(error.message);
+            return;
+        }
 
         if (!gameName) {
             showError('Game name is required');
             return;
         }
-
         try {
             const response = await this.fetchJSON('/game_management/api/save_game', {
                 method: 'POST',
@@ -74,9 +91,18 @@ class GameManagement {
     }
 
     async loadGame() {
-        const filename = document.getElementById('savedGamesSelect').value;
-        if (!filename) {
-            showError('Please select a game to load');
+        const filenameSelect = document.getElementById('savedGamesSelect');
+        
+        // INPUT VALIDATION FIX: Validate filename selection
+        let filename;
+        try {
+            filename = this.validateAndSanitizeInput(filenameSelect?.value, 'filename', {
+                required: true,
+                maxLength: appConfig.getLimit('maxFilenameLength'), // CONFIGURATION FIX: Use centralized limit
+                fieldName: 'Selected Game File'
+            });
+        } catch (error) {
+            showError(error.message);
             return;
         }
     
@@ -114,8 +140,108 @@ class GameManagement {
                 }
             } catch (error) {
                 console.error('Error validating cards after load:', error);
+                if (window.errorHandler) {
+                    window.errorHandler.handleError(error, 'Card Validation After Load', { autoHide: true });
+                }
             }
         }, 500);
+    }
+
+    /**
+     * Validate and sanitize user input
+     * INPUT VALIDATION FIX: Comprehensive input validation with type checking and sanitization
+     * @param {any} input - Raw input value
+     * @param {string} type - Expected type (string, number, email, etc.)
+     * @param {Object} options - Validation options
+     * @returns {any} - Validated and sanitized input
+     * @throws {Error} - If validation fails
+     */
+    validateAndSanitizeInput(input, type, options = {}) {
+        const {
+            required = false,
+            minLength = 0,
+            maxLength = Infinity,
+            min = -Infinity,
+            max = Infinity,
+            pattern = null,
+            fieldName = 'Input',
+            allowEmpty = !required
+        } = options;
+
+        // Handle null/undefined inputs
+        if (input === null || input === undefined || input === '') {
+            if (required) {
+                throw new Error(`${fieldName} is required`);
+            }
+            return allowEmpty ? '' : null;
+        }
+        // Convert input to string for initial processing
+        let value = String(input).trim();
+
+        // Check if empty after trimming
+        if (value === '' && required) {
+            throw new Error(`${fieldName} cannot be empty`);
+        }
+        // Type-specific validation and conversion
+        switch (type) {
+            case 'string':
+                // XSS Prevention: Remove potentially dangerous characters
+                value = value.replace(/[<>'"&]/g, '');
+                
+                // Length validation
+                if (value.length < minLength) {
+                    throw new Error(`${fieldName} must be at least ${minLength} characters`);
+                }
+                if (value.length > maxLength) {
+                    throw new Error(`${fieldName} must not exceed ${maxLength} characters`);
+                }
+                
+                // Pattern validation
+                if (pattern && !pattern.test(value)) {
+                    throw new Error(`${fieldName} contains invalid characters`);
+                }
+                
+                return value;
+
+            case 'number':
+                const numValue = parseFloat(value);
+                if (isNaN(numValue)) {
+                    throw new Error(`${fieldName} must be a valid number`);
+                }
+                if (numValue < min) {
+                    throw new Error(`${fieldName} must be at least ${min}`);
+                }
+                if (numValue > max) {
+                    throw new Error(`${fieldName} must not exceed ${max}`);
+                }
+                return numValue;
+
+            case 'integer':
+                const intValue = parseInt(value, 10);
+                if (isNaN(intValue) || !Number.isInteger(intValue)) {
+                    throw new Error(`${fieldName} must be a valid integer`);
+                }
+                if (intValue < min) {
+                    throw new Error(`${fieldName} must be at least ${min}`);
+                }
+                if (intValue > max) {
+                    throw new Error(`${fieldName} must not exceed ${max}`);
+                }
+                return intValue;
+
+            case 'filename':
+                // Validate filename - no path traversal, valid characters only
+                if (/[\/\\:*?"<>|]/.test(value)) {
+                    throw new Error(`${fieldName} contains invalid filename characters`);
+                }
+                if (value.startsWith('.') || value.includes('..')) {
+                    throw new Error(`${fieldName} cannot contain relative path components`);
+                }
+                return value;
+
+            default:
+                return value;
+        }
     }
 
     // Utility function for making JSON requests
@@ -137,6 +263,9 @@ class GameManagement {
             return await response.json();
         } catch (error) {
             console.error(`Error fetching ${url}:`, error);
+            if (window.errorHandler) {
+                window.errorHandler.handleError(error, `Fetch Request (${url})`, { autoHide: true });
+            }
             throw error;
         }
     }

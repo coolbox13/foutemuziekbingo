@@ -10,8 +10,11 @@ class ErrorHandler {
         this.errorCount = 0;
         this.lastErrorTime = null;
         this.maxErrors = 5;
-        this.errorCooldown = 60000; // 1 minute
+        this.errorCooldown = appConfig.getTiming('errorCooldown'); // CONFIGURATION FIX: Use centralized timing
+        this.logQueue = [];
+        this.isLoggingToServer = true; // Can be toggled to disable server logging
         this.setupGlobalErrorHandling();
+        this.setupConsoleInterception();
     }
 
     /**
@@ -30,6 +33,61 @@ class ErrorHandler {
             console.error('Global error:', event.error);
             this.handleError(event.error, 'JavaScript Error');
         });
+    }
+
+    /**
+     * Setup console interception to capture console messages
+     */
+    setupConsoleInterception() {
+        // Store original console methods
+        const originalConsole = {
+            log: console.log.bind(console),
+            error: console.error.bind(console),
+            warn: console.warn.bind(console),
+            info: console.info.bind(console),
+            debug: console.debug.bind(console)
+        };
+
+        // Intercept console.error and console.warn
+        console.error = (...args) => {
+            originalConsole.error(...args);
+            this.logConsoleMessage('error', args.join(' '), { stack: new Error().stack });
+        };
+
+        console.warn = (...args) => {
+            originalConsole.warn(...args);
+            this.logConsoleMessage('warn', args.join(' '));
+        };
+
+        // Optionally intercept info and debug (commented out to reduce noise)
+        // console.info = (...args) => {
+        //     originalConsole.info(...args);
+        //     this.logConsoleMessage('info', args.join(' '));
+        // };
+
+        // console.debug = (...args) => {
+        //     originalConsole.debug(...args);
+        //     this.logConsoleMessage('debug', args.join(' '));
+        // };
+
+        // Store original methods for potential restoration
+        this.originalConsole = originalConsole;
+    }
+
+    /**
+     * Log console message to server
+     * @param {string} level - Log level (error, warn, info, debug)
+     * @param {string} message - Console message
+     * @param {Object} options - Additional options
+     */
+    logConsoleMessage(level, message, options = {}) {
+        if (!this.isLoggingToServer) return;
+
+        // Skip messages from our own error handler to avoid loops
+        if (message.includes('[ErrorHandler]') || message.includes('[FRONTEND-')) return;
+
+        // Send to server logs
+        this.sendConsoleToServer(level, message, options);
     }
 
     /**
@@ -120,7 +178,7 @@ class ErrorHandler {
      */
     showUserError(errorInfo, options = {}) {
         const { message, isAuthError, isNetworkError, status } = errorInfo;
-        const { autoHide = true, duration = 5000 } = options;
+        const { autoHide = true, duration = appConfig.getTiming('notificationDuration') } = options;
 
         // Authentication errors get special treatment
         if (isAuthError) {
@@ -241,14 +299,100 @@ class ErrorHandler {
             isAuthError: errorInfo.isAuthError,
             isNetworkError: errorInfo.isNetworkError,
             userAgent: navigator.userAgent,
-            url: window.location.href
+            url: window.location.href,
+            stack: errorInfo.stack
         };
 
         // Log to console for debugging
         console.error('[ErrorHandler]', logEntry);
 
-        // Could be extended to send to monitoring service
-        // this.sendToMonitoring(logEntry);
+        // Send to server logs
+        this.sendToServerLogs(logEntry);
+    }
+
+    /**
+     * Send frontend error to server logs
+     * @param {Object} logEntry - Log entry to send
+     */
+    async sendToServerLogs(logEntry) {
+        try {
+            // Prepare payload for server
+            const payload = {
+                level: 'error',
+                message: logEntry.message,
+                context: logEntry.context,
+                type: logEntry.type,
+                status: logEntry.status,
+                url: logEntry.url,
+                user_agent: logEntry.userAgent,
+                stack: logEntry.stack,
+                timestamp: logEntry.timestamp,
+                is_auth_error: logEntry.isAuthError || false,
+                is_network_error: logEntry.isNetworkError || false,
+                additional_data: {
+                    browser_console_log: true,
+                    page_url: window.location.href,
+                    page_title: document.title
+                }
+            };
+
+            // Send to server endpoint
+            const response = await fetch('/api/frontend-log', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(payload)
+            });
+
+            if (!response.ok) {
+                console.warn('Failed to send error to server logs:', response.status);
+            }
+
+        } catch (error) {
+            // Silently fail to avoid infinite error loops
+            console.warn('Error sending to server logs:', error.message);
+        }
+    }
+
+    /**
+     * Send console message to server logs
+     * @param {string} level - Log level
+     * @param {string} message - Console message
+     * @param {Object} options - Additional options
+     */
+    async sendConsoleToServer(level, message, options = {}) {
+        try {
+            const payload = {
+                level: level,
+                message: message,
+                context: 'Frontend Console',
+                type: 'Console Message',
+                url: window.location.href,
+                user_agent: navigator.userAgent,
+                timestamp: new Date().toISOString(),
+                stack: options.stack,
+                additional_data: {
+                    console_intercept: true,
+                    page_url: window.location.href,
+                    page_title: document.title
+                }
+            };
+
+            // Send to server endpoint (non-blocking)
+            fetch('/api/frontend-log', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(payload)
+            }).catch(() => {
+                // Silently fail to avoid infinite loops
+            });
+
+        } catch (error) {
+            // Silently fail to avoid infinite error loops
+        }
     }
 
     /**
@@ -257,7 +401,7 @@ class ErrorHandler {
      * @param {Object} options - Display options
      */
     showError(message, options = {}) {
-        const { type = 'error', autoHide = true, duration = 5000 } = options;
+        const { type = 'error', autoHide = true, duration = appConfig.getTiming('notificationDuration') } = options;
 
         // Try to use existing showError function if available
         if (typeof window.showError === 'function') {
@@ -366,7 +510,7 @@ class ErrorHandler {
     async withRetry(fn, options = {}) {
         const { 
             maxRetries = 3, 
-            baseDelay = 1000, 
+            baseDelay = appConfig.getApiConfig('retryBaseDelay'), 
             context = 'Retry Operation',
             shouldRetry = null
         } = options;

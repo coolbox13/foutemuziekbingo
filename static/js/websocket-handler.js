@@ -3,6 +3,8 @@
  *
  * Manages real-time communication via Socket.IO for the Musical Bingo application.
  * Handles connection management, event handling, fallback polling, and error recovery.
+ * 
+ * SECURITY FIX: Fixed memory leak risks by adding proper interval cleanup and error handling
  */
 
 class WebSocketHandler {
@@ -10,19 +12,27 @@ class WebSocketHandler {
         this.socket = null;
         this.isConnected = false;
         this.fallbackPollingInterval = null;
+        this.healthCheckInterval = null; // SECURITY FIX: Track health check interval for cleanup
         this.reconnectAttempts = 0;
-        this.maxReconnectAttempts = 5;
+        this.maxReconnectAttempts = appConfig.getLimit('maxReconnectAttempts'); // CONFIGURATION FIX: Use centralized limit
         this.eventHandlers = new Map();
         this.connectionCallbacks = [];
         this.disconnectionCallbacks = [];
         
+        // SECURITY FIX: Track fallback polling errors for fail-safe cleanup
+        this.fallbackErrorCount = 0;
+        this.maxFallbackErrors = appConfig.getLimit('maxFallbackErrors'); // CONFIGURATION FIX: Use centralized limit
+        
         this.config = {
             reconnection: true,
-            reconnectionAttempts: 5,
-            reconnectionDelay: 1000,
-            reconnectionDelayMax: 5000,
-            timeout: 20000
+            reconnectionAttempts: appConfig.getLimit('maxReconnectAttempts'),
+            reconnectionDelay: appConfig.getTiming('websocketReconnectDelay'),
+            reconnectionDelayMax: appConfig.getTiming('websocketReconnectDelayMax'),
+            timeout: appConfig.getApiConfig('defaultTimeout')
         };
+
+        // SECURITY FIX: Add page unload cleanup to prevent memory leaks
+        this.setupUnloadCleanup();
     }
 
     /**
@@ -60,6 +70,7 @@ class WebSocketHandler {
             console.log('WebSocket connected');
             this.isConnected = true;
             this.reconnectAttempts = 0;
+            this.fallbackErrorCount = 0; // SECURITY FIX: Reset fallback error count on successful connection
             this.stopFallbackPolling();
             this.updateConnectionStatus(true);
             this.notifyConnectionCallbacks(true);
@@ -204,14 +215,10 @@ class WebSocketHandler {
      */
     updateConnectionStatus(connected) {
         // Update WebSocket badge if function exists
-        if (typeof window.updateWebsocketBadge === 'function') {
-            window.updateWebsocketBadge(connected);
-        }
+        this.safeCallFunction('updateWebsocketBadge', [connected]);
 
         // Update connection status text if function exists
-        if (typeof window.updateConnectionStatus === 'function') {
-            window.updateConnectionStatus(connected ? 'Connected' : 'Disconnected');
-        }
+        this.safeCallFunction('updateConnectionStatus', [connected ? 'Connected' : 'Disconnected']);
     }
 
     /**
@@ -230,6 +237,7 @@ class WebSocketHandler {
 
     /**
      * Start fallback polling when WebSocket is disconnected
+     * SECURITY FIX: Added error counting and fail-safe cleanup
      */
     startFallbackPolling() {
         if (this.fallbackPollingInterval) {
@@ -240,10 +248,18 @@ class WebSocketHandler {
         this.fallbackPollingInterval = setInterval(async () => {
             try {
                 await this.performFallbackUpdate();
+                this.fallbackErrorCount = 0; // Reset error count on successful update
             } catch (error) {
                 console.error('Error during fallback update:', error);
+                this.fallbackErrorCount++;
+                
+                // SECURITY FIX: Stop fallback polling if too many errors to prevent resource exhaustion
+                if (this.fallbackErrorCount >= this.maxFallbackErrors) {
+                    console.warn('Too many fallback polling errors, stopping polling to prevent resource exhaustion');
+                    this.stopFallbackPolling();
+                }
             }
-        }, 30000); // 30 seconds
+        }, appConfig.getTiming('websocketFallbackPollingInterval')); // CONFIGURATION FIX: Use centralized timing
     }
 
     /**
@@ -261,11 +277,7 @@ class WebSocketHandler {
      * Perform fallback data update via HTTP requests
      */
     async performFallbackUpdate() {
-        if (typeof window.forceUpdateAll === 'function') {
-            await window.forceUpdateAll();
-        } else {
-            console.warn('forceUpdateAll function not available for fallback polling');
-        }
+        await this.safeCallAsyncFunction('forceUpdateAll', [], 'fallback polling');
     }
 
     /**
@@ -274,9 +286,7 @@ class WebSocketHandler {
      */
     handleGameStateUpdate(data) {
         // Update dashboard UI directly with received state
-        if (typeof window.updateDashboardUIFromState === 'function') {
-            window.updateDashboardUIFromState(data);
-        }
+        this.safeCallFunction('updateDashboardUIFromState', [data]);
 
         // Trigger custom event handlers
         this.triggerEventHandlers('game_state', data);
@@ -288,9 +298,7 @@ class WebSocketHandler {
      */
     handleNewTrack(data) {
         // Handle new track event
-        if (typeof window.handleNewTrack === 'function') {
-            window.handleNewTrack(data);
-        }
+        this.safeCallFunction('handleNewTrack', [data]);
 
         // Trigger custom event handlers
         this.triggerEventHandlers('new_track', data);
@@ -302,9 +310,7 @@ class WebSocketHandler {
      */
     handleCardStatusUpdate(data) {
         // Handle card status update
-        if (typeof window.handleCardStatusUpdate === 'function') {
-            window.handleCardStatusUpdate(data);
-        }
+        this.safeCallFunction('handleCardStatusUpdate', [data]);
 
         // Trigger custom event handlers
         this.triggerEventHandlers('card_status_update', data);
@@ -359,6 +365,54 @@ class WebSocketHandler {
     }
 
     /**
+     * Safely call a window function with error handling
+     * SAFETY FIX: Prevents errors from unsafe dynamic function calls
+     * @param {string} functionName - Name of window function
+     * @param {Array} args - Function arguments
+     * @param {string} context - Context for error reporting
+     */
+    safeCallFunction(functionName, args = [], context = null) {
+        try {
+            if (typeof window[functionName] === 'function') {
+                return window[functionName](...args);
+            } else {
+                console.warn(`Function ${functionName} not available${context ? ` for ${context}` : ''}`);
+                return null;
+            }
+        } catch (error) {
+            console.error(`Error calling ${functionName}:`, error);
+            if (window.errorHandler) {
+                window.errorHandler.handleError(error, `Dynamic Function Call (${functionName})`, { autoHide: true });
+            }
+            return null;
+        }
+    }
+
+    /**
+     * Safely call an async window function with error handling
+     * @param {string} functionName - Name of window function
+     * @param {Array} args - Function arguments
+     * @param {string} context - Context for error reporting
+     * @returns {Promise} - Function result or null
+     */
+    async safeCallAsyncFunction(functionName, args = [], context = null) {
+        try {
+            if (typeof window[functionName] === 'function') {
+                return await window[functionName](...args);
+            } else {
+                console.warn(`Async function ${functionName} not available${context ? ` for ${context}` : ''}`);
+                return null;
+            }
+        } catch (error) {
+            console.error(`Error calling async ${functionName}:`, error);
+            if (window.errorHandler) {
+                window.errorHandler.handleError(error, `Dynamic Async Function Call (${functionName})`, { autoHide: true });
+            }
+            return null;
+        }
+    }
+
+    /**
      * Get connection statistics
      * @returns {Object} - Connection statistics
      */
@@ -368,25 +422,39 @@ class WebSocketHandler {
             reconnectAttempts: this.reconnectAttempts,
             hasSocket: !!this.socket,
             socketConnected: this.socket ? this.socket.connected : false,
-            fallbackPollingActive: !!this.fallbackPollingInterval
+            fallbackPollingActive: !!this.fallbackPollingInterval,
+            healthCheckActive: !!this.healthCheckInterval, // SECURITY FIX: Add health check status
+            fallbackErrorCount: this.fallbackErrorCount
         };
     }
 
     /**
      * Cleanup WebSocket connection
+     * SECURITY FIX: Enhanced cleanup to include all intervals and proper error handling
      */
     cleanup() {
-        this.stopFallbackPolling();
+        console.log('Cleaning up WebSocket handler...');
         
-        if (this.socket) {
-            this.socket.disconnect();
-            this.socket = null;
-        }
+        try {
+            // Stop all intervals
+            this.stopFallbackPolling();
+            this.stopHealthChecks(); // SECURITY FIX: Stop health checks
+            
+            // Disconnect socket
+            if (this.socket) {
+                this.socket.disconnect();
+                this.socket = null;
+            }
 
-        this.isConnected = false;
-        this.eventHandlers.clear();
-        this.connectionCallbacks = [];
-        this.disconnectionCallbacks = [];
+            // Reset state
+            this.isConnected = false;
+            this.fallbackErrorCount = 0;
+            this.eventHandlers.clear();
+            this.connectionCallbacks = [];
+            this.disconnectionCallbacks = [];
+        } catch (error) {
+            console.error('Error during WebSocket cleanup:', error);
+        }
     }
 
     /**
@@ -425,12 +493,52 @@ class WebSocketHandler {
 
     /**
      * Set up periodic health checks
+     * SECURITY FIX: Store interval reference for proper cleanup
      * @param {number} interval - Health check interval in milliseconds
      */
-    setupHealthChecks(interval = 60000) { // 1 minute
-        setInterval(() => {
-            this.healthCheck();
+    setupHealthChecks(interval = appConfig.getTiming('websocketHealthCheckInterval')) { // 1 minute
+        // SECURITY FIX: Clear existing health check before creating new one
+        this.stopHealthChecks();
+        
+        this.healthCheckInterval = setInterval(() => {
+            try {
+                this.healthCheck();
+            } catch (error) {
+                console.error('Error in health check:', error);
+            }
         }, interval);
+        
+        console.log('Health checks started with', interval, 'ms interval');
+    }
+
+    /**
+     * Stop health checks
+     * SECURITY FIX: New method to properly cleanup health check intervals
+     */
+    stopHealthChecks() {
+        if (this.healthCheckInterval) {
+            clearInterval(this.healthCheckInterval);
+            this.healthCheckInterval = null;
+            console.log('Health checks stopped');
+        }
+    }
+
+    /**
+     * Setup page unload cleanup to prevent memory leaks
+     * SECURITY FIX: Ensure cleanup happens when page is closed/refreshed
+     */
+    setupUnloadCleanup() {
+        const cleanupHandler = () => {
+            this.cleanup();
+        };
+
+        // Multiple event types to ensure cleanup in all scenarios
+        window.addEventListener('beforeunload', cleanupHandler);
+        window.addEventListener('unload', cleanupHandler);
+        window.addEventListener('pagehide', cleanupHandler);
+        
+        // Store reference for potential removal (though unlikely needed)
+        this.unloadCleanupHandler = cleanupHandler;
     }
 }
 

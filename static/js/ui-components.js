@@ -88,13 +88,28 @@ class UIComponents {
      * @param {boolean} loading - Loading state
      * @param {string} loadingText - Text to show while loading
      */
-    setElementLoading(id, loading, loadingText = 'Loading...') {
+    setElementLoading(id, loading, loadingText = "Loading...") {
         const element = document.getElementById(id);
         if (!element) return;
 
         if (loading) {
             element.dataset.originalContent = element.innerHTML;
-            element.innerHTML = '<span class="flex items-center justify-center"><i data-lucide="loader-2" class="h-4 w-4 animate-spin mr-2"></i>' + loadingText + '</span>';
+            
+            // SECURITY FIX: Use safe DOM methods instead of innerHTML concatenation
+            const loadingSpan = document.createElement("span");
+            loadingSpan.className = "flex items-center justify-center";
+            
+            const icon = document.createElement("i");
+            icon.setAttribute("data-lucide", "loader-2");
+            icon.className = "h-4 w-4 animate-spin mr-2";
+            
+            const textNode = document.createTextNode(loadingText); // Safe text insertion
+            
+            loadingSpan.appendChild(icon);
+            loadingSpan.appendChild(textNode);
+            
+            element.innerHTML = ""; // Clear content first
+            element.appendChild(loadingSpan);
             element.disabled = true;
             this.loadingElements.add(id);
         } else {
@@ -144,7 +159,7 @@ class UIComponents {
      * @param {string} message - Info message
      * @param {number} duration - Auto-hide duration (0 for no auto-hide)
      */
-    showInfo(message, duration = 5000) {
+    showInfo(message, duration = appConfig.getTiming('notificationDuration')) {
         this.showNotification(message, 'info', duration);
     }
 
@@ -154,24 +169,52 @@ class UIComponents {
      * @param {string} type - Notification type (success, error, warning, info)
      * @param {number} duration - Auto-hide duration (0 for no auto-hide)
      */
-    showNotification(message, type = 'info', duration = 5000) {
-        const id = 'notification-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9);
+    showNotification(message, type = 'info', duration = appConfig.getTiming('notificationDuration')) {
+        const id = "notification-" + Date.now() + "-" + Math.random().toString(36).substr(2, 9);
         
         // Create notification element
-        const notification = document.createElement('div');
+        const notification = document.createElement("div");
         notification.id = id;
         notification.className = this.getNotificationClasses(type);
         
-        // Add icon and message
-        const icon = this.getNotificationIcon(type);
-        notification.innerHTML = '<div class="flex items-center"><i data-lucide="' + icon + '" class="h-5 w-5 mr-3 flex-shrink-0"></i><div class="flex-1">' + message + '</div><button class="ml-3 p-1 hover:bg-white hover:bg-opacity-20 rounded" onclick="uiComponents.hideNotification(\'' + id + '\')"><i data-lucide="x" class="h-4 w-4"></i></button></div>';
+        // SECURITY FIX: Build notification DOM safely without innerHTML concatenation
+        const containerDiv = document.createElement("div");
+        containerDiv.className = "flex items-center";
+        
+        // Create icon element
+        const icon = document.createElement("i");
+        const iconName = this.getNotificationIcon(type);
+        icon.setAttribute("data-lucide", iconName);
+        icon.className = "h-5 w-5 mr-3 flex-shrink-0";
+        
+        // Create message element with safe text insertion
+        const messageDiv = document.createElement("div");
+        messageDiv.className = "flex-1";
+        messageDiv.textContent = message; // SECURITY FIX: Use textContent to prevent XSS
+        
+        // Create close button with proper event listener (no inline onclick)
+        const closeButton = document.createElement("button");
+        closeButton.className = "ml-3 p-1 hover:bg-white hover:bg-opacity-20 rounded";
+        closeButton.addEventListener("click", () => this.hideNotification(id)); // SECURITY FIX: Safe event binding
+        
+        const closeIcon = document.createElement("i");
+        closeIcon.setAttribute("data-lucide", "x");
+        closeIcon.className = "h-4 w-4";
+        
+        closeButton.appendChild(closeIcon);
+        
+        // Assemble notification structure
+        containerDiv.appendChild(icon);
+        containerDiv.appendChild(messageDiv);
+        containerDiv.appendChild(closeButton);
+        notification.appendChild(containerDiv);
 
         // Add to container or create container
-        let container = document.getElementById('notifications-container');
+        let container = document.getElementById("notifications-container");
         if (!container) {
-            container = document.createElement('div');
-            container.id = 'notifications-container';
-            container.className = 'fixed top-4 right-4 z-50 space-y-2 max-w-md';
+            container = document.createElement("div");
+            container.id = "notifications-container";
+            container.className = "fixed top-4 right-4 z-50 space-y-2 max-w-md";
             document.body.appendChild(container);
         }
 
@@ -190,7 +233,6 @@ class UIComponents {
 
         return id;
     }
-
     /**
      * Hide notification
      * @param {string} id - Notification ID
@@ -276,7 +318,7 @@ class UIComponents {
             setTimeout(() => {
                 const focusEl = document.getElementById(options.focusElement);
                 if (focusEl) focusEl.focus();
-            }, 100);
+            }, appConfig.getTiming('modalTransitionDelay')); // CONFIGURATION FIX: Use centralized timing
         }
 
         // Trigger custom event
@@ -346,12 +388,16 @@ class UIComponents {
      * @param {string} status - Connection status ('connected', 'disconnected', 'checking')
      */
     updateConnectionStatus(status) {
-        this.updateElement('connectionStatus', status.charAt(0).toUpperCase() + status.slice(1));
-        
+        // EFFICIENCY FIX: Query element only once instead of twice
         const statusEl = document.getElementById('connectionStatus');
-        if (statusEl && statusEl.parentElement) {
-            const badge = statusEl.parentElement;
-            badge.className = 'px-2 py-1 rounded text-xs font-medium ' + this.getConnectionStatusClasses(status);
+        if (statusEl) {
+            statusEl.textContent = status.charAt(0).toUpperCase() + status.slice(1);
+            
+            // Update badge styling if parent exists
+            if (statusEl.parentElement) {
+                const badge = statusEl.parentElement;
+                badge.className = 'px-2 py-1 rounded text-xs font-medium ' + this.getConnectionStatusClasses(status);
+            }
         }
     }
 
@@ -472,7 +518,7 @@ class UIComponents {
     showSetupGuide() {
         const cardsContainer = document.getElementById('cardsContainer');
         if (cardsContainer) {
-            cardsContainer.innerHTML = '<div class="text-center py-12"><i data-lucide="music" class="h-16 w-16 mx-auto mb-4 text-gray-400"></i><h3 class="text-lg font-semibold text-gray-700 mb-2">Welcome to Musical Bingo!</h3><p class="text-gray-600 mb-4">To get started, you need to add a Spotify playlist.</p><button id="openSetupModalBtn" class="bg-purple-600 hover:bg-purple-700 text-white px-6 py-2 rounded-lg font-medium">Add Playlist</button></div>';
+            cardsContainer.innerHTML = appConfig.getMessage('info', 'noCardsYet'); // CONFIGURATION FIX: Use centralized message
             
             // Add event listener for setup button
             const setupBtn = document.getElementById('openSetupModalBtn');
@@ -646,8 +692,6 @@ window.uiComponents = uiComponents;
 
 // Provide backward compatibility functions
 window.updateElement = function(id, value, fallback) { uiComponents.updateElement(id, value, fallback); };
-window.showSuccess = function(message, duration) { uiComponents.showSuccess(message, duration); };
-window.showError = function(message, duration) { uiComponents.showError(message, duration); };
 window.showWarning = function(message, duration) { uiComponents.showWarning(message, duration); };
 window.showInfo = function(message, duration) { uiComponents.showInfo(message, duration); };
 window.toggleSetupModal = function(show) { uiComponents.toggleModal('setupModal', show); };

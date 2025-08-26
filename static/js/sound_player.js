@@ -18,6 +18,9 @@ class SoundPlayer {
             }
         } catch (error) {
             console.error('Error initializing sound player:', error);
+            if (window.errorHandler) {
+                window.errorHandler.handleError(error, 'Sound Player Initialization', { autoHide: true });
+            }
         }
     }
 
@@ -57,6 +60,9 @@ class SoundPlayer {
             // Add error handling
             audio.onerror = (e) => {
                 console.error('Error loading sound:', e);
+                if (window.errorHandler) {
+                    window.errorHandler.handleError(e, 'Sound Loading', { autoHide: true });
+                }
                 button.classList.add('bg-red-500');
                 button.disabled = true;
             };
@@ -99,6 +105,9 @@ class SoundPlayer {
                 if (playPromise !== undefined) {
                     playPromise.catch(error => {
                         console.error('Error playing sound:', error);
+                        if (window.errorHandler) {
+                            window.errorHandler.handleError(error, 'Sound Playback', { autoHide: true });
+                        }
                         this.currentSound = null;
                     });
                 }
@@ -109,6 +118,9 @@ class SoundPlayer {
             }
         } catch (error) {
             console.error('Error in playSound:', error);
+            if (window.errorHandler) {
+                window.errorHandler.handleError(error, 'Sound Play Function', { autoHide: true });
+            }
         }
     }
 

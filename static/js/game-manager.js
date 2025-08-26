@@ -8,9 +8,9 @@
 class GameManager {
     constructor() {
         this.validationCache = new Map();
-        this.validationCacheTTL = 300000; // 5 minutes
+        this.validationCacheTTL = appConfig.getTiming('cardValidationCacheTTL'); // CONFIGURATION FIX: Use centralized timing
         this.maxRetries = 3;
-        this.retryDelay = 1000;
+        this.retryDelay = appConfig.getTiming('gameOperationRetryDelay'); // CONFIGURATION FIX: Use centralized timing
     }
 
     // === GAME LIFECYCLE METHODS ===

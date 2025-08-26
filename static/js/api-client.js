@@ -84,6 +84,11 @@ class ApiClient {
         } catch (error) {
             console.error(`API request failed for ${url}:`, error);
             
+            // CONSISTENCY FIX: Use centralized error handler for user feedback
+            if (window.errorHandler) {
+                window.errorHandler.handleError(error, `API Request (${url})`, { autoHide: true });
+            }
+            
             // Re-throw with additional context
             if (!error.isAuthError && !error.status) {
                 error.isNetworkError = true;
