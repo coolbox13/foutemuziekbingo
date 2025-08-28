@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>JavaScript Fixes Test</title>
+    <script src="/static/js/error-handler.js"></script>
+    <script src="/static/js/dashboard-main.js"></script>
+</head>
+<body>
+    <h1>Testing JavaScript Fixes</h1>
+    
+    <button onclick="testSwitchSetupTab()">Test switchSetupTab function</button>
+    <button onclick="testValidateState()">Test dashboard state validation</button>
+    
+    <div id="result"></div>
+    
+    <script>
+        function testSwitchSetupTab() {
+            console.log('Testing switchSetupTab...');
+            try {
+                if (typeof switchSetupTab === 'function') {
+                    console.log('✅ switchSetupTab function exists');
+                    document.getElementById('result').innerHTML += '<p>✅ switchSetupTab function is available</p>';
+                } else {
+                    console.error('❌ switchSetupTab function not found');
+                    document.getElementById('result').innerHTML += '<p>❌ switchSetupTab function not available</p>';
+                }
+            } catch (error) {
+                console.error('❌ Error testing switchSetupTab:', error);
+                document.getElementById('result').innerHTML += '<p>❌ Error: ' + error.message + '</p>';
+            }
+        }
+        
+        function testValidateState() {
+            console.log('Testing dashboard state validation...');
+            try {
+                if (window.dashboardApp && typeof window.dashboardApp.validateInitialState === 'function') {
+                    console.log('✅ validateInitialState method exists');
+                    document.getElementById('result').innerHTML += '<p>✅ validateInitialState method is available</p>';
+                } else {
+                    console.error('❌ validateInitialState method not found');
+                    document.getElementById('result').innerHTML += '<p>❌ validateInitialState method not available</p>';
+                }
+            } catch (error) {
+                console.error('❌ Error testing validateInitialState:', error);
+                document.getElementById('result').innerHTML += '<p>❌ Error: ' + error.message + '</p>';
+            }
+        }
+        
+        // Auto-test when page loads
+        window.addEventListener('DOMContentLoaded', () => {
+            setTimeout(() => {
+                testSwitchSetupTab();
+                testValidateState();
+            }, 1000);
+        });
+    </script>
+</body>
+</html>

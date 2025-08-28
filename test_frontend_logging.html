@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Frontend Logging Test</title>
+    <script src="/static/js/error-handler.js"></script>
+</head>
+<body>
+    <h1>Testing Frontend Error Logging</h1>
+    <button onclick="testErrors()">Trigger Test Errors</button>
+    <button onclick="testConsoleMessages()">Test Console Messages</button>
+    
+    <script>
+        function testErrors() {
+            console.log('Testing error logging...');
+            
+            // Test 1: Reference error
+            try {
+                switchSetupTab();
+            } catch (error) {
+                console.error('ReferenceError test:', error.message);
+            }
+            
+            // Test 2: API error 
+            fetch('/game/api/games', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ test: true })
+            }).then(response => {
+                console.log('API response status:', response.status);
+                if (!response.ok) {
+                    console.error('API Error: http_error');
+                }
+            }).catch(error => {
+                console.error('Network error:', error.message);
+            });
+            
+            // Test 3: Direct error
+            console.error('[Dashboard] Error validating initial state: TypeError: gameManager.validateDashboardState is not a function');
+            console.warn('[Dashboard] Connection warning test');
+        }
+        
+        function testConsoleMessages() {
+            console.log('[Dashboard] DOM loaded, initializing application...');
+            console.log('[Dashboard] Starting application initialization...');  
+            console.log('[Dashboard] Components initialized');
+            console.log('[Dashboard] Event listeners setup complete');
+            console.error('[ErrorHandler] Test error message for server logging');
+            console.warn('WebSocket error: Connection failed');
+        }
+        
+        // Auto-run test when page loads
+        window.addEventListener('DOMContentLoaded', () => {
+            setTimeout(testConsoleMessages, 1000);
+            setTimeout(testErrors, 2000);
+        });
+    </script>
+</body>
+</html>
