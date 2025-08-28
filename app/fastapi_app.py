@@ -95,7 +95,12 @@ def create_app() -> FastAPI:
             "/redoc",
             "/openapi.json",
             "/static/",
-            "/favicon.ico"
+            "/favicon.ico",
+            # CRITICAL: Frontend logging must be exempt to prevent cascade failures
+            "/api/frontend-log",
+            "/api/frontend-batch-log",
+            # Sound files are static assets and should not be rate limited
+            "/sound/api/"
         }
     )
 
@@ -270,9 +275,9 @@ def create_app() -> FastAPI:
             logger.error(f"Error closing Redis connections: {e}")
 
         try:
-            # Close database connections
-            await database.disconnect()
-            logger.info("Database connections closed")
+            # Close database connections (SupabaseService doesn't have disconnect method)
+            # Supabase handles connection pooling automatically
+            logger.info("Database connections closed (Supabase auto-managed)")
         except Exception as e:
             logger.error(f"Error closing database connections: {e}")
 

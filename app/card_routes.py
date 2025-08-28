@@ -54,12 +54,26 @@ async def api_generate_cards(request: Request, current_user: User = Depends(get_
         num_cards = int(data.get("num_cards"))
         state = game_state.get_state()
 
-        if len(state.get("unplayed_tracks", [])) < 25:
+        unplayed_tracks = state.get("unplayed_tracks", [])
+        if len(unplayed_tracks) < 25:
             logger.warning(
                 f"[CARD-AUTH-002] Insufficient tracks for user {current_user.id}",
-                extra={"user_id": current_user.id, "track_count": len(state.get("unplayed_tracks", []))}
+                extra={
+                    "user_id": current_user.id, 
+                    "track_count": len(unplayed_tracks),
+                    "has_playlist_loaded": len(unplayed_tracks) > 0
+                }
             )
-            raise HTTPException(status_code=400, detail="Not enough unplayed tracks")
+            if len(unplayed_tracks) == 0:
+                raise HTTPException(
+                    status_code=400, 
+                    detail="No playlist loaded. Please select a playlist first before generating cards."
+                )
+            else:
+                raise HTTPException(
+                    status_code=400, 
+                    detail=f"Not enough tracks. Need at least 25 tracks, but only {len(unplayed_tracks)} available."
+                )
 
         def create_cards(state):
             state["cards"] = {}

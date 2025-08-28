@@ -300,7 +300,16 @@ async def get_current_user(request: Request) -> User:
                 if user:
                     return user
 
-        logger.error("[AUTH-GET-USER] Authentication failed - no valid session")
+        logger.error(
+            "[AUTH-GET-USER] Authentication failed - no valid session",
+            extra={
+                "session_data_found": session_data is not None,
+                "session_has_user": bool(session_data and session_data.get("user")) if session_data else False,
+                "cookies_available": len(request.cookies) if hasattr(request, 'cookies') else 0,
+                "request_path": request.url.path if hasattr(request, 'url') else "unknown",
+                "client_ip": request.client.host if hasattr(request, 'client') and request.client else "unknown"
+            }
+        )
         raise AuthenticationError("Not authenticated")
 
     except AuthenticationError as e:

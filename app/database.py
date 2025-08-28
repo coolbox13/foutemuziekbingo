@@ -520,7 +520,29 @@ class SupabaseService:
             # Apply filters
             if filters:
                 for column, value in filters.items():
-                    query = query.eq(column, value)
+                    if isinstance(value, dict):
+                        # Handle complex filter operations
+                        for operation, filter_value in value.items():
+                            if operation == "in":
+                                query = query.in_(column, filter_value)
+                            elif operation == "eq":
+                                query = query.eq(column, filter_value)
+                            elif operation == "neq":
+                                query = query.neq(column, filter_value)
+                            elif operation == "gt":
+                                query = query.gt(column, filter_value)
+                            elif operation == "gte":
+                                query = query.gte(column, filter_value)
+                            elif operation == "lt":
+                                query = query.lt(column, filter_value)
+                            elif operation == "lte":
+                                query = query.lte(column, filter_value)
+                            else:
+                                # Fallback for unknown operations
+                                query = query.eq(column, filter_value)
+                    else:
+                        # Simple equality filter
+                        query = query.eq(column, value)
 
             # Apply ordering
             if order_by:
@@ -555,7 +577,17 @@ class SupabaseService:
             message = f"Unexpected error querying records from {table}: {str(error)}"
             logger.error(
                 "[DB-QUERY-ERROR] Unexpected query records error",
-                extra={"table": table, "error": str(error)},
+                extra={
+                    "table": table, 
+                    "error": str(error),
+                    "error_type": type(error).__name__,
+                    "filters": filters,
+                    "order_by": order_by,
+                    "limit": limit,
+                    "offset": offset,
+                    "select_fields": select_fields
+                },
+                exc_info=True  # Include full traceback
             )
             raise DatabaseError(message, error)
 

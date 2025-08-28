@@ -71,7 +71,8 @@ class PlaylistService:
             # Fallback: if database/cache fails, return playlists directly from Spotify
             logger.error(
                 "[PLAYLIST-GET-ERROR] Error getting user playlists",
-                extra={"user_id": user.id, "error": str(e)},
+                extra={"user_id": user.id, "error": str(e), "error_type": type(e).__name__},
+                exc_info=True  # Include full traceback
             )
             try:
                 logger.warning(
@@ -258,7 +259,7 @@ class PlaylistService:
                         cached["name"] != spotify_playlist["name"]
                         or cached.get("description")
                         != spotify_playlist.get("description", "")
-                        or cached["total_tracks"] != spotify_total_tracks
+                        or cached.get("total_tracks", 0) != spotify_total_tracks
                     )
 
                     if needs_update:
@@ -284,7 +285,7 @@ class PlaylistService:
                         )
 
                         # Refresh tracks if track count changed
-                        if cached["total_tracks"] != spotify_total_tracks:
+                        if cached.get("total_tracks", 0) != spotify_total_tracks:
                             await self._refresh_playlist_tracks(
                                 updated_playlist["id"], spotify_playlist
                             )
@@ -319,7 +320,8 @@ class PlaylistService:
         except Exception as e:
             logger.error(
                 "[PLAYLIST-SYNC-ERROR] Error syncing playlist cache",
-                extra={"user_id": user.id, "error": str(e)},
+                extra={"user_id": user.id, "error": str(e), "error_type": type(e).__name__},
+                exc_info=True  # Include full traceback
             )
             raise PlaylistError(f"Failed to sync playlist cache: {str(e)}")
 

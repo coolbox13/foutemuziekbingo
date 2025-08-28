@@ -191,6 +191,24 @@ class GameStateService:
             # Get base game data
             game_data = await database.get_record("games", game_id)
             if not game_data:
+                logger.debug(
+                    "[GAME-GET-NONE] Game not found in database",
+                    extra={"game_id": game_id}
+                )
+                return None
+
+            # Validate required fields before creating Game object
+            required_fields = ["id", "name", "status", "host_id", "created_at"]
+            missing_fields = [field for field in required_fields if field not in game_data]
+            if missing_fields:
+                logger.error(
+                    "[GAME-GET-VALIDATION] Game data missing required fields",
+                    extra={
+                        "game_id": game_id, 
+                        "missing_fields": missing_fields,
+                        "available_fields": list(game_data.keys())
+                    }
+                )
                 return None
 
             game = Game(**game_data)
@@ -246,7 +264,12 @@ class GameStateService:
         except Exception as e:
             logger.error(
                 "[GAME-GET-ERROR] Error retrieving game",
-                extra={"game_id": game_id, "error": str(e)},
+                extra={
+                    "game_id": game_id, 
+                    "error": str(e), 
+                    "error_type": type(e).__name__
+                },
+                exc_info=True  # Include full traceback
             )
             return None
 
