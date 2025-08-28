@@ -111,22 +111,35 @@ async def create_secure_session(
     csrf_token = generate_csrf_token()
 
     # Create session using the appropriate store
-    if hasattr(session_store, 'create_session'):
-        # Redis store
-        session_token = await session_store.create_session(
-            user_id=user_id,
-            spotify_token_info=spotify_token_info,
-            user_data=user_data,
-            csrf_token=csrf_token
+    try:
+        if hasattr(session_store, 'create_session'):
+            # Redis store
+            session_token = await session_store.create_session(
+                user_id=user_id,
+                spotify_token_info=spotify_token_info,
+                user_data=user_data,
+                csrf_token=csrf_token
+            )
+        else:
+            # Memory store fallback
+            session_token = session_store.create_session(
+                user_id=user_id,
+                spotify_token_info=spotify_token_info,
+                user_data=user_data,
+                csrf_token=csrf_token
+            )
+    except Exception as e:
+        logger.error(
+            "[SESSION-CREATE-ERROR] Failed to create session",
+            extra={
+                "user_id": user_id,
+                "error": str(e),
+                "error_type": type(e).__name__,
+                "store_type": type(session_store).__name__
+            },
+            exc_info=True
         )
-    else:
-        # Memory store fallback
-        session_token = session_store.create_session(
-            user_id=user_id,
-            spotify_token_info=spotify_token_info,
-            user_data=user_data,
-            csrf_token=csrf_token
-        )
+        raise
 
     # Create signed session cookie
     signature = create_session_signature(session_token, secret_key)

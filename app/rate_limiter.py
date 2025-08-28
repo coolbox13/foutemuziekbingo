@@ -587,6 +587,10 @@ class RedisRateLimitBackend:
         now = time.time()
 
         try:
+            # Ensure Lua scripts are loaded
+            if not hasattr(self, '_lua_scripts') or not self._lua_scripts:
+                await self._load_lua_scripts()
+                
             if rule.algorithm == RateLimitAlgorithm.TOKEN_BUCKET:
                 result = await redis_client.evalsha(
                     self._lua_scripts['token_bucket'],
@@ -649,7 +653,16 @@ class RedisRateLimitBackend:
                 return status
 
         except Exception as e:
-            logger.error(f"Error incrementing rate limit counter: {e}")
+            logger.error(
+                f"Error incrementing rate limit counter: {e}",
+                extra={
+                    "key": key,
+                    "algorithm": rule.algorithm.value,
+                    "error_type": type(e).__name__,
+                    "lua_scripts_loaded": list(self._lua_scripts.keys()) if hasattr(self, '_lua_scripts') else "Not loaded"
+                },
+                exc_info=True
+            )
             # Fail open - allow request if Redis fails
             return RateLimitStatus(
                 remaining=rule.requests - 1,

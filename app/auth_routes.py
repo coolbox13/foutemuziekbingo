@@ -387,7 +387,12 @@ async def spotify_callback(
     except Exception as e:
         logger.error(
             "[AUTH-CALLBACK-ERROR] Authentication failed",
-            extra={"callback_id": callback_id, "error": str(e)},
+            extra={
+                "callback_id": callback_id, 
+                "error": str(e), 
+                "error_type": type(e).__name__
+            },
+            exc_info=True  # Include full traceback
         )
         return RedirectResponse("/auth/login/page?error=auth_failed", status_code=302)
 

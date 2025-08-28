@@ -32,9 +32,10 @@ class ApiClient {
      * Core HTTP request method with authentication and error handling
      * @param {string} url - Request URL
      * @param {Object} options - Fetch options
+     * @param {number} retryCount - Current retry attempt (internal use)
      * @returns {Promise<any>} - JSON response
      */
-    async makeRequest(url, options = {}) {
+    async makeRequest(url, options = {}, retryCount = 0) {
         const headers = {
             ...this.defaultHeaders,
             ...options.headers
@@ -82,19 +83,67 @@ class ApiClient {
 
             return await response.json();
         } catch (error) {
-            console.error(`API request failed for ${url}:`, error);
+            // PERFORMANCE FIX: Enhanced error handling with retry logic
+            const enhancedError = new Error(`API request failed: ${error.message}`);
+            enhancedError.originalError = error;
+            enhancedError.url = url;
+            enhancedError.method = options.method || 'GET';
+            enhancedError.timestamp = new Date().toISOString();
+            enhancedError.retryCount = retryCount;
+            
+            console.error(`API request failed for ${url} (attempt ${retryCount + 1}):`, error);
+            
+            // Implement exponential backoff for retryable errors
+            if (this.shouldRetry(error, retryCount) && retryCount < 3) {
+                const delay = Math.pow(2, retryCount) * 1000 + Math.random() * 1000; // Add jitter
+                console.log(`Retrying API request in ${delay.toFixed(0)}ms...`);
+                
+                await new Promise(resolve => setTimeout(resolve, delay));
+                return this.makeRequest(url, options, retryCount + 1);
+            }
             
             // CONSISTENCY FIX: Use centralized error handler for user feedback
             if (window.errorHandler) {
-                window.errorHandler.handleError(error, `API Request (${url})`, { autoHide: true });
+                window.errorHandler.handleError(enhancedError, `API Request (${url})`, { autoHide: true });
             }
             
             // Re-throw with additional context
             if (!error.isAuthError && !error.status) {
-                error.isNetworkError = true;
+                enhancedError.isNetworkError = true;
             }
-            throw error;
+            throw enhancedError;
         }
+    }
+
+    /**
+     * Determine if an error should trigger a retry
+     * PERFORMANCE FIX: Smart retry logic for transient errors
+     * @param {Error} error - The error to evaluate
+     * @param {number} retryCount - Current retry attempt
+     * @returns {boolean} - Whether to retry the request
+     */
+    shouldRetry(error, retryCount) {
+        // Don't retry authentication errors or client errors
+        if (error.isAuthError || (error.status >= 400 && error.status < 500)) {
+            return false;
+        }
+
+        // Retry network errors and server errors
+        if (error.isNetworkError || !error.status || error.status >= 500) {
+            return retryCount < 3;
+        }
+
+        // Retry specific error conditions
+        const retryableErrors = [
+            'NetworkError',
+            'TimeoutError',
+            'AbortError',
+            'Failed to fetch'
+        ];
+
+        return retryableErrors.some(retryableError => 
+            error.message.includes(retryableError)
+        );
     }
 
     // === GAME API METHODS ===

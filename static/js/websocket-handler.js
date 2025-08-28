@@ -28,7 +28,9 @@ class WebSocketHandler {
             reconnectionAttempts: appConfig.getLimit('maxReconnectAttempts'),
             reconnectionDelay: appConfig.getTiming('websocketReconnectDelay'),
             reconnectionDelayMax: appConfig.getTiming('websocketReconnectDelayMax'),
-            timeout: appConfig.getApiConfig('defaultTimeout')
+            timeout: appConfig.getApiConfig('defaultTimeout'),
+            withCredentials: true, // AUTHENTICATION FIX: Include session cookies for authentication
+            transports: ['websocket', 'polling'] // Ensure both transports include credentials
         };
 
         // SECURITY FIX: Add page unload cleanup to prevent memory leaks
@@ -352,7 +354,18 @@ class WebSocketHandler {
             return false;
         }
 
-        console.log('Attempting to reconnect WebSocket...');
+        // PERFORMANCE FIX: Add exponential backoff with jitter to prevent thundering herd
+        const baseDelay = this.config.reconnectionDelay;
+        const exponentialDelay = Math.min(
+            baseDelay * Math.pow(2, this.reconnectAttempts - 1),
+            this.config.reconnectionDelayMax
+        );
+        const jitter = Math.random() * 1000; // Add 0-1000ms random jitter
+        const totalDelay = exponentialDelay + jitter;
+
+        console.log(`Attempting to reconnect WebSocket in ${totalDelay.toFixed(0)}ms (attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts})...`);
+        
+        await new Promise(resolve => setTimeout(resolve, totalDelay));
         return this.initialize();
     }
 

@@ -6,6 +6,17 @@ class GameManagement {
         this.loadSavedGames();
     }
 
+    // DEPENDENCY FIX: Safe error handling that works even if errorHandler isn't loaded yet
+    safeShowError(message) {
+        if (this.safeShowError) {
+            this.safeShowError(message);
+        } else {
+            console.error('GameManagement Error:', message);
+            // Fallback alert for critical errors
+            alert(message);
+        }
+    }
+
     initializeEventListeners() {
         const btnSaveGame = document.getElementById('btnSaveGame');
         if (btnSaveGame) {
@@ -42,12 +53,12 @@ class GameManagement {
             fieldName: 'Game Description'
         });
         } catch (error) {
-            showError(error.message);
+            this.safeShowError(error.message);
             return;
         }
 
         if (!gameName) {
-            showError('Game name is required');
+            this.safeShowError('Game name is required');
             return;
         }
         try {
@@ -67,7 +78,7 @@ class GameManagement {
             document.getElementById('gameSaveDescription').value = '';
 
         } catch (error) {
-            showError('Failed to save game: ' + error.message);
+            this.safeShowError('Failed to save game: ' + error.message);
         }
     }
 
@@ -86,7 +97,7 @@ class GameManagement {
                 savedGamesSelect.appendChild(option);
             });
         } catch (error) {
-            showError('Failed to load saved games: ' + error.message);
+            this.safeShowError('Failed to load saved games: ' + error.message);
         }
     }
 
@@ -102,7 +113,7 @@ class GameManagement {
                 fieldName: 'Selected Game File'
             });
         } catch (error) {
-            showError(error.message);
+            this.safeShowError(error.message);
             return;
         }
     
@@ -120,7 +131,7 @@ class GameManagement {
             document.getElementById('savedGamesSelect').value = '';
     
         } catch (error) {
-            showError('Failed to load game: ' + error.message);
+            this.safeShowError('Failed to load game: ' + error.message);
         }
     }
 

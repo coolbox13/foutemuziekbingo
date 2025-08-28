@@ -403,13 +403,7 @@ class ErrorHandler {
     showError(message, options = {}) {
         const { type = 'error', autoHide = true, duration = appConfig.getTiming('notificationDuration') } = options;
 
-        // Try to use existing showError function if available
-        if (typeof window.showError === 'function') {
-            window.showError(message);
-            return;
-        }
-
-        // Fallback implementation
+        // Direct implementation - avoid recursion with window.showError
         this.fallbackShowError(message, type, autoHide, duration);
     }
 

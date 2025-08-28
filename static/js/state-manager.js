@@ -95,8 +95,30 @@ class StateManager {
      * @returns {Promise} - Resolves when update is complete
      */
     async queueStateUpdate(updateRequest) {
-        return new Promise((resolve) => {
-            this.updateQueue.push({ ...updateRequest, resolve });
+        return new Promise((resolve, reject) => {
+            // PERFORMANCE FIX: Add operation ID tracking and timeout protection
+            const operationId = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+            const timestamp = Date.now();
+            
+            const enhancedRequest = { 
+                ...updateRequest, 
+                resolve, 
+                reject, 
+                operationId,
+                timestamp
+            };
+            
+            this.updateQueue.push(enhancedRequest);
+            
+            // Timeout protection to prevent hanging operations
+            setTimeout(() => {
+                const requestIndex = this.updateQueue.findIndex(req => req.operationId === operationId);
+                if (requestIndex !== -1) {
+                    this.updateQueue.splice(requestIndex, 1);
+                    reject(new Error(`State update timeout for operation ${operationId}`));
+                }
+            }, 5000);
+            
             this.processUpdateQueue();
         });
     }
@@ -129,10 +151,29 @@ class StateManager {
                     );
                 }
                 
-                updateRequest.resolve();
+                // PERFORMANCE FIX: Proper success handling with operation tracking
+                if (updateRequest.resolve) {
+                    updateRequest.resolve({
+                        success: true,
+                        operationId: updateRequest.operationId,
+                        timestamp: updateRequest.timestamp,
+                        processingTime: Date.now() - updateRequest.timestamp
+                    });
+                }
             } catch (error) {
-                console.error('Error processing state update:', error);
-                updateRequest.resolve(); // Resolve even on error to prevent hanging
+                console.error(`Error processing state update (${updateRequest.operationId}):`, error);
+                
+                // PERFORMANCE FIX: Proper error handling with reject
+                if (updateRequest.reject) {
+                    updateRequest.reject(new Error(`State update failed: ${error.message}`));
+                } else if (updateRequest.resolve) {
+                    // Fallback for legacy compatibility
+                    updateRequest.resolve({
+                        success: false,
+                        error: error.message,
+                        operationId: updateRequest.operationId
+                    });
+                }
             }
         }
 

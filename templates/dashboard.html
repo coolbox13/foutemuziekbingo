@@ -7,15 +7,24 @@
     <link href="https://cdnjs.cloudflare.com/ajax/libs/lucide/0.293.0/lucide.min.css" rel="stylesheet" />
     <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
-    <script src="/static/js/sound_player.js"></script>
-    <script src="/static/js/game_management.js"></script>
-    <!-- New Modular Frontend Architecture -->
+    
+    <!-- DEPENDENCY FIX: Load configuration and namespace first -->
+    <script src="/static/js/app-namespace.js"></script>
+    <script src="/static/js/config.js"></script>
+    
+    <!-- Core modules that depend on appConfig -->
     <script src="/static/js/error-handler.js"></script>
     <script src="/static/js/api-client.js"></script>
     <script src="/static/js/state-manager.js"></script>
     <script src="/static/js/websocket-handler.js"></script>
-    <script src="/static/js/game-manager.js"></script>
     <script src="/static/js/ui-components.js"></script>
+    <script src="/static/js/game-manager.js"></script>
+    
+    <!-- Legacy modules -->
+    <script src="/static/js/sound_player.js"></script>
+    <script src="/static/js/game_management.js"></script>
+    
+    <!-- Main application - load last with defer -->
     <script src="/static/js/dashboard-main.js" defer></script>
     <style>
         html { font-size: 16px; }
@@ -113,7 +122,7 @@
                             <i data-lucide="music" class="w-6 h-6 text-white"></i>
                         </div>
                         <div>
-                            <h1 class="text-2xl font-bold text-white font-display">Music Bingo</h1>
+                            <h1 id="appTitle" class="text-2xl font-bold text-white font-display">Music Bingo</h1>
                             <p class="text-white text-opacity-75 text-sm">Reimagined</p>
                         </div>
                     </div>
